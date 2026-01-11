@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
         CategorizationRule::class,
         UndoLog::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -187,6 +187,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from v14 to v15:
+         * - Adds referenceNo column for transaction reference numbers (UPI ref, NEFT ref, RRN)
+         * - Adds isReversal column to flag refunded/reversed transactions
+         * - Adds isSubscription column to flag recurring payments
+         */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.d("AppDatabase", "Running migration 14 -> 15")
+                
+                // Add new columns to transactions table
+                db.execSQL("ALTER TABLE transactions ADD COLUMN referenceNo TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN isReversal INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN isSubscription INTEGER NOT NULL DEFAULT 0")
+                
+                Log.d("AppDatabase", "Migration 14 -> 15 completed")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -194,7 +213,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_tracker_db"
                 )
-                .addMigrations(MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 // NO fallbackToDestructiveMigration() - we want safe migrations only
                 .addCallback(AppDatabaseCallback(scope))
                 .build()
