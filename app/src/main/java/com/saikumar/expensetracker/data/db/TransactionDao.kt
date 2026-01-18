@@ -117,4 +117,26 @@ interface TransactionDao {
 
     @Update
     suspend fun updateTransactions(transactions: List<Transaction>)
+    
+    /**
+     * Get ALL transactions (non-deleted) for self-transfer pairing.
+     * key details: ID, Amount, Timestamp, Type, SMS Sender.
+     */
+    @androidx.room.Transaction
+    @Query("""
+        SELECT t.id, t.amountPaisa, t.timestamp, t.transactionType, s.sender as smsSender 
+        FROM transactions t 
+        LEFT JOIN sms_raw s ON t.rawSmsId = s.rawSmsId
+        WHERE t.deletedAt IS NULL 
+        ORDER BY t.timestamp DESC
+    """)
+    suspend fun getAllTransactionsSync(): List<TransactionPairCandidate>
 }
+
+data class TransactionPairCandidate(
+    val id: Long,
+    val amountPaisa: Long,
+    val timestamp: Long,
+    val transactionType: com.saikumar.expensetracker.data.entity.TransactionType,
+    val smsSender: String?
+)

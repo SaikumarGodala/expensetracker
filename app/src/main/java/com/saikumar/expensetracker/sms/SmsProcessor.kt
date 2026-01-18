@@ -14,6 +14,7 @@ import com.saikumar.expensetracker.util.ClassificationDebugLogger
 import com.saikumar.expensetracker.data.entity.*
 import com.saikumar.expensetracker.util.MerchantNormalizer
 import com.saikumar.expensetracker.data.entity.MerchantAlias
+import com.saikumar.expensetracker.data.db.TransactionPairCandidate
 
 data class ParsedTransaction(
     val sender: String,
@@ -819,65 +820,95 @@ object SmsProcessor {
         
         Log.d(TAG, "=== STARTING SELF-TRANSFER PAIRING ===")
         
-        // Get all transactions sorted by date
-        val allTxns = db.transactionDao().getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
+        // Get all transactions sorted by date (using new POJO with sender info)
+        val allTxns = db.transactionDao().getAllTransactionsSync()
         Log.d(TAG, "Total transactions to analyze: ${allTxns.size}")
         
         val oneDayMillis = 24 * 60 * 60 * 1000L
         
-        // Find debits (money going out) that could be self-transfers
-        val debits = allTxns.filter { 
-            it.transaction.isDebit == true && 
-            it.transaction.transactionType in listOf(
-                TransactionType.EXPENSE, TransactionType.TRANSFER,
-                TransactionType.INVESTMENT_OUTFLOW, TransactionType.INVESTMENT_CONTRIBUTION
-            )
-        }
+        // Define types
+        val debitTypes = listOf(
+            TransactionType.EXPENSE, 
+            TransactionType.TRANSFER,
+            TransactionType.INVESTMENT_OUTFLOW, 
+            TransactionType.INVESTMENT_CONTRIBUTION,
+            TransactionType.LIABILITY_PAYMENT
+        )
+        
+        val creditTypes = listOf(
+            TransactionType.INCOME, 
+            TransactionType.REFUND, 
+            TransactionType.CASHBACK
+        )
+        
+        // Find debits (money going out)
+        val debits = allTxns.filter { it.transactionType in debitTypes }
         
         // Find credits (money coming in)
-        val credits = allTxns.filter { 
-            it.transaction.isDebit == false && 
-            it.transaction.transactionType in listOf(
-                TransactionType.INCOME, TransactionType.TRANSFER, TransactionType.REFUND
-            )
-        }
+        // Note: Sometimes incoming transfers are marked as INCOME or TRANSFER depending on logic
+        // We include TRANSFER in credits ONLY if it's not a debit (logic overlap requires care)
+        // For simplicity, we assume credits are INCOME/REFUND/CASHBACK for now.
+        val credits = allTxns.filter { it.transactionType in creditTypes }
         
         Log.d(TAG, "Debits to match: ${debits.size}, Credits available: ${credits.size}")
         var pairsCreated = 0
         
         for (debit in debits) {
-            val debitTxn = debit.transaction
-            if (linkDao.isTransactionLinked(debitTxn.id)) continue
+            // Skip if already linked
+            if (linkDao.isTransactionLinked(debit.id)) continue
             
-            val debitAmount = debitTxn.amountPaisa
-            val debitTimestamp = debitTxn.timestamp
+            val debitAmount = debit.amountPaisa
+            val debitTimestamp = debit.timestamp
+            val debitSender = debit.smsSender
             
             for (credit in credits) {
-                val creditTxn = credit.transaction
-                if (linkDao.isTransactionLinked(creditTxn.id)) continue
-                if (creditTxn.id == debitTxn.id) continue
-                if (creditTxn.amountPaisa != debitAmount) continue
+                // Skip if already linked
+                if (linkDao.isTransactionLinked(credit.id)) continue
                 
-                val timeDiff = kotlin.math.abs(creditTxn.timestamp - debitTimestamp)
+                // Skip if same transaction (should never happen as types differ, but safety first)
+                if (credit.id == debit.id) continue
+                
+                // Must be exact same amount
+                if (credit.amountPaisa != debitAmount) continue
+                
+                // Must be within 48 hours (same day or next day)
+                val timeDiff = kotlin.math.abs(credit.timestamp - debitTimestamp)
                 if (timeDiff > 2 * oneDayMillis) continue
-                if (creditTxn.smsSender == debitTxn.smsSender) continue
                 
-                // High confidence match
-                var confidence = 40 + 30 + 30 // Amount + Time + DifferentBank = 100
-                if (timeDiff > oneDayMillis) confidence -= 10
+                // Must be from different SMS senders (different banks)
+                // If sender is null (manual txn), we can't reliably pair by sender diff, so skip or assume compatible
+                val creditSender = credit.smsSender
+                if (debitSender != null && creditSender != null && debitSender == creditSender) continue
                 
+                // Calculate confidence score
+                var confidence = 0
+                
+                // Exact amount match: +40
+                confidence += 40
+                
+                // Same day (within 24h): +30, next day: +20
+                confidence += if (timeDiff <= oneDayMillis) 30 else 20
+                
+                // Different account (different SMS sender): +30
+                if (debitSender != null && creditSender != null && debitSender != creditSender) {
+                    confidence += 30
+                }
+                
+                // High confidence (>=80) - create link
                 if (confidence >= 80) {
                     try {
                         val link = TransactionLink(
-                            primaryTxnId = debitTxn.id,
-                            secondaryTxnId = creditTxn.id,
+                            primaryTxnId = debit.id,
+                            secondaryTxnId = credit.id,
                             linkType = LinkType.SELF_TRANSFER,
                             confidenceScore = confidence,
                             createdBy = LinkSource.AUTO
                         )
                         linkDao.insertLink(link)
                         pairsCreated++
-                        Log.d(TAG, "PAIRED: ₹${debitAmount/100} | ${debitTxn.smsSender} → ${creditTxn.smsSender}")
+                        Log.d(TAG, "PAIRED: ₹${debitAmount/100.0} | ${debitSender} → ${creditSender} | Confidence: $confidence%")
+                        
+                        // Break inner loop to move to next debit
                         break
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to create link: ${e.message}")
@@ -885,6 +916,7 @@ object SmsProcessor {
                 }
             }
         }
+        
         Log.d(TAG, "=== SELF-TRANSFER PAIRING COMPLETE: $pairsCreated pairs created ===")
     }
 }
