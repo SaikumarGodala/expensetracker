@@ -365,6 +365,9 @@ object SmsProcessor {
             ClassificationDebugLogger.endBatchSession(context)
             Log.d(TAG, "Scan complete: inserted=$inserted, skipped=$skipped, epf/nps=$epfNps")
         }
+        
+        // Run self-transfer pairing after scan
+        pairSelfTransfers(context)
     }
 
     private suspend fun handleRetirement(
@@ -663,6 +666,9 @@ object SmsProcessor {
         
         Log.d(TAG, "Reclassify Complete. Updated $updatedCount transactions.")
         ClassificationDebugLogger.endBatchSession(context)
+        
+        // Run self-transfer pairing after reclassify
+        pairSelfTransfers(context)
     }
 
     suspend fun assignCategoryToTransaction(
@@ -800,5 +806,85 @@ object SmsProcessor {
         } else {
             currYear == prevYear && currMonthNum == prevMonthNum + 1
         }
+    }
+    
+    /**
+     * Auto-pair self-transfers: Detect when ₹X leaves Account A and ₹X arrives in Account B on same day.
+     * Creates TransactionLink records with LinkType.SELF_TRANSFER.
+     */
+    suspend fun pairSelfTransfers(context: Context) = withContext(Dispatchers.IO) {
+        val app = context.applicationContext as ExpenseTrackerApplication
+        val db = app.database
+        val linkDao = db.transactionLinkDao()
+        
+        Log.d(TAG, "=== STARTING SELF-TRANSFER PAIRING ===")
+        
+        // Get all transactions sorted by date
+        val allTxns = db.transactionDao().getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
+        Log.d(TAG, "Total transactions to analyze: ${allTxns.size}")
+        
+        val oneDayMillis = 24 * 60 * 60 * 1000L
+        
+        // Find debits (money going out) that could be self-transfers
+        val debits = allTxns.filter { 
+            it.transaction.isDebit == true && 
+            it.transaction.transactionType in listOf(
+                TransactionType.EXPENSE, TransactionType.TRANSFER,
+                TransactionType.INVESTMENT_OUTFLOW, TransactionType.INVESTMENT_CONTRIBUTION
+            )
+        }
+        
+        // Find credits (money coming in)
+        val credits = allTxns.filter { 
+            it.transaction.isDebit == false && 
+            it.transaction.transactionType in listOf(
+                TransactionType.INCOME, TransactionType.TRANSFER, TransactionType.REFUND
+            )
+        }
+        
+        Log.d(TAG, "Debits to match: ${debits.size}, Credits available: ${credits.size}")
+        var pairsCreated = 0
+        
+        for (debit in debits) {
+            val debitTxn = debit.transaction
+            if (linkDao.isTransactionLinked(debitTxn.id)) continue
+            
+            val debitAmount = debitTxn.amountPaisa
+            val debitTimestamp = debitTxn.timestamp
+            
+            for (credit in credits) {
+                val creditTxn = credit.transaction
+                if (linkDao.isTransactionLinked(creditTxn.id)) continue
+                if (creditTxn.id == debitTxn.id) continue
+                if (creditTxn.amountPaisa != debitAmount) continue
+                
+                val timeDiff = kotlin.math.abs(creditTxn.timestamp - debitTimestamp)
+                if (timeDiff > 2 * oneDayMillis) continue
+                if (creditTxn.smsSender == debitTxn.smsSender) continue
+                
+                // High confidence match
+                var confidence = 40 + 30 + 30 // Amount + Time + DifferentBank = 100
+                if (timeDiff > oneDayMillis) confidence -= 10
+                
+                if (confidence >= 80) {
+                    try {
+                        val link = TransactionLink(
+                            primaryTxnId = debitTxn.id,
+                            secondaryTxnId = creditTxn.id,
+                            linkType = LinkType.SELF_TRANSFER,
+                            confidenceScore = confidence,
+                            createdBy = LinkSource.AUTO
+                        )
+                        linkDao.insertLink(link)
+                        pairsCreated++
+                        Log.d(TAG, "PAIRED: ₹${debitAmount/100} | ${debitTxn.smsSender} → ${creditTxn.smsSender}")
+                        break
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to create link: ${e.message}")
+                    }
+                }
+            }
+        }
+        Log.d(TAG, "=== SELF-TRANSFER PAIRING COMPLETE: $pairsCreated pairs created ===")
     }
 }
