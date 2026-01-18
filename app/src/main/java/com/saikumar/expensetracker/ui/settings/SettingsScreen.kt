@@ -4,18 +4,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import android.util.Log
 import com.saikumar.expensetracker.data.db.AppDatabase
 import com.saikumar.expensetracker.data.entity.Category
 import com.saikumar.expensetracker.data.entity.CategoryType
 import com.saikumar.expensetracker.sms.SmsProcessor
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 import androidx.compose.foundation.rememberScrollState
@@ -23,12 +25,8 @@ import androidx.compose.foundation.verticalScroll
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onNavigateToSalaryHistory: () -> Unit, onNavigateToCategories: () -> Unit = {}) {
-    val smsAutoRead by viewModel.smsAutoRead.collectAsState()
-    val salaryDay by viewModel.salaryDay.collectAsState()
+fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onNavigateToSalaryHistory: () -> Unit, onNavigateToLinkManager: () -> Unit, onNavigateToCategories: () -> Unit = {}, onNavigateToRetirement: () -> Unit = {}) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var showSalaryDayPicker by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -51,6 +49,50 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onN
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+
+            // App Appearance
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("App Theme", style = MaterialTheme.typography.titleMedium)
+                    
+                    // Theme Mode
+                    val themeMode by viewModel.themeMode.collectAsState()
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = themeMode == 0, onClick = { viewModel.setThemeMode(0) }, label = { Text("System") })
+                        FilterChip(selected = themeMode == 1, onClick = { viewModel.setThemeMode(1) }, label = { Text("Light") })
+                        FilterChip(selected = themeMode == 2, onClick = { viewModel.setThemeMode(2) }, label = { Text("Dark") })
+                    }
+                    
+                    HorizontalDivider()
+                    
+                    Text("Color Palette", style = MaterialTheme.typography.titleMedium)
+                    val colorPalette by viewModel.colorPalette.collectAsState()
+                    
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val palettes = listOf("DYNAMIC", "OCEAN", "FOREST", "SUNSET", "SNOW")
+                        palettes.forEach { palette ->
+                            val isSelected = colorPalette == palette
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.setColorPalette(palette) },
+                                label = { 
+                                    if (palette == "DYNAMIC") Text("Default") 
+                                    else Text(palette.lowercase().replaceFirstChar { it.uppercase() }) 
+                                },
+                                leadingIcon = if (isSelected) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                } else if (palette == "SNOW") {
+                                    { Text("❄️") }
+                                } else null
+                            )
+                        }
+                    }
+                }
+            }
+
             // Cycle info card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -162,15 +204,86 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onN
                     }
                 }
             }
+            
+            HorizontalDivider()
+            
+            // RAW SMS LOGGING BUTTON - At the top for easy access
+            Button(
+                onClick = {
+                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                    app.applicationScope.launch(Dispatchers.IO) {
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "📱 Logging ALL existing SMS messages...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        try {
+                            val count = com.saikumar.expensetracker.util.RawSmsLogger.scanAndLogAllSms(context)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "✅ Logged $count SMS messages to Downloads/ExpenseTrackerLogs/", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "SMS logging failed", e)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "❌ Failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text("📱 LOG ALL EXISTING SMS TO FILES")
+            }
+            
+            // TRANSACTION-ONLY LOGGING BUTTON (Temporarily Disabled - Logic Under Construction)
+            /*
+            Button(
+                onClick = {
+                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                    app.applicationScope.launch(Dispatchers.IO) {
+                        try {
+                            // Logic disabled
+                             withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Feature disabled during refactoring", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Error", e)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                )
+            ) {
+                Text("💰 LOG TRANSACTIONS ONLY (FILTERED)")
+            }
+            */
 
             HorizontalDivider()
 
             Button(
                 onClick = {
-                    scope.launch {
-                        android.widget.Toast.makeText(context, "Scanning Inbox...", android.widget.Toast.LENGTH_SHORT).show()
-                        SmsProcessor.scanInbox(context)
-                        android.widget.Toast.makeText(context, "Scan Complete", android.widget.Toast.LENGTH_SHORT).show()
+                    // Use application scope for long-running operations that should survive composition changes
+                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                    app.applicationScope.launch(Dispatchers.IO) {
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "Scanning Inbox...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        try {
+                            SmsProcessor.scanInbox(context)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Scan Complete", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Scan failed", e)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Scan failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -180,10 +293,23 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onN
 
             Button(
                 onClick = {
-                    scope.launch {
-                        android.widget.Toast.makeText(context, "Reclassifying Transactions...", android.widget.Toast.LENGTH_SHORT).show()
-                        SmsProcessor.reclassifyTransactions(context)
-                        android.widget.Toast.makeText(context, "Done", android.widget.Toast.LENGTH_SHORT).show()
+                    // Use application scope for long-running operations that should survive composition changes
+                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                    app.applicationScope.launch(Dispatchers.IO) {
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "Reclassifying Transactions...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        try {
+                            SmsProcessor.reclassifyTransactions(context)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Done", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Reclassify failed", e)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Reclassify failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -191,6 +317,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onN
             ) {
                 Text("Reclassify All Transactions")
             }
+
+
 
             Button(
                 onClick = onNavigateToCategories,
@@ -209,71 +337,121 @@ fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -> Unit, onN
             }
 
             Button(
+                onClick = onNavigateToLinkManager,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+            ) {
+                Text("Manage Transaction Links")
+            }
+
+            Button(
+                onClick = onNavigateToRetirement,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+            ) {
+                Text("View EPF / NPS Balances")
+            }
+
+            Button(
                 onClick = {
-                    scope.launch(Dispatchers.IO) {
+                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                    app.applicationScope.launch(Dispatchers.IO) {
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "Repairing Data...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         try {
-                            val db = AppDatabase.getDatabase(context, scope)
-                            db.clearAllTables()
-                            // Repopulate default categories with improved list
-                            val defaultCategories = listOf(
-                                // Income Categories
-                                Category(name = "Salary", type = CategoryType.INCOME, isDefault = true, icon = "Salary"),
-                                Category(name = "Freelance / Other", type = CategoryType.INCOME, isDefault = true, icon = "Freelance / Other"),
-                                Category(name = "Investments / Dividends", type = CategoryType.INCOME, isDefault = true, icon = "Investments / Dividends"),
-                                Category(name = "Bonus", type = CategoryType.INCOME, isDefault = true, icon = "Bonus"),
-                                Category(name = "Refund", type = CategoryType.INCOME, isDefault = true, icon = "Refund"),
-                                Category(name = "Cashback", type = CategoryType.INCOME, isDefault = true, icon = "Cashback"),
-                                Category(name = "Interest", type = CategoryType.INCOME, isDefault = true, icon = "Interest"),
-                                Category(name = "Other Income", type = CategoryType.INCOME, isDefault = true, icon = "Other Income"),
-                                Category(name = "Unknown Income", type = CategoryType.INCOME, isDefault = true, icon = "Unknown Income"),
-                                
-                                // Fixed Expense Categories
-                                Category(name = "Home Rent / EMI", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Home Rent / EMI"),
-                                Category(name = "Home Expenses", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Home Expenses"),
-                                Category(name = "Insurance (Life + Health + Term)", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Insurance (Life + Health + Term)"),
-                                Category(name = "Subscriptions", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Subscriptions"),
-                                Category(name = "Mobile + WiFi", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Mobile + WiFi"),
-                                Category(name = "Car EMI", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Car EMI"),
-                                Category(name = "Utilities", type = CategoryType.FIXED_EXPENSE, isDefault = true, icon = "Utilities"),
-                                
-                                // Variable Expense Categories
-                                Category(name = "Groceries", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Groceries"),
-                                Category(name = "Food Outside", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Food Outside"),
-                                Category(name = "Coffee", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Coffee"),
-                                Category(name = "Entertainment", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Entertainment"),
-                                Category(name = "Travel", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Travel"),
-                                Category(name = "Fuel", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Fuel"),
-                                Category(name = "Public Transport", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Public Transport"),
-                                Category(name = "Gifts", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Gifts"),
-                                Category(name = "Apparel / Shopping", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Apparel / Shopping"),
-                                Category(name = "Electronics", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Electronics"),
-                                Category(name = "Books", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Books"),
-                                Category(name = "Medical", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Medical"),
-                                Category(name = "Personal Care", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Personal Care"),
-                                Category(name = "Miscellaneous", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Miscellaneous"),
-                                Category(name = "Unknown Expense", type = CategoryType.VARIABLE_EXPENSE, isDefault = true, icon = "Unknown Expense"),
-                                
-                                // Investment Categories
-                                Category(name = "Mutual Funds", type = CategoryType.INVESTMENT, isDefault = true, icon = "Mutual Funds"),
-                                Category(name = "Stocks", type = CategoryType.INVESTMENT, isDefault = true, icon = "Stocks"),
-                                Category(name = "Gold / Silver", type = CategoryType.INVESTMENT, isDefault = true, icon = "Gold / Silver"),
-                                Category(name = "Fixed Deposits", type = CategoryType.INVESTMENT, isDefault = true, icon = "Fixed Deposits"),
-                                Category(name = "Cryptocurrency", type = CategoryType.INVESTMENT, isDefault = true, icon = "Cryptocurrency"),
-                                Category(name = "Bonds", type = CategoryType.INVESTMENT, isDefault = true, icon = "Bonds"),
-                                Category(name = "Recurring Deposits", type = CategoryType.INVESTMENT, isDefault = true, icon = "Recurring Deposits"),
-                                Category(name = "Additional Lump-sum", type = CategoryType.INVESTMENT, isDefault = true, icon = "Additional Lump-sum"),
-                                
-                                // Vehicle Categories
-                                Category(name = "Service", type = CategoryType.VEHICLE, isDefault = true, icon = "Service"),
-                                Category(name = "Repair", type = CategoryType.VEHICLE, isDefault = true, icon = "Repair"),
-                                Category(name = "Parking", type = CategoryType.VEHICLE, isDefault = true, icon = "Parking"),
-                                Category(name = "Registration / Toll", type = CategoryType.VEHICLE, isDefault = true, icon = "Registration / Toll")
-                            )
-                            db.categoryDao().insertCategories(defaultCategories)
+                            com.saikumar.expensetracker.util.MigrationHelper.repairData(app)
                             withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "Database Reset Complete", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "Data Repair Complete", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Repair failed", e)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Repair failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+            ) {
+                Text("Fix / Repair Data Corruption")
+            }
+
+            Button(
+                onClick = {
+                    // Use application scope for long-running operations
+                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                    app.applicationScope.launch(Dispatchers.IO) {
+                        try {
+                            Log.d("SettingsScreen", "=== DATABASE RESET STARTED ===")
+                            
+                            // Use application's stable scope for database operations
+                            val db = app.database
+                            db.close()
+                            Log.d("SettingsScreen", "Database closed")
+                            
+                            // Delete the database file
+                            val dbFile = context.getDatabasePath("expense_tracker_db")
+                            val deleted = dbFile.delete()
+                            Log.d("SettingsScreen", "Database file deleted: $deleted")
+                            
+                            // Delete WAL and SHM files if they exist
+                            context.getDatabasePath("expense_tracker_db-wal").delete()
+                            context.getDatabasePath("expense_tracker_db-shm").delete()
+                            
+                            // Clear the instance so it gets recreated
+                            // Clear the instance so it gets recreated
+                            AppDatabase.clearInstance()
+                            app.forceDatabaseReload()
+                            Log.d("SettingsScreen", "Instance cleared, will be recreated on next access")
+                            
+                            // FORCE SEEDING: Use DAO for safer insertion
+                            val newDb = app.database
+                            val categoriesToSeed = listOf(
+                                Category(name = "Salary", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Freelance / Other", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Refund", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Cashback", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Interest", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Other Income", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Investment Redemption", type = CategoryType.INCOME, isDefault = true),
+                                Category(name = "Housing", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Utilities", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Insurance", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Subscriptions", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Mobile + WiFi", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Loan EMI", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Credit Bill Payments", type = CategoryType.FIXED_EXPENSE, isDefault = true),
+                                Category(name = "Groceries", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Dining Out", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Entertainment", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Travel", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Cab & Taxi", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Food Delivery", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Medical", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Shopping", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Miscellaneous", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Unknown Expense", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Uncategorized", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
+                                Category(name = "Mutual Funds", type = CategoryType.INVESTMENT, isDefault = true),
+                                Category(name = "Recurring Deposits", type = CategoryType.INVESTMENT, isDefault = true),
+                                Category(name = "Fuel", type = CategoryType.VEHICLE, isDefault = true),
+                                Category(name = "Service", type = CategoryType.VEHICLE, isDefault = true),
+                                Category(name = "P2P Transfers", type = CategoryType.VARIABLE_EXPENSE, isDefault = true)
+                            )
+                            
+                            newDb.categoryDao().insertCategories(categoriesToSeed)
+                            val finalCount = newDb.categoryDao().getCount()
+                            Log.d("SettingsScreen", "Categories forcefully re-seeded via DAO. Count: $finalCount")
+                            
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Database Reset & Seeded ($finalCount categories). Ready to Scan.", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                            
+                            Log.d("SettingsScreen", "=== DATABASE RESET COMPLETED ===")
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Reset failed", e)
                             withContext(Dispatchers.Main) {
                                 android.widget.Toast.makeText(context, "Reset failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
                             }

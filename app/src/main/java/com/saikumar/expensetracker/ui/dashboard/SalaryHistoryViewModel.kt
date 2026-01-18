@@ -20,7 +20,6 @@ class SalaryHistoryViewModel(
         .map { transactions ->
             transactions
                 .filter { 
-                    it.transaction.isSalaryCredit ||
                     (it.transaction.transactionType == TransactionType.INCOME && 
                      it.category.name.equals("Salary", ignoreCase = true))
                 }

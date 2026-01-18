@@ -9,6 +9,7 @@ import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import com.saikumar.expensetracker.data.entity.*
 import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import com.saikumar.expensetracker.sms.SmsProcessor
+import com.saikumar.expensetracker.sms.SimilarityResult
 import com.saikumar.expensetracker.util.CycleRange
 import com.saikumar.expensetracker.util.CycleUtils
 import com.saikumar.expensetracker.util.PreferencesManager
@@ -17,6 +18,13 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.*
 import java.time.format.DateTimeFormatter
+import com.saikumar.expensetracker.util.TransactionTypeResolver
+
+// Helper to store link details
+data class LinkDetail(
+    val linkedTxnId: Long,
+    val type: LinkType
+)
 
 data class DashboardUiState(
     val cycleRange: CycleRange? = null,
@@ -28,7 +36,10 @@ data class DashboardUiState(
     val totalVehicleExpenses: Double = 0.0,
     val totalExpenses: Double = 0.0,
     val extraMoney: Double = 0.0,
-    val transactions: List<TransactionWithCategory> = emptyList()
+    val transactions: List<TransactionWithCategory> = emptyList(),
+    val statements: List<TransactionWithCategory> = emptyList(), // Separated statements
+    // Stores detail about the link: Linked Transaction ID + Type
+    val transactionLinks: Map<Long, LinkDetail> = emptyMap()
 )
 
 data class Quadruple<A, B, C, D>(
@@ -79,7 +90,7 @@ class DashboardViewModel(
                     Instant.ofEpochMilli(it.startDate).atZone(ZoneId.systemDefault()).toLocalDateTime(),
                     Instant.ofEpochMilli(it.endDate).atZone(ZoneId.systemDefault()).toLocalDateTime()
                 )
-            } ?: CycleUtils.getCurrentCycleRange(salaryDay, refDate)
+            } ?: CycleUtils.getCurrentCycleRange(refDate)
             FilterParams(range, categories, query)
         }
     }.flatMapLatest { params ->
@@ -87,24 +98,58 @@ class DashboardViewModel(
         val startTimestamp = params.range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endTimestamp = params.range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         
-        repository.getTransactionsInPeriod(startTimestamp, endTimestamp).map { transactions ->
+        combine(
+            repository.getTransactionsInPeriod(startTimestamp, endTimestamp),
+            repository.allTransactionLinks
+        ) { transactions, links ->
                 val sortedTransactions = transactions.sortedByDescending { it.transaction.timestamp }
                 
-                // ACCOUNTING RULE: Use TransactionType for filtering, not flags or category names
-                // Exclude TRANSFER and LIABILITY_PAYMENT from income/expense totals
-                val activeTransactions = sortedTransactions.filter { 
-                    it.transaction.transactionType != TransactionType.TRANSFER &&
-                    it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT
+                // Build map of linked transaction IDs to their Details
+                val linkMap = links
+                    .flatMap { l -> listOf(
+                        l.primaryTxnId to LinkDetail(l.secondaryTxnId, l.linkType), 
+                        l.secondaryTxnId to LinkDetail(l.primaryTxnId, l.linkType)
+                    )}
+                    .toMap()
+                
+                // Separate Statements
+                val (statements, otherTransactions) = sortedTransactions.partition { 
+                    it.transaction.transactionType == TransactionType.STATEMENT 
+                }
+
+                // ACCOUNTING RULE: Use TransactionType for filtering
+                // P0 FIX: Only count COMPLETED transactions to prevent pending/future transactions from inflating totals
+                // Example: "Standing instruction will be debited on Feb 1" received Jan 28 shouldn't count in January
+                val activeTransactions = otherTransactions.filter { 
+                    it.transaction.status == TransactionStatus.COMPLETED &&  // CRITICAL: Only completed transactions
+                    it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT &&
+                    it.transaction.transactionType != TransactionType.TRANSFER &&  // Self-transfers excluded
+                    it.transaction.transactionType != TransactionType.PENDING &&   // Future debits
+                    it.transaction.transactionType != TransactionType.IGNORE &&      // Excluded transactions
+                    it.transaction.transactionType != TransactionType.STATEMENT      // Statements are excluded
                 }
                 
-                // ACCOUNTING RULE: Income = TransactionType.INCOME only
+                // ACCOUNTING RULE: Income = TransactionType.INCOME + CASHBACK (positive adjustments)
                 val income = activeTransactions
-                    .filter { it.transaction.transactionType == TransactionType.INCOME }
+                    .filter { 
+                        it.transaction.transactionType == TransactionType.INCOME ||
+                        it.transaction.transactionType == TransactionType.CASHBACK  // Cashback is positive
+                    }
                     .sumOf { it.transaction.amountPaisa / 100.0 }
                 
-                // ACCOUNTING RULE: Expenses = TransactionType.EXPENSE, categorized by CategoryType
+                // FINANCE-FIRST: Calculate refund amount separately for netting
+                val refundAmount = activeTransactions
+                    .filter { it.transaction.transactionType == TransactionType.REFUND }
+                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                
+                // ACCOUNTING RULE: Expenses = TransactionType.EXPENSE OR INVESTMENT_OUTFLOW
+                // Fix: Include INVESTMENT_CONTRIBUTION (SIPs) in spending charts if configured as Expense?
+                // User wants Investments Blue. 
+                // Usually Investment Contribution IS an outflow/expense for budget.
                 val expenseTransactions = activeTransactions.filter { 
-                    it.transaction.transactionType == TransactionType.EXPENSE 
+                    it.transaction.transactionType == TransactionType.EXPENSE ||
+                    it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
+                    it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION // SIPs should be tracked
                 }
                 
                 val fixed = expenseTransactions
@@ -115,6 +160,7 @@ class DashboardViewModel(
                     .filter { it.category.type == CategoryType.VARIABLE_EXPENSE }
                     .sumOf { it.transaction.amountPaisa / 100.0 }
                     
+                // Fix Issue 3: Investment includes both CategoryType.INVESTMENT with EXPENSE or INVESTMENT_OUTFLOW
                 val investment = expenseTransactions
                     .filter { it.category.type == CategoryType.INVESTMENT }
                     .sumOf { it.transaction.amountPaisa / 100.0 }
@@ -123,12 +169,13 @@ class DashboardViewModel(
                     .filter { it.category.type == CategoryType.VEHICLE }
                     .sumOf { it.transaction.amountPaisa / 100.0 }
                 
-                val totalExpenses = fixed + variable
+                // FINANCE-FIRST: Net refunds against expenses (Issue 5)
+                val totalExpenses = (fixed + variable) - refundAmount
 
                 val filteredTransactions = if (params.query.isBlank()) {
-                    sortedTransactions
+                    otherTransactions
                 } else {
-                    sortedTransactions.filter {
+                    otherTransactions.filter {
                         it.category.name.contains(params.query, ignoreCase = true) ||
                         (it.transaction.note?.contains(params.query, ignoreCase = true) == true) ||
                         (it.transaction.merchantName?.contains(params.query, ignoreCase = true) == true)
@@ -145,7 +192,9 @@ class DashboardViewModel(
                     totalVehicleExpenses = vehicle,
                     totalExpenses = totalExpenses,
                     extraMoney = income - (totalExpenses + vehicle + investment),
-                    transactions = filteredTransactions
+                    transactions = filteredTransactions, // Main list (Excludes Statements)
+                    statements = statements, // Separate list
+                    transactionLinks = linkMap
                 )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
@@ -172,49 +221,60 @@ class DashboardViewModel(
         transaction: Transaction, 
         newCategoryId: Long, 
         newNote: String, 
-        isSelfTransfer: Boolean, 
         accountType: AccountType, 
-        isIncomeManuallyIncluded: Boolean, 
         updateSimilar: Boolean, 
         manualClassification: String? = null
     ) {
         viewModelScope.launch {
             // Determine transaction type from manual classification or category
-            val categories = repository.allEnabledCategories.first()
-            val newCategory = categories.find { it.id == newCategoryId }
+        val categories = repository.allEnabledCategories.first()
+        val newCategory = categories.find { it.id == newCategoryId }
+        
+        val newTransactionType = TransactionTypeResolver.determineTransactionType(
+            transaction = transaction,
+            manualClassification = manualClassification,
+            isSelfTransfer = false, // Not available in this context
+            newCategory = newCategory
+        )
             
-            val newTransactionType = when {
-                isSelfTransfer -> TransactionType.TRANSFER
-                manualClassification == "INCOME" -> TransactionType.INCOME
-                manualClassification == "EXPENSE" -> TransactionType.EXPENSE
-                manualClassification == "NEUTRAL" -> TransactionType.TRANSFER
-                newCategory?.name?.contains("Credit Bill", ignoreCase = true) == true -> TransactionType.LIABILITY_PAYMENT
-                newCategory?.type == CategoryType.INCOME || isIncomeManuallyIncluded -> TransactionType.INCOME
-                else -> TransactionType.EXPENSE
-            }
-            
-            repository.updateTransaction(transaction.copy(
-                categoryId = newCategoryId, 
-                note = newNote, 
-                isSelfTransfer = isSelfTransfer, 
-                accountType = accountType,
-                isIncomeManuallyIncluded = isIncomeManuallyIncluded,
-                manualClassification = manualClassification,
-                transactionType = newTransactionType
-            ))
-            
-            // Apply to similar transactions using SmsProcessor if updateSimilar is true
-            // The function will automatically extract UPI/NEFT IDs for matching
-            if (updateSimilar) {
-                SmsProcessor.assignCategoryToTransaction(
-                    context = preferencesManager.context,
-                    transactionId = transaction.id,
+        repository.updateTransaction(transaction.copy(
+            categoryId = newCategoryId, 
+            note = newNote, 
+            accountType = accountType,
+            manualClassification = manualClassification,
+            transactionType = newTransactionType
+        ))
+        
+        // ===== MERCHANT MEMORY: User Confirmation =====
+        // When user manually categorizes a transaction, learn this mapping permanently
+        if (transaction.merchantName != null && newCategory != null) {
+            try {
+                repository.userConfirmMerchantMapping(
+                    merchantName = transaction.merchantName,
                     categoryId = newCategoryId,
-                    applyToSimilar = true
+                    transactionType = newTransactionType.name,
+                    timestamp = System.currentTimeMillis()
                 )
+                android.util.Log.d("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")
+            } catch (e: Exception) {
+                android.util.Log.w("DashboardViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")
             }
         }
+        
+        // Apply to similar transactions using SmsProcessor if updateSimilar is true
+        // The function will automatically extract UPI/NEFT IDs for matching
+        // and propagate isSelfTransfer and transactionType to similar transactions
+        if (updateSimilar) {
+            SmsProcessor.assignCategoryToTransaction(
+                context = preferencesManager.context,
+                transactionId = transaction.id,
+                categoryId = newCategoryId,
+                applyToSimilar = true,
+                transactionType = newTransactionType
+            )
+        }
     }
+}
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
@@ -233,12 +293,18 @@ class DashboardViewModel(
     /**
      * Find transactions similar to the given transaction for batch categorization
      */
-    suspend fun findSimilarTransactions(transaction: Transaction): SmsProcessor.SimilarityResult {
-        // Get all transactions
-        val allTransactions = repository.getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
-            .map { it.transaction }
+    suspend fun findSimilarTransactions(transaction: Transaction): SimilarityResult {
+        // Optimized: Only fetch relevant candidates from DB instead of all transactions
+        val candidates = if (!transaction.merchantName.isNullOrBlank()) {
+             repository.getTransactionsByMerchant(transaction.merchantName)
+        } else {
+             // Fallback: Fetch last 6 months (covers most relevant history without loading entire DB)
+             val sixMonthsAgo = System.currentTimeMillis() - (180L * 24 * 60 * 60 * 1000)
+             repository.getTransactionsInPeriod(sixMonthsAgo, Long.MAX_VALUE).first()
+                 .map { it.transaction }
+        }
         
-        return SmsProcessor.findSimilarTransactions(transaction, allTransactions)
+        return SmsProcessor.findSimilarTransactions(transaction, candidates)
     }
 
     fun addCategory(name: String, type: CategoryType) {

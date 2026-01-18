@@ -20,6 +20,17 @@ class PreferencesManager(val context: Context) {
         val MERCHANT_PATTERNS = stringPreferencesKey("merchant_patterns")
         val DEBUG_MODE = booleanPreferencesKey("classification_debug_mode")
         val SALARY_COMPANY_NAMES = stringPreferencesKey("salary_company_names")
+        val FIRST_LAUNCH_COMPLETE = booleanPreferencesKey("first_launch_complete")
+        val THEME_MODE = intPreferencesKey("theme_mode") // 0=System, 1=Light, 2=Dark
+        val COLOR_PALETTE = stringPreferencesKey("color_palette") // DYNAMIC, BLUE, GREEN, ORANGE, PURPLE, SNOW
+    }
+
+    val themeMode: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[THEME_MODE] ?: 0
+    }
+
+    val colorPalette: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[COLOR_PALETTE] ?: "DYNAMIC"
     }
 
     val salaryDay: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -31,7 +42,7 @@ class PreferencesManager(val context: Context) {
     }
     
     val debugMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[DEBUG_MODE] ?: false  // Default: disabled
+        preferences[DEBUG_MODE] ?: true  // Default: enabled for debugging
     }
     
     /**
@@ -109,6 +120,18 @@ class PreferencesManager(val context: Context) {
         }
     }
     
+    suspend fun setThemeMode(mode: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[THEME_MODE] = mode
+        }
+    }
+    
+    suspend fun setColorPalette(palette: String) {
+        context.dataStore.edit { preferences ->
+            preferences[COLOR_PALETTE] = palette
+        }
+    }
+    
     /**
      * Add a company name for salary detection.
      * Validates: min 3 chars, stored uppercase.
@@ -148,6 +171,22 @@ class PreferencesManager(val context: Context) {
                 }
             }
             preferences[SALARY_COMPANY_NAMES] = newArray.toString()
+        }
+    }
+    
+    /**
+     * Returns true if this is the first launch (inbox scan not yet done).
+     */
+    val isFirstLaunch: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        !(preferences[FIRST_LAUNCH_COMPLETE] ?: false)
+    }
+    
+    /**
+     * Mark first launch as complete (after initial inbox scan).
+     */
+    suspend fun setFirstLaunchComplete() {
+        context.dataStore.edit { preferences ->
+            preferences[FIRST_LAUNCH_COMPLETE] = true
         }
     }
     

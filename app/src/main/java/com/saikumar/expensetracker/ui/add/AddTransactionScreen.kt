@@ -13,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.saikumar.expensetracker.data.entity.Category
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.ui.graphics.Color
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -28,10 +31,11 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
     var amount by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     var note by remember { mutableStateOf("") }
-    var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var timestamp by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var expanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf<String?>(null) }
+    var manualClassification by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = timestamp)
     
     // Validate amount input
@@ -56,7 +60,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
         topBar = {
             TopAppBar(
                 title = { Text("New Transaction") },
-                navigationIcon = {
+                navigationIcon = {97
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
@@ -146,7 +150,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                    modifier = Modifier.fillMaxWidth().menuAnchor(type = androidx.compose.material3.MenuAnchorType.PrimaryEditable, enabled = true)
+                    modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)
                 )
                 ExposedDropdownMenu(
                     expanded = expanded,
@@ -170,6 +174,45 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
                 label = { Text("Note (Optional)") },
                 modifier = Modifier.fillMaxWidth()
             )
+            
+            // Manual Classification - allows user to override category-based type
+            Text(
+                text = "Classification (Optional):",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = manualClassification == "INCOME",
+                    onClick = { manualClassification = if (manualClassification == "INCOME") null else "INCOME" },
+                    label = { Text("Income", style = MaterialTheme.typography.labelSmall) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFC8E6C9),
+                        selectedLabelColor = Color(0xFF2E7D32)
+                    )
+                )
+                FilterChip(
+                    selected = manualClassification == "EXPENSE",
+                    onClick = { manualClassification = if (manualClassification == "EXPENSE") null else "EXPENSE" },
+                    label = { Text("Expense", style = MaterialTheme.typography.labelSmall) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFFFCDD2),
+                        selectedLabelColor = Color(0xFFC62828)
+                    )
+                )
+                FilterChip(
+                    selected = manualClassification == "NEUTRAL",
+                    onClick = { manualClassification = if (manualClassification == "NEUTRAL") null else "NEUTRAL" },
+                    label = { Text("Transfer", style = MaterialTheme.typography.labelSmall) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFE1BEE7),
+                        selectedLabelColor = Color(0xFF6A1B9A)
+                    )
+                )
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -180,7 +223,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
                 onClick = {
                     validatedPaisa?.let { paisa ->
                         selectedCategory?.let { category ->
-                            viewModel.saveTransaction(paisa, category.id, timestamp, note)
+                            viewModel.saveTransaction(paisa, category.id, timestamp, note, manualClassification)
                             onNavigateBack()
                         }
                     }

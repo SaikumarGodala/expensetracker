@@ -25,7 +25,7 @@ object CycleUtils {
     /**
      * Get cycle range from last working day of previous month to day before last working day of current month
      */
-    fun getCurrentCycleRange(salaryDay: Int = 0, referenceDate: LocalDate = LocalDate.now()): CycleRange {
+    fun getCurrentCycleRange(referenceDate: LocalDate = LocalDate.now()): CycleRange {
         val currentYearMonth = YearMonth.from(referenceDate)
         val previousYearMonth = currentYearMonth.minusMonths(1)
         

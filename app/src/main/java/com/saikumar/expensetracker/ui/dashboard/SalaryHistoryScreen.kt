@@ -17,13 +17,14 @@ import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Format paisa amount to rupee display string
  */
 private fun formatAmount(paisa: Long): String {
     val rupees = paisa / 100.0
-    return "₹${String.format("%,.0f", rupees)}"
+    return "₹${String.format(Locale.getDefault(), "%,.0f", rupees)}"
 }
 
 /**
@@ -96,7 +97,7 @@ fun SalaryItem(item: TransactionWithCategory) {
             if (!item.transaction.note.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = item.transaction.note,
+                    text = item.transaction.note ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

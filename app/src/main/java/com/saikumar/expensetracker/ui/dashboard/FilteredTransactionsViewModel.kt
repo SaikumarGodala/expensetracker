@@ -9,6 +9,7 @@ import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.saikumar.expensetracker.util.TransactionTypeResolver
 
 class FilteredTransactionsViewModel(
     private val repository: ExpenseRepository
@@ -26,14 +27,21 @@ class FilteredTransactionsViewModel(
         val (type, startMillis, endMillis) = params
 
         repository.getTransactionsInPeriod(startMillis, endMillis).map { list ->
-            // For INCOME type, show transactions with TransactionType.INCOME
+            // P0 FIX: Only show COMPLETED transactions
+            // For INCOME type, show transactions with TransactionType.INCOME or CASHBACK
             if (type == CategoryType.INCOME) {
-                list.filter { it.transaction.transactionType == TransactionType.INCOME }
-                    .sortedByDescending { it.transaction.timestamp }
-            } else {
                 list.filter { 
+                    it.transaction.status == TransactionStatus.COMPLETED &&
+                    (it.transaction.transactionType == TransactionType.INCOME ||
+                     it.transaction.transactionType == TransactionType.CASHBACK)
+                }.sortedByDescending { it.transaction.timestamp }
+            } else {
+                // Fix Issue 4: Include INVESTMENT_OUTFLOW for Investment categories
+                list.filter { 
+                    it.transaction.status == TransactionStatus.COMPLETED &&
                     it.category.type == type && 
-                    it.transaction.transactionType == TransactionType.EXPENSE 
+                    (it.transaction.transactionType == TransactionType.EXPENSE ||
+                     it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW)
                 }.sortedByDescending { it.transaction.timestamp }
             }
         }
@@ -47,31 +55,24 @@ class FilteredTransactionsViewModel(
         transaction: Transaction, 
         newCategoryId: Long, 
         newNote: String, 
-        isSelfTransfer: Boolean, 
         accountType: AccountType, 
-        isIncomeManuallyIncluded: Boolean,
         manualClassification: String? = null
     ) {
         viewModelScope.launch {
             val categories = repository.allEnabledCategories.first()
             val newCategory = categories.find { it.id == newCategoryId }
             
-            val newTransactionType = when {
-                isSelfTransfer -> TransactionType.TRANSFER
-                manualClassification == "INCOME" -> TransactionType.INCOME
-                manualClassification == "EXPENSE" -> TransactionType.EXPENSE
-                manualClassification == "NEUTRAL" -> TransactionType.TRANSFER
-                newCategory?.name?.contains("Credit Bill", ignoreCase = true) == true -> TransactionType.LIABILITY_PAYMENT
-                newCategory?.type == CategoryType.INCOME || isIncomeManuallyIncluded -> TransactionType.INCOME
-                else -> TransactionType.EXPENSE
-            }
+            val newTransactionType = TransactionTypeResolver.determineTransactionType(
+                transaction = transaction,
+                manualClassification = manualClassification,
+                isSelfTransfer = false, // Not available in this context
+                newCategory = newCategory
+            )
             
             repository.updateTransaction(transaction.copy(
                 categoryId = newCategoryId,
                 note = newNote,
-                isSelfTransfer = isSelfTransfer,
                 accountType = accountType,
-                isIncomeManuallyIncluded = isIncomeManuallyIncluded,
                 manualClassification = manualClassification,
                 transactionType = newTransactionType
             ))
@@ -82,6 +83,12 @@ class FilteredTransactionsViewModel(
         viewModelScope.launch {
             val category = Category(name = name, type = type, isEnabled = true, isDefault = false, icon = name)
             repository.insertCategory(category)
+        }
+    }
+
+    fun deleteTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.deleteTransaction(transaction)
         }
     }
 

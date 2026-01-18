@@ -21,9 +21,25 @@ import androidx.room.PrimaryKey
             parentColumns = ["id"],
             childColumns = ["categoryId"],
             onDelete = ForeignKey.SET_DEFAULT
+        ),
+        ForeignKey(
+            entity = SmsRaw::class,
+            parentColumns = ["rawSmsId"],
+            childColumns = ["rawSmsId"],
+            onDelete = ForeignKey.RESTRICT
         )
     ],
-    indices = [Index(value = ["categoryId"]), Index(value = ["timestamp"]), Index(value = ["smsHash"])]
+    indices = [
+        Index(value = ["categoryId"]), 
+        Index(value = ["timestamp"]), 
+        // CRITICAL FIX 2: UNIQUE constraint prevents duplicate SMS from creating duplicate transactions
+        // Idempotency is enforced at the DB level - duplicate inserts are ignored
+        Index(value = ["smsHash"], unique = true),
+        Index(value = ["referenceNo"]),
+        Index(value = ["amountPaisa", "timestamp"]), // P1 Performance: Composite index for fuzzy duplicate search
+        Index(value = ["merchantName"]), // P1 Performance: For similar transaction lookup
+        Index(value = ["rawSmsId"]) // P1 Provenance: FK index
+    ]
 )
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -52,15 +68,6 @@ data class Transaction(
     /** Primary classification for financial calculations */
     val transactionType: TransactionType = TransactionType.EXPENSE,
     
-    /** Whether this is a transfer between own accounts (legacy, use transactionType=TRANSFER) */
-    val isSelfTransfer: Boolean = false,
-    
-    /** Whether this was detected as salary (legacy, use transactionType=INCOME) */
-    val isSalaryCredit: Boolean = false,
-    
-    /** User explicitly marked this as income */
-    val isIncomeManuallyIncluded: Boolean = false,
-    
     /** SHA-256 hash of SMS body for deduplication (first 16 chars) */
     val smsHash: String? = null,
     
@@ -69,6 +76,12 @@ data class Transaction(
     
     /** Cleaned SMS snippet for display (excludes noise like IDs, hashes) */
     val smsSnippet: String? = null,
+    
+    /** Full raw SMS body for detailed viewing (unprocessed) */
+    val fullSmsBody: String? = null,
+    
+    /** Foreign key to SmsRaw. RESTRICT on delete to preserve provenance. */
+    val rawSmsId: Long? = null,
     
     /** Manual classification override: "INCOME", "EXPENSE", "NEUTRAL", or null for auto */
     val manualClassification: String? = null,
@@ -80,7 +93,19 @@ data class Transaction(
     val isReversal: Boolean = false,
     
     /** Whether this is identified as a subscription/recurring payment */
-    val isSubscription: Boolean = false
+    val isSubscription: Boolean = false,
+
+    /** Lifecycle status of the transaction (INTENT, PENDING, COMPLETED) */
+    val status: TransactionStatus = TransactionStatus.COMPLETED,
+
+    /** Inferred entity type of the counterparty (BUSINESS, PERSON) */
+    val entityType: EntityType = EntityType.UNKNOWN,
+
+    /** Whether this transaction meets strict expense eligibility rules */
+    val isExpenseEligible: Boolean = true,
+    
+    /** Timestamp when this transaction was soft-deleted (null if active) */
+    val deletedAt: Long? = null
 ) {
     companion object {
         /** Default category ID for uncategorized transactions */

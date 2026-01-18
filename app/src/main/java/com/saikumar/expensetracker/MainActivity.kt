@@ -16,7 +16,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,6 +34,7 @@ import com.saikumar.expensetracker.ui.add.AddTransactionViewModel
 import com.saikumar.expensetracker.ui.dashboard.*
 import com.saikumar.expensetracker.ui.settings.SettingsScreen
 import com.saikumar.expensetracker.ui.settings.SettingsViewModel
+import com.saikumar.expensetracker.ui.retirement.RetirementScreen
 import com.saikumar.expensetracker.ui.theme.ExpenseTrackerTheme
 
 class MainActivity : ComponentActivity() {
@@ -39,12 +44,39 @@ class MainActivity : ComponentActivity() {
         setContent {
             val app = (application as ExpenseTrackerApplication)
             
-            ExpenseTrackerTheme {
+            val themeMode by app.preferencesManager.themeMode.collectAsState(initial = 0)
+            val colorPalette by app.preferencesManager.colorPalette.collectAsState(initial = "DYNAMIC")
+            
+            ExpenseTrackerTheme(
+                themeMode = themeMode,
+                colorPalette = colorPalette
+            ) {
                 val navController = rememberNavController()
+                
+                val scope = rememberCoroutineScope()
                 
                 val smsPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestMultiplePermissions()
-                ) { }
+                ) { permissionsGranted ->
+                    // Auto-scan SMS on first launch if permissions were granted
+                    val smsPermissionsGranted = permissionsGranted[Manifest.permission.READ_SMS] == true
+                    if (smsPermissionsGranted) {
+                        scope.launch {
+                            val isFirstLaunch = app.preferencesManager.isFirstLaunch.first()
+                            if (isFirstLaunch) {
+                                // Trigger auto-scan on first launch
+                                withContext(Dispatchers.IO) {
+                                    try {
+                                        com.saikumar.expensetracker.sms.SmsProcessor.scanInbox(applicationContext)
+                                        app.preferencesManager.setFirstLaunchComplete()
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "First launch auto-scan failed", e)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 LaunchedEffect(Unit) {
                     smsPermissionLauncher.launch(
@@ -109,7 +141,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("overview") {
                             val viewModel: MonthlyOverviewViewModel = viewModel(
-                                factory = MonthlyOverviewViewModel.Factory(app.repository)
+                                factory = MonthlyOverviewViewModel.Factory(app.repository, app.preferencesManager)
                             )
                             MonthlyOverviewScreen(
                                 viewModel, 
@@ -125,7 +157,19 @@ class MainActivity : ComponentActivity() {
                                 viewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onNavigateToSalaryHistory = { navController.navigate("salary_history") },
-                                onNavigateToCategories = { navController.navigate("category_management") }
+                                onNavigateToLinkManager = { navController.navigate("link_manager") },
+                                onNavigateToCategories = { navController.navigate("category_management") },
+                                onNavigateToRetirement = { navController.navigate("retirement") }
+                            )
+                        }
+                        composable("retirement") {
+                            RetirementScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable("link_manager") {
+                            val viewModel: com.saikumar.expensetracker.ui.settings.LinkManagerViewModel = viewModel()
+                            com.saikumar.expensetracker.ui.settings.LinkManagerScreen(
+                                onNavigateBack = { navController.popBackStack() },
+                                viewModel = viewModel
                             )
                         }
                         composable("category_management") {

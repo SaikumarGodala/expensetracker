@@ -142,8 +142,8 @@ fun EditCategoryDialog(
             confirmButton = {
                 TextButton(
                     onClick = { 
-                        showDeleteConfirm = false
                         onDelete()
+                        showDeleteConfirm = false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("Delete") }

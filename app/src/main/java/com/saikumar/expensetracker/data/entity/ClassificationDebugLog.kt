@@ -12,7 +12,14 @@ data class ClassificationDebugLog(
     val conflictResolution: ConflictResolution? = null,
     val finalDecision: FinalDecision,
     val userOverride: UserOverride? = null,
-    val debugMode: Boolean = true
+    val debugMode: Boolean = true,
+    val error: ErrorDetails? = null
+)
+
+data class ErrorDetails(
+    val message: String,
+    val exceptionType: String,
+    val stackTrace: String
 )
 
 data class RawInputCapture(
@@ -33,7 +40,6 @@ data class ParsedFields(
     val accountTypeDetected: String,
     val senderInferred: String?,
     val receiverInferred: String?,
-    val extractedSnippet: String,
     val counterpartyExtraction: CounterpartyExtraction? = null,
     val merchantSanitization: MerchantSanitization? = null,
     val merchantResolution: MerchantResolution? = null
@@ -68,11 +74,10 @@ data class RuleExecution(
     val ruleId: String,
     val ruleName: String,
     val ruleType: String,
-    val inputEvaluated: String,
     val result: String,
     val confidence: Double,
-    val reason: String,
-    val executionTimestamp: Long
+    val reason: String? = null,
+    val executionTimestamp: Long = 0
 )
 
 data class ConflictResolution(
@@ -89,7 +94,10 @@ data class FinalDecision(
     val confidence: String,
     val finalConfidence: Double,
     val requiresUserConfirmation: Boolean,
-    val reasoning: String
+    val reasoning: String? = null,  // Only populated for errors/special cases
+    val status: String = "COMPLETED",
+    val entityType: String = "UNKNOWN",
+    val isExpenseEligible: Boolean = true
 )
 
 data class UserOverride(

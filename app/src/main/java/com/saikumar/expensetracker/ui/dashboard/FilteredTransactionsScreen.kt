@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import com.saikumar.expensetracker.data.entity.CategoryType
+import com.saikumar.expensetracker.ui.common.TransactionEditDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,24 +31,26 @@ fun FilteredTransactionsScreen(
     var editingTransaction by remember { mutableStateOf<TransactionWithCategory?>(null) }
 
     if (editingTransaction != null) {
-        EditTransactionDialog(
+        TransactionEditDialog(
             transaction = editingTransaction!!,
             categories = categories,
             onDismiss = { editingTransaction = null },
-            onConfirm = { categoryId, note, isSelfTransfer, accountType, isIncomeManuallyIncluded, _, manualClassification ->
+            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification ->
                 viewModel.updateTransactionDetails(
-                    editingTransaction!!.transaction, 
-                    categoryId, 
-                    note, 
-                    isSelfTransfer, 
-                    accountType, 
-                    isIncomeManuallyIncluded,
+                    editingTransaction!!.transaction,
+                    categoryId,
+                    note,
+                    accountType,
                     manualClassification
                 )
                 editingTransaction = null
             },
             onAddCategory = { name, type ->
                 viewModel.addCategory(name, type)
+            },
+            onDelete = { txn ->
+                viewModel.deleteTransaction(txn)
+                editingTransaction = null
             }
         )
     }

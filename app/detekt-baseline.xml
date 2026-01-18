@@ -1,0 +1,1420 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:AddCategoryDialog.kt$(type = MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>ArgumentListWrapping:AddCategoryDialog.kt$(when (type) { CategoryType.INCOME -&gt; "Income" CategoryType.FIXED_EXPENSE -&gt; "Fixed Expense" CategoryType.VARIABLE_EXPENSE -&gt; "Variable Expense" CategoryType.INVESTMENT -&gt; "Investment" CategoryType.VEHICLE -&gt; "Vehicle" })</ID>
+    <ID>ArgumentListWrapping:AddTransactionScreen.kt$(ZoneId.systemDefault())</ID>
+    <ID>ArgumentListWrapping:AddTransactionScreen.kt$(millis)</ID>
+    <ID>ArgumentListWrapping:AddTransactionScreen.kt$(type = androidx.compose.material3.MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>ArgumentListWrapping:AddTransactionViewModel.kt$AddTransactionViewModel$("Credit Bill", ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion$("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Credit Card', 'CREDIT_CARD', 1, 0)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion$("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Primary Bank', 'SAVINGS', 0, 1)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion$("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Wallet', 'WALLET', 0, 0)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion$("INSERT OR IGNORE INTO categories (name, type, isEnabled, isDefault) VALUES ('$name', '$type', 1, 1)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE INDEX IF NOT EXISTS index_categorization_rules_categoryId ON categorization_rules (categoryId)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE INDEX IF NOT EXISTS index_categorization_rules_patternType ON categorization_rules (patternType)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE INDEX IF NOT EXISTS index_merchant_memory_categoryId ON merchant_memory (categoryId)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE INDEX IF NOT EXISTS index_transactions_amountPaisa_timestamp ON transactions (amountPaisa, timestamp)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE UNIQUE INDEX IF NOT EXISTS index_categorization_rules_pattern ON categorization_rules (pattern)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_memory_normalizedMerchant ON merchant_memory (normalizedMerchant)")</ID>
+    <ID>ArgumentListWrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_patterns_keyword ON merchant_patterns (keyword)")</ID>
+    <ID>ArgumentListWrapping:CategoryManagementScreen.kt$("Are you sure you want to delete '${category.name}'? Transactions will keep their data but show as Unknown.")</ID>
+    <ID>ArgumentListWrapping:CategoryManagementScreen.kt$(type = MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>ArgumentListWrapping:CategoryManagementScreen.kt$(when (type) { CategoryType.INCOME -&gt; "Income" CategoryType.FIXED_EXPENSE -&gt; "Fixed Expense" CategoryType.VARIABLE_EXPENSE -&gt; "Variable Expense" CategoryType.INVESTMENT -&gt; "Investment" CategoryType.VEHICLE -&gt; "Vehicle" })</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(android.os.Environment.DIRECTORY_DOWNLOADS)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/ExpenseTrackerLogs")</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "Batch Log Saved: $fileName\n(${batchLogs.size} transactions)", android.widget.Toast.LENGTH_LONG)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "Batch Save Failed: ${e.message}", android.widget.Toast.LENGTH_LONG)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "Error: Could not create log file", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "Log Save Failed:\n$errorMsg", android.widget.Toast.LENGTH_LONG)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "Log saved to Downloads:\n$fileName", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "Log saved:\n${file.absolutePath}", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(context, "No transactions to log (0 processed)", android.widget.Toast.LENGTH_LONG)</ID>
+    <ID>ArgumentListWrapping:CommonDateRangePicker.kt$(ZoneId.systemDefault())</ID>
+    <ID>ArgumentListWrapping:CommonDateRangePicker.kt$(dateRangePickerState.selectedEndDateMillis!!)</ID>
+    <ID>ArgumentListWrapping:CommonDateRangePicker.kt$(dateRangePickerState.selectedStartDateMillis!!)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(";\\s*([A-Za-z][A-Za-z0-9\\s]{2,40}?)\\s+credited", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(extracted)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(humanName)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(it)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(merchantName, false, false)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(normalizeExtraction(extracted), "EXPLICIT_TRANSFER", "MEDIUM", true)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(normalizeExtraction(extracted), "NAME_BEFORE_ACTION", "MEDIUM", true)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(normalizeExtraction(extracted), "SEMICOLON_NAME_PATTERN", "HIGH", true)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(normalizeExtraction(humanName), "UPI_HANDLE", "MEDIUM", true)</ID>
+    <ID>ArgumentListWrapping:CounterpartyExtractor.kt$CounterpartyExtractor$(smsBody)</ID>
+    <ID>ArgumentListWrapping:CreditCardDetector.kt$CreditCardDetector$("CASHBACK", "CASH BACK", "REWARDS CREDITED", "REWARD POINTS", "POINTS CREDITED", "LOYALTY BONUS", "REFERRAL BONUS", "SHOPPING CASHBACK")</ID>
+    <ID>ArgumentListWrapping:CreditCardDetector.kt$CreditCardDetector$("PAYMENT RECEIVED ON", "RECEIVED.*CREDIT CARD", "CREDITED TO.*CREDIT CARD", "PAYMENT RECEIVED FOR YOUR", "WE HAVE RECEIVED.*PAYMENT")</ID>
+    <ID>ArgumentListWrapping:CreditCardDetector.kt$CreditCardDetector$("VISA", "MASTERCARD", "RUPAY", "AMEX", "AMERICAN EXPRESS", "DINERS", "MAESTRO", "DISCOVER")</ID>
+    <ID>ArgumentListWrapping:CreditCardDetector.kt$CreditCardDetector$("WILL BE DEBITED", "DUE BY", "STANDING INSTRUCTION", "RECURRING CHARGE", "SCHEDULED", "IS DUE", "AUTO-DEBIT", "FUTURE DEBIT")</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$("Fixed", state.totalFixedExpenses, Color(0xFFF44336))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$("Invest", state.totalInvestments, Color(0xFF2196F3))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$("Variable", state.totalVariableExpenses, Color(0xFFFF9800))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$("Vehicle", state.totalVehicleExpenses, Color(0xFF9C27B0))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$("₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(0xFF2196F3)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(0xFF9C27B0)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(0xFFF44336)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(0xFFFF9800)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(12.dp)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(CategoryType.FIXED_EXPENSE)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(CategoryType.INVESTMENT)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(CategoryType.VARIABLE_EXPENSE)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(CategoryType.VEHICLE)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(Locale.getDefault(), "%,.0f", state.extraMoney)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(PieEntry(state.totalVariableExpenses.toFloat(), "Variable"))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(PieEntry(state.totalVehicleExpenses.toFloat(), "Vehicle"))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(ZoneId.systemDefault())</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(alpha = 0.1f)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(bottom = 80.dp)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(dateRangePickerState.selectedEndDateMillis!!)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(dateRangePickerState.selectedStartDateMillis!!)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(horizontal = 16.dp, vertical = 4.dp)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(initialSelectedStartDateMillis = initialStart, initialSelectedEndDateMillis = initialEnd)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(12.dp))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(onClick = onClick)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(onClick = onNavigateToAdd, containerColor = MaterialTheme.colorScheme.primary)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(padding)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(shape = MaterialTheme.shapes.medium, color = color.copy(alpha = 0.1f), modifier = Modifier.clickable(onClick = onClick))</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(state.totalVariableExpenses.toFloat(), "Variable")</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(state.totalVehicleExpenses.toFloat(), "Vehicle")</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(text = state.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "...", modifier = Modifier.clickable { onAdjust() }, fontWeight = FontWeight.SemiBold)</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(transaction, linkType = linkDetail?.type, onClick = { editingTransaction = transaction })</ID>
+    <ID>ArgumentListWrapping:DashboardScreen.kt$(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })</ID>
+    <ID>ArgumentListWrapping:DashboardViewModel.kt$DashboardViewModel$("DashboardViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")</ID>
+    <ID>ArgumentListWrapping:DashboardViewModel.kt$DashboardViewModel$("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")</ID>
+    <ID>ArgumentListWrapping:DuplicateDetector.kt$DuplicateDetector$(" + ")</ID>
+    <ID>ArgumentListWrapping:ExpenseRepository.kt$ExpenseRepository$( smsHash, referenceNo, amountPaisa, timestamp, merchantName, accountId )</ID>
+    <ID>ArgumentListWrapping:FilteredTransactionsScreen.kt$(modifier = Modifier.padding(padding).fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center)</ID>
+    <ID>ArgumentListWrapping:FilteredTransactionsScreen.kt$(padding)</ID>
+    <ID>ArgumentListWrapping:FilteredTransactionsScreen.kt$(when (categoryType) { CategoryType.INCOME -&gt; "Income" CategoryType.FIXED_EXPENSE -&gt; "Fixed Expenses" CategoryType.VARIABLE_EXPENSE -&gt; "Variable Expenses" CategoryType.INVESTMENT -&gt; "Investments" CategoryType.VEHICLE -&gt; "Vehicle" })</ID>
+    <ID>ArgumentListWrapping:MainActivity.kt$MainActivity$("filtered/${type.name}/$start/$end")</ID>
+    <ID>ArgumentListWrapping:MainActivity.kt$MainActivity$(app.repository, app.preferencesManager, app.database.cycleOverrideDao())</ID>
+    <ID>ArgumentListWrapping:MainActivity.kt$MainActivity$(viewModel, type, start, end, onNavigateBack = { navController.popBackStack() })</ID>
+    <ID>ArgumentListWrapping:MerchantPatternMatcher.kt$MerchantPatternMatcher$(it)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$("Tap to change date range", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$("dd MMM yyyy")</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$("dd MMM")</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(220.dp)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(DateTimeFormatter.ofPattern("dd MMM yyyy"))</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(DateTimeFormatter.ofPattern("dd MMM"))</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(bottom = 8.dp)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(bottom = 8.dp))</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(txn)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewScreen.kt$(vertical = 6.dp)</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$("MonthlyOverviewViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")</ID>
+    <ID>ArgumentListWrapping:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$("MonthlyOverviewViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")</ID>
+    <ID>ArgumentListWrapping:SalaryHistoryScreen.kt$(modifier = Modifier.padding(padding).fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center)</ID>
+    <ID>ArgumentListWrapping:SalaryHistoryScreen.kt$(padding)</ID>
+    <ID>ArgumentListWrapping:SelfTransferDetector.kt$SelfTransferDetector$("SELF", "OWN ACCOUNT", "YOUR OWN ACCOUNT", "TRANSFER BETWEEN YOUR ACCOUNTS", "TRANSFER TO SELF", "SELF TRANSFER", "TO YOUR OWN")</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$("Dark")</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$("Light")</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$("System")</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(0)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(1)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(18.dp)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(2)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Database Reset Complete - You can now Scan Inbox", android.widget.Toast.LENGTH_LONG)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Reclassify failed: ${e.message}", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Reclassifying Transactions...", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Reset failed: ${e.message}", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Scan Complete", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Scan failed: ${e.message}", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(context, "Scanning Inbox...", android.widget.Toast.LENGTH_SHORT)</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(selected = themeMode == 0, onClick = { viewModel.setThemeMode(0) }, label = { Text("System") })</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(selected = themeMode == 1, onClick = { viewModel.setThemeMode(1) }, label = { Text("Light") })</ID>
+    <ID>ArgumentListWrapping:SettingsScreen.kt$(selected = themeMode == 2, onClick = { viewModel.setThemeMode(2) }, label = { Text("Dark") })</ID>
+    <ID>ArgumentListWrapping:SmsConstants.kt$SmsConstants.DirectionDetector$( "credited", "received", "deposited", "loaded", "recharge" )</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("(?:^|\\n)\\s*To\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s*\\n|\\s*$)", Pattern.CASE_INSENSITIVE or Pattern.MULTILINE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("(?:credited from|deposited from|transferred from|received from)\\s+([A-Za-z0-9][A-Za-z0-9\\s]{2,40}?)(?:\\s+on|\\s+VPA|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("(?:credited from|deposited from|transferred from|received from)\\s+([A-Za-z][A-Za-z\\s]{2,30}?)(?:\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("(?:debited to|paid to|transferred to|sent to)\\s+([A-Za-z0-9][A-Za-z0-9\\s]{2,40}?)(?:\\s+on|\\s+VPA|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("(?:debited to|paid to|transferred to|sent to)\\s+([A-Za-z][A-Za-z\\s]{2,30}?)(?:\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("(?:sent|paid)\\s+(?:Rs\\.?|INR)\\s*[\\d,]+(?:\\.\\d{1,2})?\\s+(?:to)\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(", ")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("BONUS", ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("CASHBACK", ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("DIVIDEND", ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("Dining Out", "Entertainment", "Shopping", "Grooming", "Food Delivery", "Cab &amp; Taxi")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("INTEREST", ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("LEVEL_5_INCOME_FALLBACK", "LEVEL_6_EXPENSE_FALLBACK", "EXPENSE_FALLBACK", "INCOME_UNIDENTIFIED")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("REFUND", ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("\\b([A-Za-z][A-Za-z\\s]{2,30}?)\\s+(?:credited|debited|transferred|paid|received)\\b", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("transfer\\s+from\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s+Ref|\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$("transfer\\s+to\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s+Ref|\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(Dispatchers.IO)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.BONUS, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.CASHBACK, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.INTEREST, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.INVESTMENTS_DIVIDENDS, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.OTHER_INCOME, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.REFUND, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(SmsConstants.CategoryNames.SALARY, ignoreCase = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "Applying category to similar: pattern=$matchPattern, type=$matchType, isSelfTransfer=$isSelfTransfer, transactionType=$transactionType")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "CC_MERCHANT_BOOST: Suppressed no_counterparty penalty, boosted confidence to $computedConfidence for merchant: $finalMerchantName")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: Candidate='$extracted' rejected: $rejectionReason (pattern: EXPLICIT_TRANSFER)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: Candidate='$extracted' rejected: $rejectionReason (pattern: NAME_BEFORE_ACTION)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: Candidate='$extracted' rejected: $rejectionReason (pattern: SEMICOLON_NAME_PATTERN)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: UPI='$upiId' extracted name='$humanName' rejected: $rejectionReason (pattern: UPI_HANDLE)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Extracted='$extracted' → Normalized='$normalized' (EXPLICIT_TRANSFER, all rules passed)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Extracted='$extracted' → Normalized='$normalized' (NAME_BEFORE_ACTION, alphabetic ratio OK, valid person name)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Extracted='$extracted' → Normalized='$normalized' (SEMICOLON_NAME_PATTERN, IDFC/ICICI format)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Phone-only transfer detected='$extracted' → Formatted='$normalized' (EXPLICIT_TRANSFER, phone pattern)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: UPI='$upiId' → Name='$humanName' → Normalized='$normalized' (UPI_HANDLE, validation passed)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "DEDUP: Duplicate detected via ${duplicateResult.tier} " + "(confidence: ${(duplicateResult.confidence * 100).toInt()}%) - ${duplicateResult.reason}")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "DUPLICATE DETECTED: Removing transaction ID=${toDelete.id} (amount=₹${amount.toDouble()/100.0}, merchant1=$merchant1, merchant2=$merchant2)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "ENTITY_CLASSIFICATION: $finalMerchantName -&gt; $entityType (score=${entityClassification.score}, food=${entityClassification.foodInferred}, signals=${entityClassification.signals})")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "FOOD_INFERENCE: Inferred '${category.name}' for '$merchantName' (Score: ${foodResult.confidence}, Reasons: ${foodResult.reasons})")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_MEMORY: Recorded occurrence for '$finalMerchantName' → '${finalCategory.name}'")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_MEMORY: Using learned category '${category.name}' for merchant '$merchantName' (occurrences: ${learnedMapping.occurrenceCount}, userConfirmed: ${learnedMapping.userConfirmed})")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_RESOLUTION: ${sanitizedMerchant ?: extractedMerchant} -&gt; $resolvedMerchant (rule: $merchantResolutionRule)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_RESOLUTION: Placeholder '$originalMerchant' overridden by EARLY counterparty -&gt; '${earlyCounterparty.extractedName}' (rule: ${earlyCounterparty.extractionRule})")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_RESOLUTION: Placeholder '$originalMerchant' overridden by UPI -&gt; '$humanName'")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_RESOLUTION: Placeholder '$originalMerchant' retained (no early counterparty or UPI candidate found)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_SANITIZATION: Removed placeholder '$extractedMerchant' (no candidate in message)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_SANITIZATION_DEFERRED: '$extractedMerchant' (counterparty found: ${counterpartyExtraction.extractedName})")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "MERCHANT_SANITIZATION_DEFERRED: Placeholder '$merchantName' - counterparty already extracted, deferring to Step 1")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "Marked transaction ${txn.id} for update (pattern: $pattern, isSelfTransfer: $isSelfTransfer, type: $transactionType)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "No valid pattern found (UPI/NEFT/SafeMerchant), skipping similar transaction update")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "PIPELINE_TRACE: Early counterparty extraction used in resolution: extractedName='${counterpartyExtraction.extractedName}' (rule: ${counterpartyExtraction.extractionRule}) -&gt; final merchant='$resolvedMerchant' (resolutionRule: $merchantResolutionRule)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "RECLASSIFICATION_MERCHANT_RESOLUTION: $originalMerchant -&gt; $resolvedMerchant (rule: $merchantResolutionRule)")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(TAG, "SUCCESS: Inserted txn ${finalTransaction.id}: ${finalCategory.name} - ₹${amountPaisa / 100.0} (${finalTransaction.transactionType})")</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(body, extractedMerchant, counterpartyExtraction.found)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(body, isCredit, userSalaryCompanyNames)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(body, it, isSelfTransfer, isSalaryCredit, isCredit, natureResolution)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(body, sanitizedMerchant, upiId, counterpartyExtraction)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(content)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(content, newCategory, isAutoSelfTransfer, isSalaryCredit, finalIsCredit, reclassNatureResolution)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(content, originalMerchant, extractUpiId(content), earlyCounterparty)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(name = "Review Subscriptions", type = CategoryType.FIXED_EXPENSE, isDefault = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(name = "Utilities", type = CategoryType.FIXED_EXPENSE, isDefault = true)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(sevenDaysAgo, System.currentTimeMillis())</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody, isCredit)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody, isDebit)</ID>
+    <ID>ArgumentListWrapping:SmsProcessor.kt$SmsProcessor$(snippet)</ID>
+    <ID>ArgumentListWrapping:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$("Extracted name should contain RAJEEV", counterparty.extractedName?.uppercase()?.contains("RAJEEV") == true)</ID>
+    <ID>ArgumentListWrapping:Theme.kt$(120.dp)</ID>
+    <ID>ArgumentListWrapping:Theme.kt$(Alignment.TopCenter)</ID>
+    <ID>ArgumentListWrapping:Theme.kt$(alpha = 0.8f)</ID>
+    <ID>ArgumentListWrapping:Theme.kt$(alpha=0.3f)</ID>
+    <ID>ArgumentListWrapping:TransactionDao.kt$TransactionDao$("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL ORDER BY timestamp DESC")</ID>
+    <ID>ArgumentListWrapping:TransactionDao.kt$TransactionDao$("SELECT * FROM transactions WHERE smsSnippet LIKE '%' || :pattern || '%' AND deletedAt IS NULL ORDER BY timestamp DESC")</ID>
+    <ID>ArgumentListWrapping:TransactionDao.kt$TransactionDao$("SELECT * FROM transactions WHERE timestamp &gt;= :startTimestamp AND timestamp &lt;= :endTimestamp AND deletedAt IS NULL ORDER BY timestamp DESC")</ID>
+    <ID>ArgumentListWrapping:TransactionEditDialog.kt$("Amount: ${formatAmount(transaction.transaction.amountPaisa)}", style = MaterialTheme.typography.titleMedium)</ID>
+    <ID>ArgumentListWrapping:TransactionEditDialog.kt$("Save")</ID>
+    <ID>ArgumentListWrapping:TransactionEditDialog.kt$(onClick = { onConfirm(selectedCategory.id, note, accountType, applyToSimilar, manualClassification) })</ID>
+    <ID>ArgumentListWrapping:TransactionEditDialog.kt$(selectedCategory.id, note, accountType, applyToSimilar, manualClassification)</ID>
+    <ID>ArgumentListWrapping:TransactionEditDialog.kt$(transaction.transaction.amountPaisa)</ID>
+    <ID>ArgumentListWrapping:TransactionEditDialog.kt$(type = MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>ArgumentListWrapping:TransactionNatureResolver.kt$TransactionNatureResolver$("pos", "card machine", "terminal", "edc", "mswipe", "pinelabs", "paytm soundbox")</ID>
+    <ID>ArgumentListWrapping:TransactionNatureResolver.kt$TransactionNatureResolver$(TAG, "EXPENSE_ELIGIBILITY: eligible=$isEligible (completed=$isCompleted, ownershipChanged=$ownershipChanged, business=$isBusiness, notReversal=$notReversal)")</ID>
+    <ID>ArgumentListWrapping:TransactionValidator.kt$TransactionValidator$(TransactionType.EXPENSE, TransactionType.INVESTMENT_OUTFLOW, TransactionType.TRANSFER)</ID>
+    <ID>ArgumentListWrapping:TransactionValidator.kt$TransactionValidator$(TransactionType.EXPENSE, TransactionType.LIABILITY_PAYMENT, TransactionType.TRANSFER)</ID>
+    <ID>BlockCommentInitialStarAlignment:Type.kt$/* Other default text styles to override titleLarge = TextStyle( fontFamily = FontFamily.Default, fontWeight = FontWeight.Normal, fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = 0.sp ), labelSmall = TextStyle( fontFamily = FontFamily.Default, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.5.sp ) */</ID>
+    <ID>ChainWrapping:SmsProcessor.kt$SmsProcessor$&amp;&amp;</ID>
+    <ID>CommentSpacing:Category.kt$Category$// Icon identifier for UI</ID>
+    <ID>ComplexCondition:CreditCardDetector.kt$CreditCardDetector$hasIssuer &amp;&amp; hasPaymentVerb &amp;&amp; (upper.contains("BILL") || upper.contains("DUE"))</ID>
+    <ID>ComplexCondition:FoodDetector.kt$FoodDetector$lowerUpi.contains("paytmqr") || lowerUpi.contains("bharatpe") || lowerUpi.contains("phonepe") || lowerUpi.contains("googlepay")</ID>
+    <ID>ComplexCondition:PromotionalFilter.kt$PromotionalFilter$(lower.contains("samapt hone wala") || lower.contains("pack expiring") || lower.contains("validity expiring") || lower.contains("recharge karein")) &amp;&amp; (lower.contains("https://") || lower.contains("http://"))</ID>
+    <ID>ComplexCondition:PromotionalFilter.kt$PromotionalFilter$lower.contains("instant disbursal") || lower.contains("zero hidden charges") || lower.contains("get rs") &amp;&amp; (lower.contains("interest") || lower.contains("loan")) || lower.contains("apply now") &amp;&amp; lower.contains("loan") || lower.contains("pre-approved loan") || lower.contains("personal loan upto")</ID>
+    <ID>ComplexCondition:PromotionalFilter.kt$PromotionalFilter$lower.contains("switch to") || lower.contains("miss na kare") || (lower.contains("get") &amp;&amp; lower.contains("gb") &amp;&amp; lower.contains("rs")) || (lower.contains("benefit") &amp;&amp; lower.contains("plan"))</ID>
+    <ID>ComplexCondition:SelfTransferScorer.kt$SelfTransferScorer$t1.accountId != null &amp;&amp; t1.accountId != 0L &amp;&amp; t2.accountId != null &amp;&amp; t2.accountId != 0L</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$(lower.contains("samapt hone wala") || lower.contains("pack expiring") || lower.contains("validity expiring") || lower.contains("recharge karein")) &amp;&amp; (lower.contains("https://") || lower.contains("http://"))</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$isDebit &amp;&amp; entityType == EntityType.PERSON &amp;&amp; finalTransactionType != TransactionType.TRANSFER &amp;&amp; finalTransactionType != TransactionType.LIABILITY_PAYMENT</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$isMandate &amp;&amp; (isFuture || lower.contains("reminder") || lower.contains("request"))</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$lower.contains("instant disbursal") || lower.contains("zero hidden charges") || lower.contains("get rs") &amp;&amp; (lower.contains("interest") || lower.contains("loan")) || lower.contains("apply now") &amp;&amp; lower.contains("loan") || lower.contains("pre-approved loan") || lower.contains("personal loan upto")</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$lower.contains("pending") || lower.contains("processing") || lower.contains("initiated") || lower.contains("will be debited") || (lower.contains("authorization") &amp;&amp; lower.contains("successful"))</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$lower.contains("request") || lower.contains("requested") || lower.contains("otp") || lower.contains("verification code") || lower.contains("approve autopay") || lower.contains("set up autopay") || (lower.contains("mandate") &amp;&amp; !lower.contains("successful"))</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$lower.contains("switch to") || lower.contains("miss na kare") || (lower.contains("get") &amp;&amp; lower.contains("gb") &amp;&amp; lower.contains("rs")) || (lower.contains("benefit") &amp;&amp; lower.contains("plan"))</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$msg.contains("mandate") || msg.contains("standing instruction") || msg.contains("e-mandate") || msg.contains("auto debit")</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$smsBody.contains("credit card", ignoreCase = true) &amp;&amp; smsBody.contains("received", ignoreCase = true) &amp;&amp; transactionType != TransactionType.LIABILITY_PAYMENT &amp;&amp; transactionType != TransactionType.PENDING</ID>
+    <ID>ComplexCondition:SmsProcessor.kt$SmsProcessor$upiId != null &amp;&amp; !upiId.contains("gmail") &amp;&amp; !upiId.contains("yahoo") &amp;&amp; !upiId.contains("hotmail") &amp;&amp; !upiId.contains(".com")</ID>
+    <ID>ComplexCondition:TransactionNatureResolver.kt$TransactionNatureResolver$upper.contains("CASHBACK") || upper.contains("REWARD") || upper.contains("BONUS") || upper.contains("INTEREST CREDITED") || upper.contains("CREDIT SCORE")</ID>
+    <ID>ComplexCondition:TransactionNatureResolver.kt$TransactionNatureResolver$upper.contains("PAYMENT") &amp;&amp; (upper.contains("RECEIVED") || upper.contains("CREDITED")) &amp;&amp; upper.contains("CREDIT CARD")</ID>
+    <ID>CyclomaticComplexMethod:AddTransactionScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () -&gt; Unit)</ID>
+    <ID>CyclomaticComplexMethod:AddTransactionViewModel.kt$AddTransactionViewModel$fun saveTransaction(amountPaisa: Long, categoryId: Long, timestamp: Long, note: String, manualClassification: String? = null)</ID>
+    <ID>CyclomaticComplexMethod:CounterpartyExtractor.kt$CounterpartyExtractor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>CyclomaticComplexMethod:CounterpartyExtractor.kt$CounterpartyExtractor$fun validateExtraction(candidate: String): Pair&lt;Boolean, String?&gt;</ID>
+    <ID>CyclomaticComplexMethod:DashboardScreen.kt$@Composable fun TransactionItem(item: TransactionWithCategory, linkType: com.saikumar.expensetracker.data.entity.LinkType? = null, onClick: () -&gt; Unit)</ID>
+    <ID>CyclomaticComplexMethod:DuplicateDetector.kt$DuplicateDetector$suspend fun check( smsHash: String, referenceNo: String?, amountPaisa: Long, timestamp: Long, merchantName: String? = null, accountId: Long? = null ): CheckResult</ID>
+    <ID>CyclomaticComplexMethod:PromotionalFilter.kt$PromotionalFilter$fun isPromotionalSms(body: String): Boolean</ID>
+    <ID>CyclomaticComplexMethod:SelfTransferDetector.kt$SelfTransferDetector$fun findSelfTransferPairs(transactions: List&lt;Transaction&gt;, maxMinutesApart: Long = 5): List&lt;SelfTransferPair&gt;</ID>
+    <ID>CyclomaticComplexMethod:SelfTransferDetector.kt$SelfTransferDetector$fun isSelfTransferPairCandidate(t1: Transaction, t2: Transaction, t1Snippet: String? = null, t2Snippet: String? = null): Boolean</ID>
+    <ID>CyclomaticComplexMethod:SelfTransferScorer.kt$SelfTransferScorer$fun calculateScore( t1: Transaction, t2: Transaction, t1CategoryName: String, t2CategoryName: String ): ScoreResult</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$fun extractSmsSnippet(smsBody: String, maxLength: Int = 120): String</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$fun resolveMerchantName(smsBody: String, originalMerchant: String?, upiId: String?, earlyCounterparty: CounterpartyExtraction?): Pair&lt;String?, String&gt;</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$private fun detectStatus(body: String): TransactionStatus</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$private fun determineTransactionType( smsBody: String, category: Category, isSelfTransfer: Boolean, isSalaryCredit: Boolean, isCredit: Boolean, // AUDIT FIX: Accept pre-resolved nature to avoid duplicate TransactionNatureResolver call natureResolution: TransactionNatureResolver.NatureResolution ): TransactionType</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$private fun isPromotionalSms(body: String): Boolean</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$private suspend fun detectAndRemoveDuplicates(context: Context)</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$private suspend fun pairRelatedTransactions(context: Context, forceAll: Boolean = false)</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$private suspend fun processSmsInternal(app: ExpenseTrackerApplication, categories: List&lt;Category&gt;, body: String, timestamp: Long, sender: String?)</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$suspend fun applyCategoryToSimilarTransactions( context: Context, pattern: String, categoryId: Long, categories: List&lt;Category&gt;, patternType: PatternType? = null, isSelfTransfer: Boolean? = null, // NEW: Propagate self-transfer flag transactionType: TransactionType? = null // NEW: Propagate transaction type )</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$suspend fun assignCategoryToTransaction( context: Context, transactionId: Long, categoryId: Long, pattern: String? = null, patternType: PatternType? = null, applyToSimilar: Boolean = true, isSelfTransfer: Boolean? = null, // NEW: Propagate to similar transactions transactionType: TransactionType? = null // NEW: Propagate to similar transactions )</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$suspend fun findSimilarTransactions( sourceTransaction: Transaction, allTransactions: List&lt;Transaction&gt; ): SimilarityResult</ID>
+    <ID>CyclomaticComplexMethod:SmsProcessor.kt$SmsProcessor$suspend fun reclassifyTransactions(context: Context)</ID>
+    <ID>CyclomaticComplexMethod:Theme.kt$@Composable fun ExpenseTrackerTheme( themeMode: Int = 0, // 0=System, 1=Light, 2=Dark colorPalette: String = "DYNAMIC", content: @Composable () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:TransactionEditDialog.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TransactionEditDialog( transaction: TransactionWithCategory, categories: List&lt;Category&gt;, onDismiss: () -&gt; Unit, onConfirm: (Long, String, AccountType, Boolean, String?) -&gt; Unit, onDelete: (Transaction) -&gt; Unit, onAddCategory: ((String, CategoryType) -&gt; Unit)? = null )</ID>
+    <ID>CyclomaticComplexMethod:TransactionNatureResolver.kt$TransactionNatureResolver$fun classifyEntity( counterparty: String?, upiId: String?, smsBody: String, amountPaisa: Long ): EntityClassification</ID>
+    <ID>CyclomaticComplexMethod:TransactionNatureResolver.kt$TransactionNatureResolver$fun resolveNature( smsBody: String, isDebit: Boolean, isCredit: Boolean, detectedAccountType: String = "UNKNOWN" ): NatureResolution</ID>
+    <ID>CyclomaticComplexMethod:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectCreditCardPayment(smsBody: String, isDebit: Boolean, isCredit: Boolean): String?</ID>
+    <ID>CyclomaticComplexMethod:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectIncome(smsBody: String): Pair&lt;String, String&gt;?</ID>
+    <ID>CyclomaticComplexMethod:TransactionTypeResolver.kt$TransactionTypeResolver$fun determineTransactionType( transaction: Transaction?, manualClassification: String?, isSelfTransfer: Boolean, newCategory: Category? ): TransactionType</ID>
+    <ID>FinalNewline:Color.kt$com.saikumar.expensetracker.ui.theme.Color.kt</ID>
+    <ID>FinalNewline:ExampleUnitTest.kt$com.saikumar.expensetracker.ExampleUnitTest.kt</ID>
+    <ID>FinalNewline:SalaryHistoryViewModel.kt$com.saikumar.expensetracker.ui.dashboard.SalaryHistoryViewModel.kt</ID>
+    <ID>FinalNewline:SmsProcessor.kt$com.saikumar.expensetracker.sms.SmsProcessor.kt</ID>
+    <ID>FinalNewline:Theme.kt$com.saikumar.expensetracker.ui.theme.Theme.kt</ID>
+    <ID>FinalNewline:Type.kt$com.saikumar.expensetracker.ui.theme.Type.kt</ID>
+    <ID>ForbiddenComment:SmsProcessor.kt$SmsProcessor$// TODO: Could distinguish Groceries vs Dining based on time/amount?</ID>
+    <ID>ForbiddenComment:SmsProcessor.kt$SmsProcessor$// TODO: TEMPORARILY DISABLED WHILE DEBUGGING - UNCOMMENT AFTER TESTING</ID>
+    <ID>FunctionNaming:AddCategoryDialog.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddCategoryDialog( onDismiss: () -&gt; Unit, onConfirm: (name: String, type: CategoryType) -&gt; Unit )</ID>
+    <ID>FunctionNaming:AddTransactionScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:CategoryManagementScreen.kt$@Composable fun CategoryItem(category: Category, onEdit: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:CategoryManagementScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddNewCategoryDialog( onDismiss: () -&gt; Unit, onConfirm: (name: String, type: CategoryType) -&gt; Unit )</ID>
+    <ID>FunctionNaming:CategoryManagementScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun CategoryManagementScreen( categories: List&lt;Category&gt;, onNavigateBack: () -&gt; Unit, onUpdateCategory: (Category) -&gt; Unit, onAddCategory: (String, CategoryType) -&gt; Unit, onDeleteCategory: (Category) -&gt; Unit = {} )</ID>
+    <ID>FunctionNaming:CategoryManagementScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EditCategoryDialog( category: Category, onDismiss: () -&gt; Unit, onConfirm: (Category) -&gt; Unit, onDelete: () -&gt; Unit = {} )</ID>
+    <ID>FunctionNaming:CommonDateRangePicker.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun CommonDateRangePicker( initialStartDate: LocalDate?, initialEndDate: LocalDate?, onDismiss: () -&gt; Unit, onConfirm: (LocalDate, LocalDate) -&gt; Unit )</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun CycleSelector(state: DashboardUiState, onPrevious: () -&gt; Unit, onNext: () -&gt; Unit, onAdjust: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun DashboardChart(state: DashboardUiState)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun DateHeader(date: LocalDate)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun HeroBalanceCard(state: DashboardUiState)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun SummaryRowList(state: DashboardUiState, onCategoryClick: (CategoryType) -&gt; Unit)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@Composable fun TransactionItem(item: TransactionWithCategory, linkType: com.saikumar.expensetracker.data.entity.LinkType? = null, onClick: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:DashboardScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class) @Composable fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -&gt; Unit, onCategoryClick: (CategoryType, Long, Long) -&gt; Unit)</ID>
+    <ID>FunctionNaming:FilteredTransactionsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FilteredTransactionsScreen( viewModel: FilteredTransactionsViewModel, categoryType: CategoryType, startDate: Long, endDate: Long, onNavigateBack: () -&gt; Unit )</ID>
+    <ID>FunctionNaming:LinkManagerScreen.kt$@Composable fun LinkItem(link: LinkWithDetails, onDelete: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:LinkManagerScreen.kt$@Composable fun SectionHeader(title: String)</ID>
+    <ID>FunctionNaming:LinkManagerScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun LinkManagerScreen( onNavigateBack: () -&gt; Unit, viewModel: LinkManagerViewModel = viewModel() )</ID>
+    <ID>FunctionNaming:MonthlyOverviewScreen.kt$@Composable fun InteractiveCategoryLegendItem( summary: CategorySummary, color: Color, onTransactionClick: (TransactionWithCategory) -&gt; Unit )</ID>
+    <ID>FunctionNaming:MonthlyOverviewScreen.kt$@Composable fun SummaryCard(title: String, amount: Double, color: Color, modifier: Modifier = Modifier, onClick: () -&gt; Unit = {})</ID>
+    <ID>FunctionNaming:MonthlyOverviewScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun MonthlyOverviewScreen( viewModel: MonthlyOverviewViewModel, onNavigateBack: () -&gt; Unit, onCategoryClick: (CategoryType, Long, Long) -&gt; Unit = { _, _, _ -&gt; } )</ID>
+    <ID>FunctionNaming:SalaryHistoryScreen.kt$@Composable fun SalaryItem(item: TransactionWithCategory)</ID>
+    <ID>FunctionNaming:SalaryHistoryScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SalaryHistoryScreen(viewModel: SalaryHistoryViewModel, onNavigateBack: () -&gt; Unit)</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -&gt; Unit, onNavigateToSalaryHistory: () -&gt; Unit, onNavigateToLinkManager: () -&gt; Unit, onNavigateToCategories: () -&gt; Unit = {})</ID>
+    <ID>FunctionNaming:SnowfallAnimation.kt$@Composable fun SnowfallAnimation( modifier: Modifier = Modifier, snowflakeCount: Int = 50, snowColor: Color = Color.White.copy(alpha = 0.8f) )</ID>
+    <ID>FunctionNaming:SnowfallAnimation.kt$@Composable fun WinterWaves( modifier: Modifier = Modifier, waveColor: Color = Color(0xFFE1F5FE) )</ID>
+    <ID>FunctionNaming:Theme.kt$@Composable fun ExpenseTrackerTheme( themeMode: Int = 0, // 0=System, 1=Light, 2=Dark colorPalette: String = "DYNAMIC", content: @Composable () -&gt; Unit )</ID>
+    <ID>FunctionNaming:TransactionEditDialog.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TransactionEditDialog( transaction: TransactionWithCategory, categories: List&lt;Category&gt;, onDismiss: () -&gt; Unit, onConfirm: (Long, String, AccountType, Boolean, String?) -&gt; Unit, onDelete: (Transaction) -&gt; Unit, onAddCategory: ((String, CategoryType) -&gt; Unit)? = null )</ID>
+    <ID>ImportOrdering:AddTransactionScreen.kt$import androidx.compose.foundation.clickable import androidx.compose.foundation.layout.* import androidx.compose.foundation.text.KeyboardOptions import androidx.compose.material.icons.Icons import androidx.compose.material.icons.automirrored.filled.ArrowBack import androidx.compose.material.icons.filled.ArrowDropDown import androidx.compose.material.icons.filled.DateRange import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Modifier import androidx.compose.ui.text.input.KeyboardType import androidx.compose.ui.unit.dp import com.saikumar.expensetracker.data.entity.Category import androidx.compose.material3.FilterChip import androidx.compose.material3.FilterChipDefaults import androidx.compose.ui.graphics.Color import java.time.Instant import java.time.LocalDateTime import java.time.ZoneId import java.time.format.DateTimeFormatter</ID>
+    <ID>ImportOrdering:AddTransactionViewModel.kt$import androidx.lifecycle.ViewModel import androidx.lifecycle.ViewModelProvider import androidx.lifecycle.viewModelScope import com.saikumar.expensetracker.data.entity.* import com.saikumar.expensetracker.data.repository.ExpenseRepository import kotlinx.coroutines.flow.SharingStarted import kotlinx.coroutines.flow.StateFlow import kotlinx.coroutines.flow.stateIn import com.saikumar.expensetracker.domain.TransactionValidator import kotlinx.coroutines.launch</ID>
+    <ID>ImportOrdering:CommonDateRangePicker.kt$import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Modifier import androidx.compose.ui.unit.dp import androidx.compose.foundation.layout.padding import java.time.Instant import java.time.LocalDate import java.time.ZoneId</ID>
+    <ID>ImportOrdering:DashboardScreen.kt$import androidx.compose.foundation.ExperimentalFoundationApi import androidx.compose.foundation.clickable import androidx.compose.foundation.layout.* import androidx.compose.foundation.lazy.LazyColumn import androidx.compose.foundation.lazy.LazyRow import androidx.compose.foundation.lazy.items import androidx.compose.material.icons.Icons import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight import androidx.compose.material.icons.filled.* import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.graphics.Color import androidx.compose.ui.text.font.FontWeight import androidx.compose.ui.unit.dp import androidx.compose.ui.viewinterop.AndroidView import androidx.core.graphics.toColorInt import com.github.mikephil.charting.charts.PieChart import com.github.mikephil.charting.data.PieData import com.github.mikephil.charting.data.PieDataSet import com.github.mikephil.charting.data.PieEntry import com.saikumar.expensetracker.data.db.TransactionWithCategory import com.saikumar.expensetracker.data.entity.* import com.saikumar.expensetracker.util.CategoryIcons import java.time.Instant import java.time.LocalDate import java.time.ZoneId import java.time.format.DateTimeFormatter import com.saikumar.expensetracker.ui.common.TransactionEditDialog import java.util.Locale</ID>
+    <ID>ImportOrdering:DashboardViewModel.kt$import android.content.Context import androidx.lifecycle.ViewModel import androidx.lifecycle.ViewModelProvider import androidx.lifecycle.viewModelScope import com.saikumar.expensetracker.data.db.CycleOverrideDao import com.saikumar.expensetracker.data.db.TransactionWithCategory import com.saikumar.expensetracker.data.entity.* import com.saikumar.expensetracker.data.repository.ExpenseRepository import com.saikumar.expensetracker.sms.SmsProcessor import com.saikumar.expensetracker.util.CycleRange import com.saikumar.expensetracker.util.CycleUtils import com.saikumar.expensetracker.util.PreferencesManager import kotlinx.coroutines.ExperimentalCoroutinesApi import kotlinx.coroutines.flow.* import kotlinx.coroutines.launch import java.time.* import java.time.format.DateTimeFormatter import com.saikumar.expensetracker.util.TransactionTypeResolver</ID>
+    <ID>ImportOrdering:DebugLogEntity.kt$import androidx.room.Entity import androidx.room.PrimaryKey import androidx.room.Index</ID>
+    <ID>ImportOrdering:ExampleUnitTest.kt$import org.junit.Test import org.junit.Assert.*</ID>
+    <ID>ImportOrdering:ExpenseRepository.kt$import com.saikumar.expensetracker.data.db.* import com.saikumar.expensetracker.data.entity.* import com.saikumar.expensetracker.data.domain.DuplicateDetector import com.saikumar.expensetracker.data.domain.MerchantManager import kotlinx.coroutines.flow.Flow</ID>
+    <ID>ImportOrdering:FilteredTransactionsViewModel.kt$import androidx.lifecycle.ViewModel import androidx.lifecycle.ViewModelProvider import androidx.lifecycle.viewModelScope import com.saikumar.expensetracker.data.db.TransactionWithCategory import com.saikumar.expensetracker.data.entity.* import com.saikumar.expensetracker.data.repository.ExpenseRepository import kotlinx.coroutines.ExperimentalCoroutinesApi import kotlinx.coroutines.flow.* import kotlinx.coroutines.launch import com.saikumar.expensetracker.util.TransactionTypeResolver</ID>
+    <ID>ImportOrdering:MainActivity.kt$import android.Manifest import android.os.Bundle import androidx.activity.ComponentActivity import androidx.activity.compose.rememberLauncherForActivityResult import androidx.activity.compose.setContent import androidx.activity.enableEdgeToEdge import androidx.activity.result.contract.ActivityResultContracts import androidx.compose.foundation.layout.padding import androidx.compose.material.icons.Icons import androidx.compose.material.icons.filled.Add import androidx.compose.material.icons.filled.Dashboard import androidx.compose.material.icons.filled.Menu import androidx.compose.material.icons.filled.Settings import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Modifier import android.util.Log import kotlinx.coroutines.Dispatchers import kotlinx.coroutines.flow.first import kotlinx.coroutines.launch import kotlinx.coroutines.withContext import androidx.lifecycle.viewmodel.compose.viewModel import androidx.navigation.compose.NavHost import androidx.navigation.compose.composable import androidx.navigation.compose.currentBackStackEntryAsState import androidx.navigation.compose.rememberNavController import androidx.navigation.NavType import androidx.navigation.navArgument import com.saikumar.expensetracker.data.entity.CategoryType import com.saikumar.expensetracker.ui.add.AddTransactionScreen import com.saikumar.expensetracker.ui.add.AddTransactionViewModel import com.saikumar.expensetracker.ui.dashboard.* import com.saikumar.expensetracker.ui.settings.SettingsScreen import com.saikumar.expensetracker.ui.settings.SettingsViewModel import com.saikumar.expensetracker.ui.theme.ExpenseTrackerTheme</ID>
+    <ID>ImportOrdering:MonthlyOverviewScreen.kt$import androidx.compose.animation.AnimatedVisibility import androidx.compose.foundation.clickable import androidx.compose.foundation.layout.* import androidx.compose.foundation.lazy.LazyColumn import androidx.compose.material.icons.Icons import androidx.compose.material.icons.filled.* import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.graphics.Color import androidx.compose.ui.text.font.FontWeight import androidx.compose.ui.unit.dp import androidx.compose.ui.viewinterop.AndroidView import com.github.mikephil.charting.charts.PieChart import com.github.mikephil.charting.data.* import com.github.mikephil.charting.utils.ColorTemplate import com.saikumar.expensetracker.data.entity.CategoryType import com.saikumar.expensetracker.util.CategoryIcons import com.saikumar.expensetracker.data.db.TransactionWithCategory import com.saikumar.expensetracker.ui.common.TransactionEditDialog import com.saikumar.expensetracker.ui.common.CommonDateRangePicker import java.time.Instant import java.time.ZoneId import java.time.format.DateTimeFormatter import java.util.Locale</ID>
+    <ID>ImportOrdering:MonthlyOverviewViewModel.kt$import androidx.lifecycle.ViewModel import androidx.lifecycle.ViewModelProvider import androidx.lifecycle.viewModelScope import com.saikumar.expensetracker.data.db.TransactionWithCategory import com.saikumar.expensetracker.data.entity.Category import com.saikumar.expensetracker.data.entity.CategoryType import com.saikumar.expensetracker.data.entity.TransactionType import com.saikumar.expensetracker.data.entity.TransactionStatus import com.saikumar.expensetracker.data.entity.AccountType import com.saikumar.expensetracker.data.entity.Transaction import com.saikumar.expensetracker.data.repository.ExpenseRepository import com.saikumar.expensetracker.util.CycleRange import com.saikumar.expensetracker.util.CycleUtils import kotlinx.coroutines.ExperimentalCoroutinesApi import kotlinx.coroutines.flow.* import java.time.LocalDate import java.time.ZoneId import com.saikumar.expensetracker.sms.SmsProcessor import com.saikumar.expensetracker.util.TransactionTypeResolver import com.saikumar.expensetracker.util.PreferencesManager import com.saikumar.expensetracker.domain.TransactionValidator import kotlinx.coroutines.launch</ID>
+    <ID>ImportOrdering:SettingsScreen.kt$import androidx.compose.foundation.layout.* import androidx.compose.material.icons.Icons import androidx.compose.material.icons.filled.ArrowBack import androidx.compose.material.icons.filled.Close import androidx.compose.material.icons.filled.Check import androidx.compose.material3.* import androidx.compose.runtime.* import androidx.compose.ui.Alignment import androidx.compose.ui.Modifier import androidx.compose.ui.unit.dp import androidx.compose.ui.platform.LocalContext import android.util.Log import com.saikumar.expensetracker.data.db.AppDatabase import com.saikumar.expensetracker.data.entity.Category import com.saikumar.expensetracker.data.entity.CategoryType import com.saikumar.expensetracker.sms.SmsProcessor import kotlinx.coroutines.Dispatchers import kotlinx.coroutines.launch import kotlinx.coroutines.withContext import androidx.compose.foundation.rememberScrollState import androidx.compose.foundation.verticalScroll</ID>
+    <ID>ImportOrdering:SmsProcessor.kt$import android.content.Context import android.net.Uri import androidx.core.net.toUri import android.util.Log import com.saikumar.expensetracker.ExpenseTrackerApplication import com.saikumar.expensetracker.data.entity.* import com.saikumar.expensetracker.data.db.TransactionWithCategory import com.saikumar.expensetracker.util.ClassificationDebugLogger import com.saikumar.expensetracker.data.entity.RawInputCapture import com.saikumar.expensetracker.data.entity.ParsedFields import com.saikumar.expensetracker.data.entity.FinalDecision import kotlinx.coroutines.Dispatchers import kotlinx.coroutines.flow.first import kotlinx.coroutines.flow.filter import kotlinx.coroutines.withContext import kotlinx.coroutines.withTimeout import kotlinx.coroutines.TimeoutCancellationException import kotlinx.coroutines.delay import java.security.MessageDigest import java.time.Duration import java.util.regex.Pattern</ID>
+    <ID>ImportOrdering:Theme.kt$import android.app.Activity import android.os.Build import androidx.compose.foundation.isSystemInDarkTheme import androidx.compose.material3.MaterialTheme import androidx.compose.material3.darkColorScheme import androidx.compose.material3.dynamicDarkColorScheme import androidx.compose.material3.dynamicLightColorScheme import androidx.compose.material3.lightColorScheme import androidx.compose.runtime.Composable import androidx.compose.ui.platform.LocalContext import androidx.compose.ui.graphics.Color import androidx.compose.foundation.layout.fillMaxSize import androidx.compose.foundation.layout.fillMaxWidth import androidx.compose.foundation.layout.height import androidx.compose.ui.Modifier import androidx.compose.ui.unit.dp import androidx.compose.ui.Alignment</ID>
+    <ID>ImportOrdering:TransactionTypeResolver.kt$import com.saikumar.expensetracker.data.entity.Category import com.saikumar.expensetracker.data.entity.CategoryType import com.saikumar.expensetracker.data.entity.Transaction import com.saikumar.expensetracker.data.entity.TransactionType import com.saikumar.expensetracker.data.entity.EntityType import com.saikumar.expensetracker.data.entity.TransactionStatus</ID>
+    <ID>Indentation:AppDatabase.kt$AppDatabase.Companion$ </ID>
+    <ID>Indentation:ClassificationDebugLogger.kt$ClassificationDebugLogger$ </ID>
+    <ID>Indentation:CreditCardDetector.kt$CreditCardDetector$ </ID>
+    <ID>Indentation:DashboardViewModel.kt$DashboardViewModel$ </ID>
+    <ID>Indentation:ExpenseTrackerApplication.kt$ExpenseTrackerApplication$ </ID>
+    <ID>Indentation:FilteredTransactionsViewModel.kt$FilteredTransactionsViewModel$ </ID>
+    <ID>Indentation:FoodDetector.kt$FoodDetector$ </ID>
+    <ID>Indentation:LinkManagerScreen.kt$ </ID>
+    <ID>Indentation:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$ </ID>
+    <ID>Indentation:PromotionalFilter.kt$PromotionalFilter$ </ID>
+    <ID>Indentation:SalaryHistoryViewModel.kt$SalaryHistoryViewModel$ </ID>
+    <ID>Indentation:SelfTransferDetector.kt$SelfTransferDetector$ </ID>
+    <ID>Indentation:SelfTransferScorer.kt$SelfTransferScorer$ </ID>
+    <ID>Indentation:SmsConstants.kt$SmsConstants.CategoryNames$ </ID>
+    <ID>Indentation:SmsConstants.kt$SmsConstants.DirectionDetector$ </ID>
+    <ID>Indentation:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>Indentation:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$ </ID>
+    <ID>Indentation:SnowfallAnimation.kt$ </ID>
+    <ID>Indentation:TransactionEditDialog.kt$ </ID>
+    <ID>Indentation:TransactionNatureResolver.kt$TransactionNatureResolver$ </ID>
+    <ID>LargeClass:SmsProcessor.kt$SmsProcessor</ID>
+    <ID>LargeClass:TransactionNatureResolver.kt$TransactionNatureResolver</ID>
+    <ID>LongMethod:AddCategoryDialog.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddCategoryDialog( onDismiss: () -&gt; Unit, onConfirm: (name: String, type: CategoryType) -&gt; Unit )</ID>
+    <ID>LongMethod:AddTransactionScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () -&gt; Unit)</ID>
+    <ID>LongMethod:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$override fun migrate(db: SupportSQLiteDatabase)</ID>
+    <ID>LongMethod:CategoryManagementScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun AddNewCategoryDialog( onDismiss: () -&gt; Unit, onConfirm: (name: String, type: CategoryType) -&gt; Unit )</ID>
+    <ID>LongMethod:CategoryManagementScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun EditCategoryDialog( category: Category, onDismiss: () -&gt; Unit, onConfirm: (Category) -&gt; Unit, onDelete: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:DashboardScreen.kt$@Composable fun TransactionItem(item: TransactionWithCategory, linkType: com.saikumar.expensetracker.data.entity.LinkType? = null, onClick: () -&gt; Unit)</ID>
+    <ID>LongMethod:DashboardScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class) @Composable fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -&gt; Unit, onCategoryClick: (CategoryType, Long, Long) -&gt; Unit)</ID>
+    <ID>LongMethod:FilteredTransactionsScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FilteredTransactionsScreen( viewModel: FilteredTransactionsViewModel, categoryType: CategoryType, startDate: Long, endDate: Long, onNavigateBack: () -&gt; Unit )</ID>
+    <ID>LongMethod:LinkManagerScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun LinkManagerScreen( onNavigateBack: () -&gt; Unit, viewModel: LinkManagerViewModel = viewModel() )</ID>
+    <ID>LongMethod:MainActivity.kt$MainActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
+    <ID>LongMethod:MonthlyOverviewScreen.kt$@Composable fun InteractiveCategoryLegendItem( summary: CategorySummary, color: Color, onTransactionClick: (TransactionWithCategory) -&gt; Unit )</ID>
+    <ID>LongMethod:MonthlyOverviewScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun MonthlyOverviewScreen( viewModel: MonthlyOverviewViewModel, onNavigateBack: () -&gt; Unit, onCategoryClick: (CategoryType, Long, Long) -&gt; Unit = { _, _, _ -&gt; } )</ID>
+    <ID>LongMethod:SelfTransferScorer.kt$SelfTransferScorer$fun calculateScore( t1: Transaction, t2: Transaction, t1CategoryName: String, t2CategoryName: String ): ScoreResult</ID>
+    <ID>LongMethod:SettingsScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun SettingsScreen(viewModel: SettingsViewModel, onNavigateBack: () -&gt; Unit, onNavigateToSalaryHistory: () -&gt; Unit, onNavigateToLinkManager: () -&gt; Unit, onNavigateToCategories: () -&gt; Unit = {})</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$fun applyP2POutgoingTransferInvariant( isDebit: Boolean, isSelfTransfer: Boolean, matchedRule: String?, currentTransactionType: TransactionType, counterpartyExtraction: CounterpartyExtraction, currentMerchant: String? ): Pair&lt;P2PTransferInvariantLog, Pair&lt;TransactionType?, String?&gt;&gt;</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$fun extractSmsSnippet(smsBody: String, maxLength: Int = 120): String</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$private fun determineTransactionType( smsBody: String, category: Category, isSelfTransfer: Boolean, isSalaryCredit: Boolean, isCredit: Boolean, // AUDIT FIX: Accept pre-resolved nature to avoid duplicate TransactionNatureResolver call natureResolution: TransactionNatureResolver.NatureResolution ): TransactionType</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$private fun isPromotionalSms(body: String): Boolean</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$private suspend fun pairRelatedTransactions(context: Context, forceAll: Boolean = false)</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$private suspend fun processSmsInternal(app: ExpenseTrackerApplication, categories: List&lt;Category&gt;, body: String, timestamp: Long, sender: String?)</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$suspend fun reclassifyTransactions(context: Context)</ID>
+    <ID>LongMethod:SmsProcessor.kt$SmsProcessor$suspend fun scanInbox(context: Context)</ID>
+    <ID>LongMethod:TransactionEditDialog.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TransactionEditDialog( transaction: TransactionWithCategory, categories: List&lt;Category&gt;, onDismiss: () -&gt; Unit, onConfirm: (Long, String, AccountType, Boolean, String?) -&gt; Unit, onDelete: (Transaction) -&gt; Unit, onAddCategory: ((String, CategoryType) -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:TransactionNatureResolver.kt$TransactionNatureResolver$fun classifyEntity( counterparty: String?, upiId: String?, smsBody: String, amountPaisa: Long ): EntityClassification</ID>
+    <ID>LongMethod:TransactionNatureResolver.kt$TransactionNatureResolver$fun resolveNature( smsBody: String, isDebit: Boolean, isCredit: Boolean, detectedAccountType: String = "UNKNOWN" ): NatureResolution</ID>
+    <ID>LongMethod:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectCreditCardPayment(smsBody: String, isDebit: Boolean, isCredit: Boolean): String?</ID>
+    <ID>LongParameterList:ClassificationDebugLogger.kt$ClassificationDebugLogger$( ruleId: String, ruleName: String, ruleType: String, input: String, result: String, confidence: Double = 0.0, reason: String )</ID>
+    <ID>LongParameterList:DashboardViewModel.kt$DashboardViewModel$( transaction: Transaction, newCategoryId: Long, newNote: String, accountType: AccountType, updateSimilar: Boolean, manualClassification: String? = null )</ID>
+    <ID>LongParameterList:DuplicateDetector.kt$DuplicateDetector$( smsHash: String, referenceNo: String?, amountPaisa: Long, timestamp: Long, merchantName: String? = null, accountId: Long? = null )</ID>
+    <ID>LongParameterList:ExpenseRepository.kt$ExpenseRepository$( smsHash: String, referenceNo: String?, amountPaisa: Long, timestamp: Long, merchantName: String? = null, accountId: Long? = null )</ID>
+    <ID>LongParameterList:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$( transaction: Transaction, newCategoryId: Long, newNote: String, accountType: AccountType, updateSimilar: Boolean, manualClassification: String? = null )</ID>
+    <ID>LongParameterList:SmsProcessor.kt$SmsProcessor$( context: Context, pattern: String, categoryId: Long, categories: List&lt;Category&gt;, patternType: PatternType? = null, isSelfTransfer: Boolean? = null, // NEW: Propagate self-transfer flag transactionType: TransactionType? = null // NEW: Propagate transaction type )</ID>
+    <ID>LongParameterList:SmsProcessor.kt$SmsProcessor$( context: Context, transactionId: Long, categoryId: Long, pattern: String? = null, patternType: PatternType? = null, applyToSimilar: Boolean = true, isSelfTransfer: Boolean? = null, // NEW: Propagate to similar transactions transactionType: TransactionType? = null // NEW: Propagate to similar transactions )</ID>
+    <ID>LongParameterList:SmsProcessor.kt$SmsProcessor$( isDebit: Boolean, isSelfTransfer: Boolean, matchedRule: String?, currentTransactionType: TransactionType, counterpartyExtraction: CounterpartyExtraction, currentMerchant: String? )</ID>
+    <ID>LongParameterList:SmsProcessor.kt$SmsProcessor$( smsBody: String, category: Category, isSelfTransfer: Boolean, isSalaryCredit: Boolean, isCredit: Boolean, // AUDIT FIX: Accept pre-resolved nature to avoid duplicate TransactionNatureResolver call natureResolution: TransactionNatureResolver.NatureResolution )</ID>
+    <ID>LongParameterList:SmsProcessor.kt$SmsProcessor$( transaction: Transaction, rawMessage: String, categoryName: String, hasCounterparty: Boolean, hasMerchant: Boolean, currentConfidence: Double, categories: List&lt;Category&gt;? = null, isReclassification: Boolean = false, isSelfTransfer: Boolean = false )</ID>
+    <ID>LongParameterList:TransactionEditDialog.kt$( transaction: TransactionWithCategory, categories: List&lt;Category&gt;, onDismiss: () -&gt; Unit, onConfirm: (Long, String, AccountType, Boolean, String?) -&gt; Unit, onDelete: (Transaction) -&gt; Unit, onAddCategory: ((String, CategoryType) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:TransactionNatureResolver.kt$TransactionNatureResolver$( nature: TransactionNature, matchedRule: String, confidence: Double, reasoning: String, matchedLevel: String, // e.g., "LEVEL_1_PENDING" trace: List&lt;String&gt;, detectedDirection: String, isDebit: Boolean, isCredit: Boolean, skippedRules: List&lt;String&gt; = emptyList(), matchedIncomeRule: String? = null, incomeConfidence: Double = 0.80 )</ID>
+    <ID>LoopWithTooManyJumpStatements:SelfTransferDetector.kt$SelfTransferDetector$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SmsProcessor.kt$SmsProcessor$for</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$0xFF2E7D32</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$0xFF6A1B9A</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$0xFFC62828</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$0xFFC8E6C9</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$0xFFE1BEE7</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$0xFFFFCDD2</ID>
+    <ID>MagicNumber:AddTransactionScreen.kt$100</ID>
+    <ID>MagicNumber:AddTransactionViewModel.kt$AddTransactionViewModel$5000</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$12</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$13</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$14</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$15</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$16</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$17</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$20</ID>
+    <ID>MagicNumber:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$21</ID>
+    <ID>MagicNumber:ClassificationDebugLogger.kt$ClassificationDebugLogger$100</ID>
+    <ID>MagicNumber:ClassificationDebugLogger.kt$ClassificationDebugLogger$8</ID>
+    <ID>MagicNumber:Color.kt$0xFF0077C2</ID>
+    <ID>MagicNumber:Color.kt$0xFF00B0FF</ID>
+    <ID>MagicNumber:Color.kt$0xFF01579B</ID>
+    <ID>MagicNumber:Color.kt$0xFF1E6D34</ID>
+    <ID>MagicNumber:Color.kt$0xFF385CA9</ID>
+    <ID>MagicNumber:Color.kt$0xFF546356</ID>
+    <ID>MagicNumber:Color.kt$0xFF565E71</ID>
+    <ID>MagicNumber:Color.kt$0xFF625b71</ID>
+    <ID>MagicNumber:Color.kt$0xFF6650a4</ID>
+    <ID>MagicNumber:Color.kt$0xFF75584E</ID>
+    <ID>MagicNumber:Color.kt$0xFF7D5260</ID>
+    <ID>MagicNumber:Color.kt$0xFF9E4018</ID>
+    <ID>MagicNumber:Color.kt$0xFFA6F5BA</ID>
+    <ID>MagicNumber:Color.kt$0xFFB4C5FF</ID>
+    <ID>MagicNumber:Color.kt$0xFFBDCBBF</ID>
+    <ID>MagicNumber:Color.kt$0xFFC0C6DC</ID>
+    <ID>MagicNumber:Color.kt$0xFFC3E0E5</ID>
+    <ID>MagicNumber:Color.kt$0xFFCCC2DC</ID>
+    <ID>MagicNumber:Color.kt$0xFFD0BCFF</ID>
+    <ID>MagicNumber:Color.kt$0xFFD1F0FF</ID>
+    <ID>MagicNumber:Color.kt$0xFFE1F5FE</ID>
+    <ID>MagicNumber:Color.kt$0xFFE6C0B4</ID>
+    <ID>MagicNumber:Color.kt$0xFFEFB8C8</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFB59D</ID>
+    <ID>MagicNumber:CounterpartyExtractor.kt$CounterpartyExtractor$0.70</ID>
+    <ID>MagicNumber:CounterpartyExtractor.kt$CounterpartyExtractor$3</ID>
+    <ID>MagicNumber:CounterpartyExtractor.kt$CounterpartyExtractor$6</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$0.75</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$0.80</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$0.85</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$0.90</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$0.95</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$0.99</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$3</ID>
+    <ID>MagicNumber:CreditCardDetector.kt$CreditCardDetector$4</ID>
+    <ID>MagicNumber:CycleUtils.kt$CycleUtils$23</ID>
+    <ID>MagicNumber:CycleUtils.kt$CycleUtils$59</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFF1976D2</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFF2196F3</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFF4CAF50</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFF66BB6A</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFF9C27B0</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFE3F2FD</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFEF5350</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFF44336</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFFF8F00</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFFF9800</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFFFB300</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFFFF8E1</ID>
+    <ID>MagicNumber:DashboardScreen.kt$0xFFFFF9C4</ID>
+    <ID>MagicNumber:DashboardScreen.kt$100.0</ID>
+    <ID>MagicNumber:DashboardScreen.kt$12f</ID>
+    <ID>MagicNumber:DashboardScreen.kt$40f</ID>
+    <ID>MagicNumber:DashboardScreen.kt$45f</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$100.0</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$1000</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$180L</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$23</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$24</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$5000</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$59</ID>
+    <ID>MagicNumber:DashboardViewModel.kt$DashboardViewModel$60</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$0.25</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$0.30</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$0.40</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$0.70</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$1000L</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$15</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$60</ID>
+    <ID>MagicNumber:DuplicateDetector.kt$DuplicateDetector$60000</ID>
+    <ID>MagicNumber:FilteredTransactionsViewModel.kt$FilteredTransactionsViewModel$5000</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$0.2</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$0.35</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$0.5</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$100</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$1030</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$1200</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$1500</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$1630</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$1830</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$1900</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$2000</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$2300</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$630</ID>
+    <ID>MagicNumber:FoodDetector.kt$FoodDetector$80000</ID>
+    <ID>MagicNumber:LinkManagerScreen.kt$100</ID>
+    <ID>MagicNumber:LinkManagerViewModel.kt$LinkManagerViewModel$5000</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$0xFF2196F3</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$0xFF4CAF50</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$0xFFF44336</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$100.0</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$55f</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$6</ID>
+    <ID>MagicNumber:MonthlyOverviewScreen.kt$60f</ID>
+    <ID>MagicNumber:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$100.0</ID>
+    <ID>MagicNumber:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$23</ID>
+    <ID>MagicNumber:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$5000</ID>
+    <ID>MagicNumber:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$59</ID>
+    <ID>MagicNumber:PreferencesManager.kt$PreferencesManager$3</ID>
+    <ID>MagicNumber:SalaryHistoryScreen.kt$0xFF4CAF50</ID>
+    <ID>MagicNumber:SalaryHistoryScreen.kt$100.0</ID>
+    <ID>MagicNumber:SalaryHistoryViewModel.kt$SalaryHistoryViewModel$5000</ID>
+    <ID>MagicNumber:SelfTransferDetector.kt$SelfTransferDetector$4</ID>
+    <ID>MagicNumber:SelfTransferDetector.kt$SelfTransferDetector$5</ID>
+    <ID>MagicNumber:SelfTransferDetector.kt$SelfTransferDetector$60</ID>
+    <ID>MagicNumber:SelfTransferDetector.kt$SelfTransferDetector$60000</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$10</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$100</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$1000</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$1440</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$15</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$20</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$25</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$4</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$40</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$5</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$60</ID>
+    <ID>MagicNumber:SelfTransferScorer.kt$SelfTransferScorer$80</ID>
+    <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$5000</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.15</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.4</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.40</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.5</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.6</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.65</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.7</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.70</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$0.75</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$10</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$100</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$100.0</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$1000</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$1000L</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$100L</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$15</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$20</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$2000</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$24</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$3</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$30</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$3000</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$30L</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$35</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$3600</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$4</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$40</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$5</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$50</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$6</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$60</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$7</ID>
+    <ID>MagicNumber:SmsProcessor.kt$SmsProcessor$8</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$0.2f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$0.4f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$0.5f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$0xFFE1F5FE</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$12f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$180.0</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$1_000_000_000f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$2.5f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$3</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$360f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$4f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$5</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$50f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$6.0f</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$60.0</ID>
+    <ID>MagicNumber:SnowfallAnimation.kt$8000</ID>
+    <ID>MagicNumber:Theme.kt$0xFF102A43</ID>
+    <ID>MagicNumber:Theme.kt$0xFFF0F8FF</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFF00695C</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFF1565C0</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFF2E7D32</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFF388E3C</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFF616161</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFF6A1B9A</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFB2DFDB</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFBBDEFB</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFC62828</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFC8E6C9</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFE1BEE7</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFEEEEEE</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$0xFFFFCDD2</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$100.0</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$4</ID>
+    <ID>MagicNumber:TransactionEditDialog.kt$77</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$0.05</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$0.3</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$0.5</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$0.7</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$0.95</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$100</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$1000000L</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$100000L</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$10000L</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$15</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$2</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$200000L</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$500000L</ID>
+    <ID>MagicNumber:TransactionNatureResolver.kt$TransactionNatureResolver$50000L</ID>
+    <ID>MagicNumber:UndoLogDao.kt$UndoLogDao$1000L</ID>
+    <ID>MagicNumber:UndoLogDao.kt$UndoLogDao$24</ID>
+    <ID>MagicNumber:UndoLogDao.kt$UndoLogDao$60</ID>
+    <ID>MagicNumber:UndoLogDao.kt$UndoLogDao$7</ID>
+    <ID>MatchingDeclarationName:SnowfallAnimation.kt$Snowflake</ID>
+    <ID>MaxLineLength:AddCategoryDialog.kt$modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>MaxLineLength:AddTransactionScreen.kt$modifier = Modifier.fillMaxWidth().menuAnchor(type = androidx.compose.material3.MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>MaxLineLength:AddTransactionScreen.kt$timestamp</ID>
+    <ID>MaxLineLength:AddTransactionScreen.kt$val selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()</ID>
+    <ID>MaxLineLength:AddTransactionViewModel.kt$AddTransactionViewModel$category.name.contains("Credit Bill", ignoreCase = true) -&gt; TransactionType.LIABILITY_PAYMENT</ID>
+    <ID>MaxLineLength:AddTransactionViewModel.kt$AddTransactionViewModel$fun</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion$db.execSQL("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Credit Card', 'CREDIT_CARD', 1, 0)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion$db.execSQL("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Primary Bank', 'SAVINGS', 0, 1)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion$db.execSQL("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Wallet', 'WALLET', 0, 0)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion$db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled, isDefault) VALUES ('$name', '$type', 1, 1)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS index_categorization_rules_categoryId ON categorization_rules (categoryId)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS index_categorization_rules_patternType ON categorization_rules (patternType)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS index_merchant_memory_categoryId ON merchant_memory (categoryId)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_amountPaisa_timestamp ON transactions (amountPaisa, timestamp)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categorization_rules_pattern ON categorization_rules (pattern)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_memory_normalizedMerchant ON merchant_memory (normalizedMerchant)")</ID>
+    <ID>MaxLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_patterns_keyword ON merchant_patterns (keyword)")</ID>
+    <ID>MaxLineLength:CategoryManagementScreen.kt$modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>MaxLineLength:CategoryManagementScreen.kt$text = { Text("Are you sure you want to delete '${category.name}'? Transactions will keep their data but show as Unknown.") }</ID>
+    <ID>MaxLineLength:ClassificationDebugLog.kt$CounterpartyExtraction$val suppressedByDirection: Boolean = false // true if extraction was blocked by direction bias (should never happen)</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "Batch Log Saved: $fileName\n(${batchLogs.size} transactions)", android.widget.Toast.LENGTH_LONG).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "Batch Save Failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "Error: Could not create log file", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "Log Save Failed:\n$errorMsg", android.widget.Toast.LENGTH_LONG).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "Log saved to Downloads:\n$fileName", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "Log saved:\n${file.absolutePath}", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$android.widget.Toast.makeText(context, "No transactions to log (0 processed)", android.widget.Toast.LENGTH_LONG).show()</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/ExpenseTrackerLogs")</ID>
+    <ID>MaxLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)</ID>
+    <ID>MaxLineLength:CommonDateRangePicker.kt$if</ID>
+    <ID>MaxLineLength:CommonDateRangePicker.kt$val end = Instant.ofEpochMilli(dateRangePickerState.selectedEndDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()</ID>
+    <ID>MaxLineLength:CommonDateRangePicker.kt$val start = Instant.ofEpochMilli(dateRangePickerState.selectedStartDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$"(?:credited from|deposited from|transferred from|received from)\\s+([A-Za-z0-9][A-Za-z0-9\\s]{2,40}?)(?:\\s+on|\\s+VPA|\\.|$)"</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$"(?:debited to|paid to|transferred to|sent to)\\s+([A-Za-z0-9][A-Za-z0-9\\s]{2,40}?)(?:\\s+on|\\s+VPA|\\.|$)"</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$fun</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$if</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$if (SmsConstants.RealMerchants.ALL.any { smsBody.uppercase().contains(it) }) return Triple(merchantName, false, false)</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$if (isValid) return CounterpartyExtraction(normalizeExtraction(extracted), "EXPLICIT_TRANSFER", "MEDIUM", true)</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$if (isValid) return CounterpartyExtraction(normalizeExtraction(extracted), "NAME_BEFORE_ACTION", "MEDIUM", true)</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$if (isValid) return CounterpartyExtraction(normalizeExtraction(extracted), "SEMICOLON_NAME_PATTERN", "HIGH", true)</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$if (isValid) return CounterpartyExtraction(normalizeExtraction(humanName), "UPI_HANDLE", "MEDIUM", true)</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$matcher = Pattern.compile("\\b([A-Za-z][A-Za-z0-9\\s]{2,40}?)\\s+(?:credited|debited|transferred|paid|received)\\b", Pattern.CASE_INSENSITIVE).matcher(smsBody)</ID>
+    <ID>MaxLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$var matcher = Pattern.compile(";\\s*([A-Za-z][A-Za-z0-9\\s]{2,40}?)\\s+credited", Pattern.CASE_INSENSITIVE).matcher(smsBody)</ID>
+    <ID>MaxLineLength:CreditCardDetector.kt$CreditCardDetector$CCPaymentDetectionResult</ID>
+    <ID>MaxLineLength:CreditCardDetector.kt$CreditCardDetector$private val CARD_NETWORKS = listOf("VISA", "MASTERCARD", "RUPAY", "AMEX", "AMERICAN EXPRESS", "DINERS", "MAESTRO", "DISCOVER")</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$ExtendedFloatingActionButton</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$LazyColumn</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$Row</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$Surface</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$Text("₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$Text(text = state.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "...", modifier = Modifier.clickable { onAdjust() }, fontWeight = FontWeight.SemiBold)</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$TransactionItem(transaction, linkType = linkDetail?.type, onClick = { editingTransaction = transaction })</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$fun</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$if</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$if (state.totalVariableExpenses &gt; 0) entries.add(PieEntry(state.totalVariableExpenses.toFloat(), "Variable"))</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$if (state.totalVehicleExpenses &gt; 0) entries.add(PieEntry(state.totalVehicleExpenses.toFloat(), "Vehicle"))</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$item { SummaryChip("Fixed", state.totalFixedExpenses, Color(0xFFF44336)) { onCategoryClick(CategoryType.FIXED_EXPENSE) } }</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$item { SummaryChip("Invest", state.totalInvestments, Color(0xFF2196F3)) { onCategoryClick(CategoryType.INVESTMENT) } }</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$item { SummaryChip("Variable", state.totalVariableExpenses, Color(0xFFFF9800)) { onCategoryClick(CategoryType.VARIABLE_EXPENSE) } }</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$item { SummaryChip("Vehicle", state.totalVehicleExpenses, Color(0xFF9C27B0)) { onCategoryClick(CategoryType.VEHICLE) } }</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$val dateRangePickerState = rememberDateRangePickerState(initialSelectedStartDateMillis = initialStart, initialSelectedEndDateMillis = initialEnd)</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$val end = Instant.ofEpochMilli(dateRangePickerState.selectedEndDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$val isRefund = linkType == com.saikumar.expensetracker.data.entity.LinkType.REFUND || transactionType == TransactionType.REFUND</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$val start = Instant.ofEpochMilli(dateRangePickerState.selectedStartDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$val total = state.totalFixedExpenses + state.totalVariableExpenses + state.totalVehicleExpenses + state.totalInvestments</ID>
+    <ID>MaxLineLength:DashboardScreen.kt$viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)</ID>
+    <ID>MaxLineLength:DashboardViewModel.kt$DashboardViewModel$// P0 FIX: Only count COMPLETED transactions to prevent pending/future transactions from inflating totals</ID>
+    <ID>MaxLineLength:DashboardViewModel.kt$DashboardViewModel$android.util.Log.d("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")</ID>
+    <ID>MaxLineLength:DashboardViewModel.kt$DashboardViewModel$android.util.Log.w("DashboardViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")</ID>
+    <ID>MaxLineLength:DuplicateDetector.kt$DuplicateDetector$reason = "Same amount \u20B9${amountPaisa/100} within ${timeDiffMinutes}min + ${matchReasons.joinToString(" + ")}"</ID>
+    <ID>MaxLineLength:ExpenseRepository.kt$ExpenseRepository$val</ID>
+    <ID>MaxLineLength:FilteredTransactionsScreen.kt$Box</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$FilteredTransactionsScreen(viewModel, type, start, end, onNavigateBack = { navController.popBackStack() })</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$factory = DashboardViewModel.Factory(app.repository, app.preferencesManager, app.database.cycleOverrideDao())</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$onCategoryClick = { type, start, end -&gt; navController.navigate("filtered/${type.name}/$start/$end") }</ID>
+    <ID>MaxLineLength:MerchantMemoryDao.kt$MerchantMemoryDao$suspend</ID>
+    <ID>MaxLineLength:MerchantPatternMatcher.kt$MerchantPatternMatcher$fun addUserPattern(keyword: String, categoryName: String)</ID>
+    <ID>MaxLineLength:MerchantPatternMatcher.kt$MerchantPatternMatcher$fun isKnownMerchant(merchantName: String)</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$"${range.startDate.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${range.endDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}"</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(bottom = 8.dp))</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$Text("Tap to change date range", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$modifier = Modifier.fillMaxWidth().clickable { onTransactionClick(txn) }.padding(vertical = 6.dp)</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$modifier = Modifier.fillMaxWidth().height(220.dp)</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$val endMillis = uiState.cycleRange?.endDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$val startMillis = uiState.cycleRange?.startDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L</ID>
+    <ID>MaxLineLength:MonthlyOverviewScreen.kt$viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)</ID>
+    <ID>MaxLineLength:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$android.util.Log.d("MonthlyOverviewViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")</ID>
+    <ID>MaxLineLength:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$android.util.Log.w("MonthlyOverviewViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")</ID>
+    <ID>MaxLineLength:SalaryHistoryScreen.kt$Box</ID>
+    <ID>MaxLineLength:SelfTransferDetector.kt$SelfTransferDetector$fun</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$FilterChip(selected = themeMode == 0, onClick = { viewModel.setThemeMode(0) }, label = { Text("System") })</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$FilterChip(selected = themeMode == 1, onClick = { viewModel.setThemeMode(1) }, label = { Text("Light") })</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$FilterChip(selected = themeMode == 2, onClick = { viewModel.setThemeMode(2) }, label = { Text("Dark") })</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Database Reset Complete - You can now Scan Inbox", android.widget.Toast.LENGTH_LONG).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Reclassify failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Reclassifying Transactions...", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Reset failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Scan Complete", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Scan failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$android.widget.Toast.makeText(context, "Scanning Inbox...", android.widget.Toast.LENGTH_SHORT).show()</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt$fun</ID>
+    <ID>MaxLineLength:SettingsScreen.kt${ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$*</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$?:</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Category(name = "Review Subscriptions", type = CategoryType.FIXED_EXPENSE, isDefault = true)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Category(name = "Utilities", type = CategoryType.FIXED_EXPENSE, isDefault = true)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "Applying category to similar: pattern=$matchPattern, type=$matchType, isSelfTransfer=$isSelfTransfer, transactionType=$transactionType")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "CC_MERCHANT_BOOST: Suppressed no_counterparty penalty, boosted confidence to $computedConfidence for merchant: $finalMerchantName")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: Candidate='$extracted' rejected: $rejectionReason (pattern: EXPLICIT_TRANSFER)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: Candidate='$extracted' rejected: $rejectionReason (pattern: NAME_BEFORE_ACTION)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: Candidate='$extracted' rejected: $rejectionReason (pattern: SEMICOLON_NAME_PATTERN)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_REJECTED: UPI='$upiId' extracted name='$humanName' rejected: $rejectionReason (pattern: UPI_HANDLE)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Extracted='$extracted' → Normalized='$normalized' (EXPLICIT_TRANSFER, all rules passed)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Extracted='$extracted' → Normalized='$normalized' (NAME_BEFORE_ACTION, alphabetic ratio OK, valid person name)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Extracted='$extracted' → Normalized='$normalized' (SEMICOLON_NAME_PATTERN, IDFC/ICICI format)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: Phone-only transfer detected='$extracted' → Formatted='$normalized' (EXPLICIT_TRANSFER, phone pattern)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "COUNTERPARTY_EXTRACTION_SUCCESS: UPI='$upiId' → Name='$humanName' → Normalized='$normalized' (UPI_HANDLE, validation passed)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "DUPLICATE DETECTED: Removing transaction ID=${toDelete.id} (amount=₹${amount.toDouble()/100.0}, merchant1=$merchant1, merchant2=$merchant2)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "ENTITY_CLASSIFICATION: $finalMerchantName -&gt; $entityType (score=${entityClassification.score}, food=${entityClassification.foodInferred}, signals=${entityClassification.signals})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "FOOD_INFERENCE: Inferred '${category.name}' for '$merchantName' (Score: ${foodResult.confidence}, Reasons: ${foodResult.reasons})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_MEMORY: Recorded occurrence for '$finalMerchantName' → '${finalCategory.name}'")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_MEMORY: Using learned category '${category.name}' for merchant '$merchantName' (occurrences: ${learnedMapping.occurrenceCount}, userConfirmed: ${learnedMapping.userConfirmed})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_RESOLUTION: ${sanitizedMerchant ?: extractedMerchant} -&gt; $resolvedMerchant (rule: $merchantResolutionRule)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_RESOLUTION: Placeholder '$originalMerchant' overridden by EARLY counterparty -&gt; '${earlyCounterparty.extractedName}' (rule: ${earlyCounterparty.extractionRule})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_RESOLUTION: Placeholder '$originalMerchant' overridden by UPI -&gt; '$humanName'")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_RESOLUTION: Placeholder '$originalMerchant' retained (no early counterparty or UPI candidate found)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_SANITIZATION: Removed placeholder '$extractedMerchant' (no candidate in message)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_SANITIZATION_DEFERRED: '$extractedMerchant' (counterparty found: ${counterpartyExtraction.extractedName})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "MERCHANT_SANITIZATION_DEFERRED: Placeholder '$merchantName' - counterparty already extracted, deferring to Step 1")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "Marked transaction ${txn.id} for update (pattern: $pattern, isSelfTransfer: $isSelfTransfer, type: $transactionType)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "NATURE_RESOLVED: ${natureResolution.nature} (rule: ${natureResolution.matchedRule}, confidence: ${(natureResolution.confidence * 100).toInt()}%)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "P2P_INVARIANT: Final transactionType=$finalTransactionType, merchant=$finalMerchantName, category=${finalCategory.name}")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "PIPELINE_TRACE: Early counterparty extraction used in resolution: extractedName='${counterpartyExtraction.extractedName}' (rule: ${counterpartyExtraction.extractionRule}) -&gt; final merchant='$resolvedMerchant' (resolutionRule: $merchantResolutionRule)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "POST_FALLBACK_RECONCILIATION: Applied override: '$currentMerchant' → '$newMerchant' (fallback rule: $matchedRule, counterparty: ${counterpartyExtraction.extractionRule})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "RECLASSIFICATION_MERCHANT_RESOLUTION: $originalMerchant -&gt; $resolvedMerchant (rule: $merchantResolutionRule)")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "SUCCESS: Inserted txn ${finalTransaction.id}: ${finalCategory.name} - ₹${amountPaisa / 100.0} (${finalTransaction.transactionType})")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.d(TAG, "Scan Stats: Total read=$smsCount, Processed/Attempted=$processedCount, Errors=$ignoredCount")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Log.w(TAG, "No valid pattern found (UPI/NEFT/SafeMerchant), skipping similar transaction update")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("(?:^|\\n)\\s*To\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s*\\n|\\s*$)", Pattern.CASE_INSENSITIVE or Pattern.MULTILINE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("(?:credited from|deposited from|transferred from|received from)\\s+([A-Za-z0-9][A-Za-z0-9\\s]{2,40}?)(?:\\s+on|\\s+VPA|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("(?:credited from|deposited from|transferred from|received from)\\s+([A-Za-z][A-Za-z\\s]{2,30}?)(?:\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("(?:debited to|paid to|transferred to|sent to)\\s+([A-Za-z0-9][A-Za-z0-9\\s]{2,40}?)(?:\\s+on|\\s+VPA|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("(?:debited to|paid to|transferred to|sent to)\\s+([A-Za-z][A-Za-z\\s]{2,30}?)(?:\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("(?:sent|paid)\\s+(?:Rs\\.?|INR)\\s*[\\d,]+(?:\\.\\d{1,2})?\\s+(?:to)\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("\\b([A-Za-z][A-Za-z\\s]{2,30}?)\\s+(?:credited|debited|transferred|paid|received)\\b", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("transfer\\s+from\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s+Ref|\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$Pattern.compile("transfer\\s+to\\s+([A-Z][A-Z\\s]{2,40}?)(?:\\s+Ref|\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$body.contains("CASHBACK", ignoreCase = true) -&gt; categories.find { it.name.equals("Cashback", ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$body.contains("INTEREST", ignoreCase = true) -&gt; categories.find { it.name.equals("Interest", ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$body.contains("REFUND", ignoreCase = true) -&gt; categories.find { it.name.equals("Refund", ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$content.contains("BONUS", ignoreCase = true) -&gt; categories.find { it.name.equals(SmsConstants.CategoryNames.BONUS, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$content.contains("CASHBACK", ignoreCase = true) -&gt; categories.find { it.name.equals(SmsConstants.CategoryNames.CASHBACK, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$content.contains("DIVIDEND", ignoreCase = true) -&gt; categories.find { it.name.equals(SmsConstants.CategoryNames.INVESTMENTS_DIVIDENDS, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$content.contains("INTEREST", ignoreCase = true) -&gt; categories.find { it.name.equals(SmsConstants.CategoryNames.INTEREST, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$content.contains("REFUND", ignoreCase = true) -&gt; categories.find { it.name.equals(SmsConstants.CategoryNames.REFUND, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$determineTransactionType(content, newCategory, isAutoSelfTransfer, isSalaryCredit, finalIsCredit, reclassNatureResolution)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$else -&gt; "Category identified: ${finalCategory.name}, Type: $finalTransactionType (matched rule: ${natureResolution.matchedIncomeRule ?: natureResolution.matchedRule})"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$else -&gt; categories.find { it.name.equals(SmsConstants.CategoryNames.OTHER_INCOME, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$evidenceIssues.isNotEmpty() -&gt; "Category identified: ${finalCategory.name}, Type: $finalTransactionType, but confidence reduced due to: ${evidenceIssues.joinToString(", ")}"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$fun</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$if</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$if (invariantLogs.isNotEmpty()) " [INVARIANTS: ${invariantLogs.joinToString("; ")}]" else ""</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$isExpenseEligible = (newTransactionType == TransactionType.EXPENSE) &amp;&amp; !isAutoSelfTransfer &amp;&amp; !txn.smsSnippet!!.contains("reversal", ignoreCase = true)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$isFallbackRule -&gt; "Fallback rule used (${natureResolution.matchedRule}), low confidence (${(computedConfidence * 100).toInt()}%), evidence issues: ${evidenceIssues.joinToString(", ")}"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$logEntry["reason"] = "Fallback is soft; valid counterparty exists - overriding placeholder with extracted person"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$note = if (newTransactionType == TransactionType.INCOME &amp;&amp; finalIsCredit) "Income: $detectionReason" else txn.note</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$p2pInvariantLog.applied -&gt; "P2P_OUTGOING_TRANSFER invariant applied: ${p2pInvariantLog.originalTransactionType} → ${p2pInvariantLog.correctedTransactionType}, counterparty: ${p2pInvariantLog.counterparty}"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private fun detectCashback(smsBody: String, isCredit: Boolean)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private fun detectInvestmentOutflow(smsBody: String, isDebit: Boolean)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private fun detectStandingInstructionAlert(smsBody: String)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private fun extractPaymentModeFromSnippet(snippet: String?)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private suspend</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$private val EXCLUSION_KEYWORDS = listOf("REFUND", "CASHBACK", "REVERSAL", "REWARD", "INCENTIVE", "BONUS", "INTEREST", "WALLET", "LOAN")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$reason = "Counterparty extraction found '${counterpartyExtraction.extractedName}' - deferring to Step 1 (Resolution)"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$reason = "Small amount (≤₹1) debit detected - likely UPI/account verification, excluded from analytics"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$reason = "Transaction type is $currentTransactionType, not EXPENSE - invariant only fixes EXPENSE fallback"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$requiresConfirmation -&gt; "Unidentified credit (direction=CREDIT, no income rule matched); requires user confirmation"</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$suspend</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val (resolvedMerchant, merchantResolutionRule) = resolveMerchantName(body, sanitizedMerchant, upiId, counterpartyExtraction)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val (resolvedMerchant, merchantResolutionRule) = resolveMerchantName(content, originalMerchant, extractUpiId(content), earlyCounterparty)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val (sanitizedMerchant, sanitizationApplied, sanitizationDeferred) = sanitizeMerchantName(body, extractedMerchant, counterpartyExtraction.found)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val allTransactions = app.repository.getTransactionsInPeriod(sevenDaysAgo, System.currentTimeMillis()).first()</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val detectionResult: Pair&lt;Boolean, String&gt; = getSalaryDetectionResult(body, isCredit, userSalaryCompanyNames)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val detectionResult: Pair&lt;Boolean, String&gt; = getSalaryDetectionResult(content, finalIsCredit, userSalaryCompanyNames)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val fallbackRules = setOf("LEVEL_5_INCOME_FALLBACK", "LEVEL_6_EXPENSE_FALLBACK", "EXPENSE_FALLBACK", "INCOME_UNIDENTIFIED")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val isCCPaymentPair = (t1Type == TransactionType.LIABILITY_PAYMENT &amp;&amp; t2Type == TransactionType.LIABILITY_PAYMENT)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val isPlaceholder = placeholders.any { upper == it || upper.contains(it) } // Strict check</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val lifestyleCategories = listOf("Dining Out", "Entertainment", "Shopping", "Grooming", "Food Delivery", "Cab &amp; Taxi")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val placeholders = setOf("UPI", "IMPS", "NEFT", "RTGS", "CRED", "BANK", "WALLET", "PAYTM", "GOOGLEPAY", "PHONEPE", "RAZORPAY", "CASHFREE")</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val salaryCategory = categories.find { it.name.equals(SmsConstants.CategoryNames.SALARY, ignoreCase = true) }</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val transactionType = determineTransactionType(body, it, isSelfTransfer, isSalaryCredit, isCredit, natureResolution)</ID>
+    <ID>MaxLineLength:SmsProcessor.kt$SmsProcessor$val violation = "INVARIANT_VIOLATION: CC payment classified as $transactionType. Forcing to LIABILITY_PAYMENT."</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val airtelReminder = "7869XXX715 par Airtel pack samapt hone wala hai!\nAbhi recharge karein aur anand lein 2GB/din,100SMS/din,UL call, 365 din, Rs2999 mein. https://p.paytm.me/xCTH/airpld"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val ccPaymentMessage = "DEAR HDFCBANK CARDMEMBER, PAYMENT OF Rs. 1820.00 RECEIVED TOWARDS YOUR CREDIT CARD ENDING WITH 1404. TOTAL OUTSTANDING IS Rs.1568.0 (10JAN26)"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val epfMessage = "Dear XXXXXXXX2971, your passbook balance against PUPUN**************3732 is Rs. 5,42,966/-. Contribution of Rs. 13,946/- for due month Dec-25 has been received."</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val epfoMessage = "Dear UAN 123456789012, Contribution of Rs. 15000/- for due month Nov-25 has been received. Your passbook balance is Rs. 4,50,000/-"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val homeLoanMessage = "ICICI Bank Acc XX008 debited Rs. 5,936.00 on 10-Jan-26 InfoBIL*Home Loan.Avl Bal Rs. 48,742.00"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val incomingP2pMessage = "Dear SBI User, your A/c X2916-credited by Rs.206.67 on 24Aug24 transfer from PANDEY V Ref No 460357016679 -SBI"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val loanSpamMessage = "Get Rs. 241,000 credited to your bank a/c at 1% monthly interest!\nINSTANT Disbursal + ZERO Hidden Charges\nLink: https://gs.im/LOAN24/e/EytKJ4l2CC\n-LOANS24"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val paytmP2pMessage = "Rs. 375 transferred to Amit shukla(9589799808) at Jan 26, 2019 13:26:31. Transaction ID 22642808721 , Updated Balance Rs. 48"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val preApprovedLoan = "Congratulations! You are pre-approved for Personal Loan upto Rs.5,00,000. Apply now at https://bank.com/loan"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val sbiMessage = "Rs30.0 debited@SBI UPI frm A/cX2916 on 16Mar22 RefNo 207589475491. If not done by u, fwd this SMS to 9223008333/Call 1800111109 or 09449112211 to block UPI"</ID>
+    <ID>MaxLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$val sbiP2pMessage = "Dear SBI User, your A/c X2916-debited by Rs200.0 on 24May23 transfer to RAJEEV KUMAR Ref No 314442970240"</ID>
+    <ID>MaxLineLength:Theme.kt$modifier = androidx.compose.ui.Modifier.fillMaxWidth().height(120.dp).align(Alignment.TopCenter)</ID>
+    <ID>MaxLineLength:Theme.kt$snowColor = if (darkTheme) Color.White.copy(alpha = 0.8f) else SnowBlueGrey40</ID>
+    <ID>MaxLineLength:Theme.kt$waveColor = if (darkTheme) SnowBlue80.copy(alpha=0.3f) else SnowBlue40.copy(alpha=0.3f)</ID>
+    <ID>MaxLineLength:TransactionDao.kt$TransactionDao$@Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL ORDER BY timestamp DESC")</ID>
+    <ID>MaxLineLength:TransactionDao.kt$TransactionDao$@Query("SELECT * FROM transactions WHERE smsSnippet LIKE '%' || :pattern || '%' AND deletedAt IS NULL ORDER BY timestamp DESC")</ID>
+    <ID>MaxLineLength:TransactionDao.kt$TransactionDao$@Query("SELECT * FROM transactions WHERE timestamp &gt;= :startTimestamp AND timestamp &lt;= :endTimestamp AND deletedAt IS NULL ORDER BY timestamp DESC")</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$Text("Amount: ${formatAmount(transaction.transaction.amountPaisa)}", style = MaterialTheme.typography.titleMedium)</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$Text("This transaction will not affect income totals unless marked.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$TextButton(onClick = { onConfirm(selectedCategory.id, note, accountType, applyToSimilar, manualClassification) }) { Text("Save") }</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$if</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$text = if (collapsedMessage.length &lt;= 80) collapsedMessage else collapsedMessage.take(77) + "..."</ID>
+    <ID>MaxLineLength:TransactionEditDialog.kt$val</ID>
+    <ID>MaxLineLength:TransactionLinkDao.kt$TransactionLinkDao$fun</ID>
+    <ID>MaxLineLength:TransactionNatureResolver.kt$TransactionNatureResolver$Log.d(TAG, "EXPENSE_ELIGIBILITY: eligible=$isEligible (completed=$isCompleted, ownershipChanged=$ownershipChanged, business=$isBusiness, notReversal=$notReversal)")</ID>
+    <ID>MaxLineLength:TransactionNatureResolver.kt$TransactionNatureResolver$if</ID>
+    <ID>MaxLineLength:TransactionNatureResolver.kt$TransactionNatureResolver$private</ID>
+    <ID>MaxLineLength:TransactionNatureResolver.kt$TransactionNatureResolver$val terminalIndicators = listOf("pos", "card machine", "terminal", "edc", "mswipe", "pinelabs", "paytm soundbox")</ID>
+    <ID>MaxLineLength:TransactionNatureResolver.kt$TransactionNatureResolver.NatureResolution$val matchedIncomeRule: String? = null</ID>
+    <ID>MaxLineLength:TransactionValidator.kt$TransactionValidator$CategoryType.INVESTMENT -&gt; listOf(TransactionType.EXPENSE, TransactionType.INVESTMENT_OUTFLOW, TransactionType.TRANSFER)</ID>
+    <ID>MaxLineLength:TransactionValidator.kt$TransactionValidator$CategoryType.VEHICLE</ID>
+    <ID>MaxLineLength:TransactionValidator.kt$TransactionValidator$if</ID>
+    <ID>MaximumLineLength:AddCategoryDialog.kt$ </ID>
+    <ID>MaximumLineLength:AddTransactionScreen.kt$ </ID>
+    <ID>MaximumLineLength:AddTransactionViewModel.kt$AddTransactionViewModel$ </ID>
+    <ID>MaximumLineLength:AppDatabase.kt$AppDatabase.Companion$ </ID>
+    <ID>MaximumLineLength:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$ </ID>
+    <ID>MaximumLineLength:CategoryManagementScreen.kt$ </ID>
+    <ID>MaximumLineLength:ClassificationDebugLog.kt$CounterpartyExtraction$ </ID>
+    <ID>MaximumLineLength:ClassificationDebugLogger.kt$ClassificationDebugLogger$ </ID>
+    <ID>MaximumLineLength:CommonDateRangePicker.kt$ </ID>
+    <ID>MaximumLineLength:CounterpartyExtractor.kt$CounterpartyExtractor$ </ID>
+    <ID>MaximumLineLength:CreditCardDetector.kt$CreditCardDetector$ </ID>
+    <ID>MaximumLineLength:DashboardScreen.kt$ </ID>
+    <ID>MaximumLineLength:DashboardScreen.kt$fun</ID>
+    <ID>MaximumLineLength:DashboardViewModel.kt$DashboardViewModel$ </ID>
+    <ID>MaximumLineLength:DuplicateDetector.kt$DuplicateDetector$ </ID>
+    <ID>MaximumLineLength:ExpenseRepository.kt$ExpenseRepository$ </ID>
+    <ID>MaximumLineLength:FilteredTransactionsScreen.kt$ </ID>
+    <ID>MaximumLineLength:MainActivity.kt$MainActivity$ </ID>
+    <ID>MaximumLineLength:MerchantMemoryDao.kt$MerchantMemoryDao$ </ID>
+    <ID>MaximumLineLength:MerchantPatternMatcher.kt$MerchantPatternMatcher$ </ID>
+    <ID>MaximumLineLength:MonthlyOverviewScreen.kt$ </ID>
+    <ID>MaximumLineLength:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$ </ID>
+    <ID>MaximumLineLength:SalaryHistoryScreen.kt$ </ID>
+    <ID>MaximumLineLength:SelfTransferDetector.kt$SelfTransferDetector$ </ID>
+    <ID>MaximumLineLength:SettingsScreen.kt$ </ID>
+    <ID>MaximumLineLength:SettingsScreen.kt$fun</ID>
+    <ID>MaximumLineLength:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>MaximumLineLength:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$ </ID>
+    <ID>MaximumLineLength:Theme.kt$ </ID>
+    <ID>MaximumLineLength:TransactionDao.kt$TransactionDao$ </ID>
+    <ID>MaximumLineLength:TransactionEditDialog.kt$ </ID>
+    <ID>MaximumLineLength:TransactionLinkDao.kt$TransactionLinkDao$ </ID>
+    <ID>MaximumLineLength:TransactionNatureResolver.kt$TransactionNatureResolver$ </ID>
+    <ID>MaximumLineLength:TransactionNatureResolver.kt$TransactionNatureResolver.NatureResolution$ </ID>
+    <ID>MaximumLineLength:TransactionValidator.kt$TransactionValidator$ </ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@ColumnInfo(name = "confidence_score")</ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@ColumnInfo(name = "created_at")</ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@ColumnInfo(name = "created_by")</ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@ColumnInfo(name = "link_type")</ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@ColumnInfo(name = "primary_txn_id")</ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@ColumnInfo(name = "secondary_txn_id")</ID>
+    <ID>ModifierListSpacing:TransactionLink.kt$TransactionLink$@PrimaryKey(autoGenerate = true)</ID>
+    <ID>MultiLineIfElse:PromotionalFilter.kt$PromotionalFilter$return true</ID>
+    <ID>MultiLineIfElse:SettingsScreen.kt$Text("Default")</ID>
+    <ID>MultiLineIfElse:SettingsScreen.kt$Text(palette.lowercase().replaceFirstChar { it.uppercase() })</ID>
+    <ID>MultiLineIfElse:SettingsScreen.kt$null</ID>
+    <ID>MultiLineIfElse:SmsProcessor.kt$SmsProcessor$false</ID>
+    <ID>MultiLineIfElse:TransactionEditDialog.kt$MaterialTheme.colorScheme.primaryContainer</ID>
+    <ID>MultiLineIfElse:TransactionEditDialog.kt$MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)</ID>
+    <ID>MultiLineIfElse:TransactionEditDialog.kt$null</ID>
+    <ID>MultiLineIfElse:TransactionValidator.kt$TransactionValidator$ValidationResult.Invalid("Expense categories valid for Expense, Liability Payment, or Transfer.")</ID>
+    <ID>MultiLineIfElse:TransactionValidator.kt$TransactionValidator$ValidationResult.Invalid("Income categories can only be used for Income transactions.")</ID>
+    <ID>MultiLineIfElse:TransactionValidator.kt$TransactionValidator$ValidationResult.Invalid("Investment categories valid for Expense, Investment, or Transfer.")</ID>
+    <ID>MultiLineIfElse:TransactionValidator.kt$TransactionValidator$ValidationResult.Valid</ID>
+    <ID>NestedBlockDepth:ClassificationDebugLogger.kt$ClassificationDebugLogger$private suspend fun writeContentToFile(context: Context, fileName: String, content: String)</ID>
+    <ID>NestedBlockDepth:CounterpartyExtractor.kt$CounterpartyExtractor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>NestedBlockDepth:CounterpartyExtractor.kt$CounterpartyExtractor$fun resolveMerchantName(smsBody: String, originalMerchant: String?, upiId: String?, earlyCounterparty: CounterpartyExtraction?): Pair&lt;String?, String&gt;</ID>
+    <ID>NestedBlockDepth:MerchantPatternMatcher.kt$MerchantPatternMatcher$fun extractMerchantKeyword(smsBody: String): String?</ID>
+    <ID>NestedBlockDepth:MerchantPatternMatcher.kt$MerchantPatternMatcher$private fun extractMerchantFromSmsPattern(smsBody: String, categories: List&lt;Category&gt;): Category?</ID>
+    <ID>NestedBlockDepth:SelfTransferDetector.kt$SelfTransferDetector$fun findSelfTransferPairs(transactions: List&lt;Transaction&gt;, maxMinutesApart: Long = 5): List&lt;SelfTransferPair&gt;</ID>
+    <ID>NestedBlockDepth:SmsProcessor.kt$SmsProcessor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>NestedBlockDepth:SmsProcessor.kt$SmsProcessor$fun resolveMerchantName(smsBody: String, originalMerchant: String?, upiId: String?, earlyCounterparty: CounterpartyExtraction?): Pair&lt;String?, String&gt;</ID>
+    <ID>NestedBlockDepth:SmsProcessor.kt$SmsProcessor$private suspend fun detectAndRemoveDuplicates(context: Context)</ID>
+    <ID>NestedBlockDepth:SmsProcessor.kt$SmsProcessor$private suspend fun pairRelatedTransactions(context: Context, forceAll: Boolean = false)</ID>
+    <ID>NestedBlockDepth:SmsProcessor.kt$SmsProcessor$private suspend fun processSmsInternal(app: ExpenseTrackerApplication, categories: List&lt;Category&gt;, body: String, timestamp: Long, sender: String?)</ID>
+    <ID>NestedBlockDepth:TransactionNatureResolver.kt$TransactionNatureResolver$fun classifyEntity( counterparty: String?, upiId: String?, smsBody: String, amountPaisa: Long ): EntityClassification</ID>
+    <ID>NestedBlockDepth:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectCreditCardPayment(smsBody: String, isDebit: Boolean, isCredit: Boolean): String?</ID>
+    <ID>NewLineAtEndOfFile:Color.kt$com.saikumar.expensetracker.ui.theme.Color.kt</ID>
+    <ID>NewLineAtEndOfFile:ExampleUnitTest.kt$com.saikumar.expensetracker.ExampleUnitTest.kt</ID>
+    <ID>NewLineAtEndOfFile:SalaryHistoryViewModel.kt$com.saikumar.expensetracker.ui.dashboard.SalaryHistoryViewModel.kt</ID>
+    <ID>NewLineAtEndOfFile:SmsProcessor.kt$com.saikumar.expensetracker.sms.SmsProcessor.kt</ID>
+    <ID>NewLineAtEndOfFile:Theme.kt$com.saikumar.expensetracker.ui.theme.Theme.kt</ID>
+    <ID>NewLineAtEndOfFile:Type.kt$com.saikumar.expensetracker.ui.theme.Type.kt</ID>
+    <ID>NoBlankLineBeforeRbrace:ClassificationDebugLogger.kt$ClassificationDebugLogger$ </ID>
+    <ID>NoBlankLineBeforeRbrace:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>NoConsecutiveBlankLines:AddTransactionViewModel.kt$AddTransactionViewModel$ </ID>
+    <ID>NoConsecutiveBlankLines:ClassificationDebugLog.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:CycleUtils.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:ExpenseRepository.kt$ExpenseRepository$ </ID>
+    <ID>NoConsecutiveBlankLines:PreferencesManager.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:PreferencesManager.kt$PreferencesManager$ </ID>
+    <ID>NoConsecutiveBlankLines:SettingsScreen.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>NoEmptyFirstLineInMethodBlock:SelfTransferScorer.kt$SelfTransferScorer$ </ID>
+    <ID>NoEmptyFirstLineInMethodBlock:SettingsScreen.kt$ </ID>
+    <ID>NoEmptyFirstLineInMethodBlock:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>NoEmptyFirstLineInMethodBlock:TransactionTypeResolver.kt$TransactionTypeResolver$ </ID>
+    <ID>NoMultipleSpaces:AddTransactionScreen.kt$ </ID>
+    <ID>NoMultipleSpaces:AppDatabase.kt$AppDatabase$ </ID>
+    <ID>NoMultipleSpaces:AppDatabase.kt$AppDatabase.Companion$ </ID>
+    <ID>NoMultipleSpaces:CategorizationRule.kt$PatternType.MERCHANT_NAME$ </ID>
+    <ID>NoMultipleSpaces:CategorizationRule.kt$PatternType.NEFT_BANK_CODE$ </ID>
+    <ID>NoMultipleSpaces:CategorizationRule.kt$PatternType.NEFT_REFERENCE$ </ID>
+    <ID>NoMultipleSpaces:CategorizationRule.kt$PatternType.PAYEE_NAME$ </ID>
+    <ID>NoMultipleSpaces:CategorizationRule.kt$PatternType.UPI_ID$ </ID>
+    <ID>NoMultipleSpaces:ClassificationDebugLog.kt$CounterpartyExtraction$ </ID>
+    <ID>NoMultipleSpaces:ClassificationDebugLog.kt$P2PTransferInvariantLog$ </ID>
+    <ID>NoMultipleSpaces:ClassificationDebugLog.kt$RuleExecution$ </ID>
+    <ID>NoMultipleSpaces:ClassificationDebugLogger.kt$ClassificationDebugLogger$ </ID>
+    <ID>NoMultipleSpaces:DashboardScreen.kt$ </ID>
+    <ID>NoMultipleSpaces:DashboardViewModel.kt$DashboardViewModel$ </ID>
+    <ID>NoMultipleSpaces:DuplicateDetector.kt$DuplicateDetector.Tier.EXACT_HASH$ </ID>
+    <ID>NoMultipleSpaces:DuplicateDetector.kt$DuplicateDetector.Tier.FUZZY_MATCH$ </ID>
+    <ID>NoMultipleSpaces:DuplicateDetector.kt$DuplicateDetector.Tier.REFERENCE_MATCH$ </ID>
+    <ID>NoMultipleSpaces:ExpenseRepository.kt$ExpenseRepository$ </ID>
+    <ID>NoMultipleSpaces:ExpenseRepository.kt$ExpenseRepository.DuplicateTier.EXACT_HASH$ </ID>
+    <ID>NoMultipleSpaces:ExpenseRepository.kt$ExpenseRepository.DuplicateTier.FUZZY_MATCH$ </ID>
+    <ID>NoMultipleSpaces:ExpenseRepository.kt$ExpenseRepository.DuplicateTier.REFERENCE_MATCH$ </ID>
+    <ID>NoMultipleSpaces:ExpenseTrackerApplication.kt$ExpenseTrackerApplication$ </ID>
+    <ID>NoMultipleSpaces:FoodDetector.kt$FoodDetector$ </ID>
+    <ID>NoMultipleSpaces:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$ </ID>
+    <ID>NoMultipleSpaces:PreferencesManager.kt$PreferencesManager$ </ID>
+    <ID>NoMultipleSpaces:SalaryHistoryViewModel.kt$SalaryHistoryViewModel$ </ID>
+    <ID>NoMultipleSpaces:SelfTransferScorer.kt$SelfTransferScorer.Confidence.HIGH$ </ID>
+    <ID>NoMultipleSpaces:SelfTransferScorer.kt$SelfTransferScorer.Confidence.LOW$ </ID>
+    <ID>NoMultipleSpaces:SelfTransferScorer.kt$SelfTransferScorer.Confidence.MEDIUM$ </ID>
+    <ID>NoMultipleSpaces:SelfTransferScorer.kt$SelfTransferScorer.Confidence.NONE$ </ID>
+    <ID>NoMultipleSpaces:SelfTransferScorer.kt$SelfTransferScorer.ScoreResult$ </ID>
+    <ID>NoMultipleSpaces:SmsConstants.kt$SmsConstants.CategoryNames$ </ID>
+    <ID>NoMultipleSpaces:SmsConstants.kt$SmsConstants.DirectionDetector$ </ID>
+    <ID>NoMultipleSpaces:SmsConstants.kt$SmsConstants.DirectionDetector.DirectionResult$ </ID>
+    <ID>NoMultipleSpaces:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>NoMultipleSpaces:Theme.kt$ </ID>
+    <ID>NoMultipleSpaces:TransactionEditDialog.kt$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.EntityClassification$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.NatureResolution$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.CREDIT_CARD_PAYMENT$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.CREDIT_CARD_SPEND$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.EXPENSE$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.INCOME$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.P2P_TRANSFER$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.PENDING$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.REFUND$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionNature.SELF_TRANSFER$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionState.CANCELLED$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionState.COMPLETED$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionState.INTENT$ </ID>
+    <ID>NoMultipleSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionState.PENDING$ </ID>
+    <ID>NoTrailingSpaces:AddCategoryDialog.kt$ </ID>
+    <ID>NoTrailingSpaces:AddTransactionScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:AddTransactionViewModel.kt$AddTransactionViewModel$ </ID>
+    <ID>NoTrailingSpaces:AppDatabase.kt$AppDatabase.Companion$ </ID>
+    <ID>NoTrailingSpaces:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$ </ID>
+    <ID>NoTrailingSpaces:CategorizationRule.kt$CategorizationRule$ </ID>
+    <ID>NoTrailingSpaces:CategorizationRuleDao.kt$CategorizationRuleDao$ </ID>
+    <ID>NoTrailingSpaces:CategoryIcons.kt$CategoryIcons$ </ID>
+    <ID>NoTrailingSpaces:CategoryManagementScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:ClassificationDebugLog.kt$P2PTransferInvariantLog$ </ID>
+    <ID>NoTrailingSpaces:ClassificationDebugLogger.kt$ClassificationDebugLogger$ </ID>
+    <ID>NoTrailingSpaces:ClassificationDebugLogger.kt$ClassificationDebugLogger.LogBuilder$ </ID>
+    <ID>NoTrailingSpaces:CommonDateRangePicker.kt$ </ID>
+    <ID>NoTrailingSpaces:Converters.kt$Converters$ </ID>
+    <ID>NoTrailingSpaces:CounterpartyExtractor.kt$CounterpartyExtractor$ </ID>
+    <ID>NoTrailingSpaces:CreditCardDetector.kt$CreditCardDetector$ </ID>
+    <ID>NoTrailingSpaces:CycleUtils.kt$CycleUtils$ </ID>
+    <ID>NoTrailingSpaces:DashboardScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:DashboardViewModel.kt$DashboardViewModel$ </ID>
+    <ID>NoTrailingSpaces:DashboardViewModel.kt$DashboardViewModel.Factory$ </ID>
+    <ID>NoTrailingSpaces:DebugLogDao.kt$DebugLogDao$ </ID>
+    <ID>NoTrailingSpaces:DebugLogEntity.kt$DebugLogEntity$ </ID>
+    <ID>NoTrailingSpaces:DuplicateDetector.kt$DuplicateDetector$ </ID>
+    <ID>NoTrailingSpaces:EntityClassifier.kt$EntityClassifier$ </ID>
+    <ID>NoTrailingSpaces:ExpenseRepository.kt$ExpenseRepository$ </ID>
+    <ID>NoTrailingSpaces:ExpenseTrackerApplication.kt$ExpenseTrackerApplication$ </ID>
+    <ID>NoTrailingSpaces:FilteredTransactionsScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:FilteredTransactionsViewModel.kt$FilteredTransactionsViewModel$ </ID>
+    <ID>NoTrailingSpaces:FoodDetector.kt$FoodDetector$ </ID>
+    <ID>NoTrailingSpaces:LinkManagerScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:LinkManagerViewModel.kt$LinkManagerViewModel$ </ID>
+    <ID>NoTrailingSpaces:LinkWithDetails.kt$LinkWithDetails$ </ID>
+    <ID>NoTrailingSpaces:MainActivity.kt$MainActivity$ </ID>
+    <ID>NoTrailingSpaces:MerchantMemory.kt$MerchantMemory$ </ID>
+    <ID>NoTrailingSpaces:MerchantMemoryDao.kt$MerchantMemoryDao$ </ID>
+    <ID>NoTrailingSpaces:MerchantPatternMatcher.kt$MerchantPatternMatcher$ </ID>
+    <ID>NoTrailingSpaces:MonthlyOverviewScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$ </ID>
+    <ID>NoTrailingSpaces:PreferencesManager.kt$PreferencesManager$ </ID>
+    <ID>NoTrailingSpaces:PromotionalFilter.kt$PromotionalFilter$ </ID>
+    <ID>NoTrailingSpaces:SalaryHistoryViewModel.kt$SalaryHistoryViewModel$ </ID>
+    <ID>NoTrailingSpaces:SelfTransferDetector.kt$SelfTransferDetector$ </ID>
+    <ID>NoTrailingSpaces:SelfTransferScorer.kt$SelfTransferScorer$ </ID>
+    <ID>NoTrailingSpaces:SettingsScreen.kt$ </ID>
+    <ID>NoTrailingSpaces:SettingsViewModel.kt$SettingsViewModel$ </ID>
+    <ID>NoTrailingSpaces:SmsConstants.kt$SmsConstants$ </ID>
+    <ID>NoTrailingSpaces:SmsConstants.kt$SmsConstants.CategoryNames$ </ID>
+    <ID>NoTrailingSpaces:SmsConstants.kt$SmsConstants.DirectionDetector$ </ID>
+    <ID>NoTrailingSpaces:SmsConstants.kt$SmsConstants.FallbackRules$ </ID>
+    <ID>NoTrailingSpaces:SmsConstants.kt$SmsConstants.PlaceholderMerchants$ </ID>
+    <ID>NoTrailingSpaces:SmsConstants.kt$SmsConstants.RealMerchants$ </ID>
+    <ID>NoTrailingSpaces:SmsProcessor.kt$SmsProcessor$ </ID>
+    <ID>NoTrailingSpaces:SmsProcessor.kt$SmsProcessor$// </ID>
+    <ID>NoTrailingSpaces:SmsProcessor.kt$SmsProcessor$// ... existing ... </ID>
+    <ID>NoTrailingSpaces:SmsProcessor.kt$SmsProcessor$// BUG-006 FIX: Paytm wallet format "transferred to Name(phone)" </ID>
+    <ID>NoTrailingSpaces:SmsProcessor.kt$SmsProcessor$// I'll stick to T2 -&gt; T1 (Older -&gt; Newer) logic for Primary -&gt; Secondary </ID>
+    <ID>NoTrailingSpaces:SmsProcessor.kt$SmsProcessor$// Treat Earliest (Smallest ID or Timestamp) as Source? </ID>
+    <ID>NoTrailingSpaces:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$ </ID>
+    <ID>NoTrailingSpaces:SmsReceiver.kt$SmsReceiver$ </ID>
+    <ID>NoTrailingSpaces:SnowfallAnimation.kt$ </ID>
+    <ID>NoTrailingSpaces:Theme.kt$ </ID>
+    <ID>NoTrailingSpaces:Transaction.kt$Transaction$ </ID>
+    <ID>NoTrailingSpaces:TransactionDao.kt$TransactionDao$ </ID>
+    <ID>NoTrailingSpaces:TransactionEditDialog.kt$ </ID>
+    <ID>NoTrailingSpaces:TransactionLink.kt$LinkSource$ </ID>
+    <ID>NoTrailingSpaces:TransactionLink.kt$LinkType$ </ID>
+    <ID>NoTrailingSpaces:TransactionLink.kt$TransactionLink$ </ID>
+    <ID>NoTrailingSpaces:TransactionLinkDao.kt$TransactionLinkDao$ </ID>
+    <ID>NoTrailingSpaces:TransactionNatureResolver.kt$TransactionNatureResolver$ </ID>
+    <ID>NoTrailingSpaces:TransactionNatureResolver.kt$TransactionNatureResolver$// </ID>
+    <ID>NoTrailingSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.NatureResolution$ </ID>
+    <ID>NoTrailingSpaces:TransactionNatureResolver.kt$TransactionNatureResolver.TransactionState$ </ID>
+    <ID>NoTrailingSpaces:TransactionType.kt$TransactionType$ </ID>
+    <ID>NoTrailingSpaces:TransactionTypeResolver.kt$TransactionTypeResolver$ </ID>
+    <ID>NoTrailingSpaces:TransactionValidator.kt$TransactionValidator$ </ID>
+    <ID>NoTrailingSpaces:UndoLog.kt$UndoLog$ </ID>
+    <ID>NoTrailingSpaces:UndoLogDao.kt$UndoLogDao$ </ID>
+    <ID>NoUnusedImports:AccountDao.kt$com.saikumar.expensetracker.data.db.AccountDao.kt</ID>
+    <ID>NoUnusedImports:AddTransactionScreen.kt$com.saikumar.expensetracker.ui.add.AddTransactionScreen.kt</ID>
+    <ID>NoUnusedImports:AppDatabase.kt$com.saikumar.expensetracker.data.db.AppDatabase.kt</ID>
+    <ID>NoUnusedImports:CounterpartyExtractor.kt$com.saikumar.expensetracker.sms.CounterpartyExtractor.kt</ID>
+    <ID>NoUnusedImports:CreditCardDetector.kt$com.saikumar.expensetracker.sms.CreditCardDetector.kt</ID>
+    <ID>NoUnusedImports:ExpenseTrackerApplication.kt$com.saikumar.expensetracker.ExpenseTrackerApplication.kt</ID>
+    <ID>NoUnusedImports:MainActivity.kt$com.saikumar.expensetracker.MainActivity.kt</ID>
+    <ID>NoUnusedImports:MonthlyOverviewScreen.kt$com.saikumar.expensetracker.ui.dashboard.MonthlyOverviewScreen.kt</ID>
+    <ID>NoUnusedImports:PromotionalFilter.kt$com.saikumar.expensetracker.sms.PromotionalFilter.kt</ID>
+    <ID>NoUnusedImports:SelfTransferDetector.kt$com.saikumar.expensetracker.sms.SelfTransferDetector.kt</ID>
+    <ID>NoUnusedImports:SettingsScreen.kt$com.saikumar.expensetracker.ui.settings.SettingsScreen.kt</ID>
+    <ID>NoUnusedImports:SmsProcessor.kt$com.saikumar.expensetracker.sms.SmsProcessor.kt</ID>
+    <ID>NoUnusedImports:SmsProcessorBugFixTest.kt$com.saikumar.expensetracker.SmsProcessorBugFixTest.kt</ID>
+    <ID>NoUnusedImports:SmsReceiver.kt$com.saikumar.expensetracker.sms.SmsReceiver.kt</ID>
+    <ID>NoUnusedImports:Theme.kt$com.saikumar.expensetracker.ui.theme.Theme.kt</ID>
+    <ID>NoUnusedImports:TransactionEditDialog.kt$com.saikumar.expensetracker.ui.common.TransactionEditDialog.kt</ID>
+    <ID>NoUnusedImports:TransactionTypeResolver.kt$com.saikumar.expensetracker.util.TransactionTypeResolver.kt</ID>
+    <ID>NoWildcardImports:AccountDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:AddCategoryDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:AddCategoryDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:AddCategoryDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:AddTransactionScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:AddTransactionScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:AddTransactionScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:AddTransactionViewModel.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:AppDatabase.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:CategorizationRuleDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:CategoryDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:CategoryIcons.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>NoWildcardImports:CategoryManagementScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:CategoryManagementScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:CategoryManagementScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:ClassificationDebugLogger.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:CommonDateRangePicker.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:CommonDateRangePicker.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:DashboardScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:DashboardScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>NoWildcardImports:DashboardScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:DashboardScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:DashboardScreen.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:DashboardViewModel.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:DashboardViewModel.kt$import java.time.*</ID>
+    <ID>NoWildcardImports:DashboardViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>NoWildcardImports:DuplicateDetectorTest.kt$import org.junit.Assert.*</ID>
+    <ID>NoWildcardImports:DuplicateDetectorTest.kt$import org.mockito.kotlin.*</ID>
+    <ID>NoWildcardImports:ExampleUnitTest.kt$import org.junit.Assert.*</ID>
+    <ID>NoWildcardImports:ExpenseRepository.kt$import com.saikumar.expensetracker.data.db.*</ID>
+    <ID>NoWildcardImports:ExpenseRepository.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:FilteredTransactionsScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:FilteredTransactionsScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:FilteredTransactionsScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:FilteredTransactionsViewModel.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:FilteredTransactionsViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>NoWildcardImports:LinkManagerScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:LinkManagerScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:MainActivity.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:MainActivity.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:MainActivity.kt$import com.saikumar.expensetracker.ui.dashboard.*</ID>
+    <ID>NoWildcardImports:MerchantMemoryDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:MerchantPatternDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:MonthlyOverviewScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:MonthlyOverviewScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>NoWildcardImports:MonthlyOverviewScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:MonthlyOverviewScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:MonthlyOverviewScreen.kt$import com.github.mikephil.charting.data.*</ID>
+    <ID>NoWildcardImports:MonthlyOverviewViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>NoWildcardImports:SalaryHistoryScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:SalaryHistoryScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:SettingsScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:SettingsScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:SettingsScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:SmsProcessor.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>NoWildcardImports:SmsProcessorBugFixTest.kt$import org.junit.Assert.*</ID>
+    <ID>NoWildcardImports:SnowfallAnimation.kt$import androidx.compose.animation.core.*</ID>
+    <ID>NoWildcardImports:SnowfallAnimation.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:TransactionDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:TransactionEditDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:TransactionEditDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>NoWildcardImports:TransactionEditDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:TransactionLinkDao.kt$import androidx.room.*</ID>
+    <ID>NoWildcardImports:UndoLogDao.kt$import androidx.room.*</ID>
+    <ID>ParameterListWrapping:Category.kt$Category$( @PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val type: CategoryType, val isEnabled: Boolean = true, val isDefault: Boolean = false, val icon: String = "default" )</ID>
+    <ID>ParameterListWrapping:CreditCardDetector.kt$CreditCardDetector.CCPaymentDetectionResult$(val isCCPayment: Boolean, val confidence: Double = 0.0, val priority: Int = 0, val reason: String = "")</ID>
+    <ID>ParameterListWrapping:DashboardScreen.kt$(CategoryType, Long, Long)</ID>
+    <ID>ParameterListWrapping:DashboardScreen.kt$(item: TransactionWithCategory, linkType: com.saikumar.expensetracker.data.entity.LinkType? = null, onClick: () -&gt; Unit)</ID>
+    <ID>ParameterListWrapping:DashboardScreen.kt$(viewModel: DashboardViewModel, onNavigateToAdd: () -&gt; Unit, onCategoryClick: (CategoryType, Long, Long) -&gt; Unit)</ID>
+    <ID>ParameterListWrapping:MerchantMemoryDao.kt$MerchantMemoryDao$(normalizedName: String, timestamp: Long, threshold: Int = MerchantMemory.AUTO_LOCK_THRESHOLD)</ID>
+    <ID>ParameterListWrapping:MerchantPatternMatcher.kt$MerchantPatternMatcher$(keyword: String, categoryName: String)</ID>
+    <ID>ParameterListWrapping:SettingsScreen.kt$(viewModel: SettingsViewModel, onNavigateBack: () -&gt; Unit, onNavigateToSalaryHistory: () -&gt; Unit, onNavigateToLinkManager: () -&gt; Unit, onNavigateToCategories: () -&gt; Unit = {})</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(repository: com.saikumar.expensetracker.data.repository.ExpenseRepository)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody: String)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody: String, isCredit: Boolean)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody: String, isDebit: Boolean)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody: String, merchantName: String?, counterpartyFound: Boolean)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(smsBody: String, originalMerchant: String?, upiId: String?, earlyCounterparty: CounterpartyExtraction?)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(snippet: String?)</ID>
+    <ID>ParameterListWrapping:SmsProcessor.kt$SmsProcessor$(t1: Transaction, t2: Transaction, t1Snippet: String? = null, t2Snippet: String? = null)</ID>
+    <ID>ParameterListWrapping:TransactionNatureResolver.kt$TransactionNatureResolver$(smsBody: String, isDebit: Boolean, isCredit: Boolean)</ID>
+    <ID>PrintStackTrace:SmsProcessor.kt$SmsProcessor$e</ID>
+    <ID>PropertyWrapping:CreditCardDetector.kt$CreditCardDetector$private val CARD_NETWORKS = listOf("VISA", "MASTERCARD", "RUPAY", "AMEX", "AMERICAN EXPRESS", "DINERS", "MAESTRO", "DISCOVER")</ID>
+    <ID>PropertyWrapping:DashboardScreen.kt$val dateRangePickerState = rememberDateRangePickerState(initialSelectedStartDateMillis = initialStart, initialSelectedEndDateMillis = initialEnd)</ID>
+    <ID>PropertyWrapping:ExpenseRepository.kt$ExpenseRepository$val allLinksWithDetails: kotlinx.coroutines.flow.Flow&lt;List&lt;com.saikumar.expensetracker.data.entity.LinkWithDetails&gt;&gt; = transactionLinkDao.getAllLinksWithDetails()</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$private val EXCLUSION_KEYWORDS = listOf("REFUND", "CASHBACK", "REVERSAL", "REWARD", "INCENTIVE", "BONUS", "INTEREST", "WALLET", "LOAN")</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$val detectionResult: Pair&lt;Boolean, String&gt; = getSalaryDetectionResult(body, isCredit, userSalaryCompanyNames)</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$val detectionResult: Pair&lt;Boolean, String&gt; = getSalaryDetectionResult(content, finalIsCredit, userSalaryCompanyNames)</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$val fallbackRules = setOf("LEVEL_5_INCOME_FALLBACK", "LEVEL_6_EXPENSE_FALLBACK", "EXPENSE_FALLBACK", "INCOME_UNIDENTIFIED")</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$val lifestyleCategories = listOf("Dining Out", "Entertainment", "Shopping", "Grooming", "Food Delivery", "Cab &amp; Taxi")</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$val placeholders = setOf("UPI", "IMPS", "NEFT", "RTGS", "CRED", "BANK", "WALLET", "PAYTM", "GOOGLEPAY", "PHONEPE", "RAZORPAY", "CASHFREE")</ID>
+    <ID>PropertyWrapping:SmsProcessor.kt$SmsProcessor$val transactionType = determineTransactionType(body, it, isSelfTransfer, isSalaryCredit, isCredit, natureResolution)</ID>
+    <ID>PropertyWrapping:TransactionNatureResolver.kt$TransactionNatureResolver$val terminalIndicators = listOf("pos", "card machine", "terminal", "edc", "mswipe", "pinelabs", "paytm soundbox")</ID>
+    <ID>ReturnCount:AddTransactionScreen.kt$fun validateAmount(input: String): Pair&lt;Long?, String?&gt;</ID>
+    <ID>ReturnCount:ClassificationDebugLogger.kt$ClassificationDebugLogger$fun exportLog(logId: String): String?</ID>
+    <ID>ReturnCount:ClassificationDebugLogger.kt$ClassificationDebugLogger$fun finalizeLog(logId: String, decision: FinalDecision): String?</ID>
+    <ID>ReturnCount:ClassificationDebugLogger.kt$ClassificationDebugLogger$suspend fun persistLog(context: Context, logId: String)</ID>
+    <ID>ReturnCount:ClassificationDebugLogger.kt$ClassificationDebugLogger.LogBuilder$fun build(): ClassificationDebugLog?</ID>
+    <ID>ReturnCount:CounterpartyExtractor.kt$CounterpartyExtractor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>ReturnCount:CounterpartyExtractor.kt$CounterpartyExtractor$fun resolveMerchantName(smsBody: String, originalMerchant: String?, upiId: String?, earlyCounterparty: CounterpartyExtraction?): Pair&lt;String?, String&gt;</ID>
+    <ID>ReturnCount:CounterpartyExtractor.kt$CounterpartyExtractor$fun sanitizeMerchantName(smsBody: String, merchantName: String?, counterpartyFound: Boolean): Triple&lt;String?, Boolean, Boolean&gt;</ID>
+    <ID>ReturnCount:CounterpartyExtractor.kt$CounterpartyExtractor$fun validateExtraction(candidate: String): Pair&lt;Boolean, String?&gt;</ID>
+    <ID>ReturnCount:CreditCardDetector.kt$CreditCardDetector$fun detectCCPayment(smsBody: String, isDebit: Boolean): CCPaymentDetectionResult</ID>
+    <ID>ReturnCount:CreditCardDetector.kt$CreditCardDetector$fun detectCCSpend(smsBody: String): CCSpendResult</ID>
+    <ID>ReturnCount:CycleUtils.kt$CycleUtils$fun getCurrentCycleRange(referenceDate: LocalDate = LocalDate.now()): CycleRange</ID>
+    <ID>ReturnCount:DuplicateDetector.kt$DuplicateDetector$suspend fun check( smsHash: String, referenceNo: String?, amountPaisa: Long, timestamp: Long, merchantName: String? = null, accountId: Long? = null ): CheckResult</ID>
+    <ID>ReturnCount:EntityClassifier.kt$EntityClassifier$fun detectEntityType(merchantName: String?): EntityType</ID>
+    <ID>ReturnCount:MerchantPatternMatcher.kt$MerchantPatternMatcher$fun extractMerchantKeyword(smsBody: String): String?</ID>
+    <ID>ReturnCount:MerchantPatternMatcher.kt$MerchantPatternMatcher$fun getCategoryForMerchant(merchantName: String): String?</ID>
+    <ID>ReturnCount:MerchantPatternMatcher.kt$MerchantPatternMatcher$fun getDebitCategory(smsBody: String, categories: List&lt;Category&gt;): Category?</ID>
+    <ID>ReturnCount:PromotionalFilter.kt$PromotionalFilter$fun isPendingMandate(body: String): Boolean</ID>
+    <ID>ReturnCount:PromotionalFilter.kt$PromotionalFilter$fun isPromotionalSms(body: String): Boolean</ID>
+    <ID>ReturnCount:SelfTransferDetector.kt$SelfTransferDetector$fun hasPersonLikeName(merchantName: String): Boolean</ID>
+    <ID>ReturnCount:SelfTransferDetector.kt$SelfTransferDetector$fun isSelfTransferPairCandidate(t1: Transaction, t2: Transaction, t1Snippet: String? = null, t2Snippet: String? = null): Boolean</ID>
+    <ID>ReturnCount:SelfTransferDetector.kt$SelfTransferDetector$fun namesOverlap(name1: String?, name2: String?): Boolean</ID>
+    <ID>ReturnCount:SelfTransferScorer.kt$SelfTransferScorer$fun calculateScore( t1: Transaction, t2: Transaction, t1CategoryName: String, t2CategoryName: String ): ScoreResult</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun applyP2POutgoingTransferInvariant( isDebit: Boolean, isSelfTransfer: Boolean, matchedRule: String?, currentTransactionType: TransactionType, counterpartyExtraction: CounterpartyExtraction, currentMerchant: String? ): Pair&lt;P2PTransferInvariantLog, Pair&lt;TransactionType?, String?&gt;&gt;</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun extractCounterparty(smsBody: String): CounterpartyExtraction</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun extractNeftBankCode(text: String): String?</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun extractUpiId(text: String): String?</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun resolveMerchantName(smsBody: String, originalMerchant: String?, upiId: String?, earlyCounterparty: CounterpartyExtraction?): Pair&lt;String?, String&gt;</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun sanitizeMerchantName(smsBody: String, merchantName: String?, counterpartyFound: Boolean): Triple&lt;String?, Boolean, Boolean&gt;</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$fun validateExtraction(candidate: String): Pair&lt;Boolean, String?&gt;</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun areMerchantsSimil(merchant1: String, merchant2: String): Boolean</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun detectAccountType(smsBody: String): AccountType</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun detectStatus(body: String): TransactionStatus</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun determineTransactionType( smsBody: String, category: Category, isSelfTransfer: Boolean, isSalaryCredit: Boolean, isCredit: Boolean, // AUDIT FIX: Accept pre-resolved nature to avoid duplicate TransactionNatureResolver call natureResolution: TransactionNatureResolver.NatureResolution ): TransactionType</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun getSalaryDetectionResult(body: String, isCredit: Boolean, userCompanyNames: Set&lt;String&gt; = emptySet()): Pair&lt;Boolean, String&gt;</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun isPendingMandate(body: String): Boolean</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun isPromotionalSms(body: String): Boolean</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private fun isSelfTransfer(body: String, sender: String?): Boolean</ID>
+    <ID>ReturnCount:SmsProcessor.kt$SmsProcessor$private suspend fun processSmsInternal(app: ExpenseTrackerApplication, categories: List&lt;Category&gt;, body: String, timestamp: Long, sender: String?)</ID>
+    <ID>ReturnCount:TransactionNatureResolver.kt$TransactionNatureResolver$fun resolveNature( smsBody: String, isDebit: Boolean, isCredit: Boolean, detectedAccountType: String = "UNKNOWN" ): NatureResolution</ID>
+    <ID>ReturnCount:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectCreditCardPayment(smsBody: String, isDebit: Boolean, isCredit: Boolean): String?</ID>
+    <ID>ReturnCount:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectCreditCardSpend(smsBody: String, isDebit: Boolean): String?</ID>
+    <ID>ReturnCount:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectIncome(smsBody: String): Pair&lt;String, String&gt;?</ID>
+    <ID>ReturnCount:TransactionNatureResolver.kt$TransactionNatureResolver$private fun detectTransactionState(smsBody: String, isDebit: Boolean, isCredit: Boolean): Pair&lt;TransactionState, String&gt;</ID>
+    <ID>ReturnCount:TransactionTypeResolver.kt$TransactionTypeResolver$fun determineTransactionType( transaction: Transaction?, manualClassification: String?, isSelfTransfer: Boolean, newCategory: Category? ): TransactionType</ID>
+    <ID>SpacingAroundCurly:AddTransactionScreen.kt${</ID>
+    <ID>SpacingAroundCurly:DashboardViewModel.kt$DashboardViewModel$}</ID>
+    <ID>SpacingAroundKeyword:LinkManagerScreen.kt$if</ID>
+    <ID>SpacingAroundOperators:DuplicateDetector.kt$DuplicateDetector$/</ID>
+    <ID>SpacingAroundOperators:LinkManagerScreen.kt$=</ID>
+    <ID>SpacingAroundOperators:SelfTransferScorer.kt$SelfTransferScorer$/</ID>
+    <ID>SpacingAroundOperators:SmsProcessor.kt$SmsProcessor$/</ID>
+    <ID>SpacingAroundOperators:Theme.kt$=</ID>
+    <ID>SpacingAroundParens:Category.kt$Category$)</ID>
+    <ID>StringTemplate:SmsProcessor.kt$SmsProcessor$${currentCategoryName}</ID>
+    <ID>StringTemplate:SmsProcessor.kt$SmsProcessor$${t1Type}</ID>
+    <ID>StringTemplate:SmsProcessor.kt$SmsProcessor$${t2Type}</ID>
+    <ID>SwallowedException:Converters.kt$Converters$e: Exception</ID>
+    <ID>SwallowedException:MerchantPatternMatcher.kt$MerchantPatternMatcher$e: Exception</ID>
+    <ID>SwallowedException:PreferencesManager.kt$PreferencesManager$e: Exception</ID>
+    <ID>SwallowedException:SmsProcessor.kt$SmsProcessor$e: Exception</ID>
+    <ID>SwallowedException:TransactionNatureResolver.kt$TransactionNatureResolver$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AppDatabase.kt$AppDatabase.AppDatabaseCallback$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ClassificationDebugLogger.kt$ClassificationDebugLogger$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Converters.kt$Converters$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DashboardViewModel.kt$DashboardViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ExpenseTrackerApplication.kt$ExpenseTrackerApplication$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MainActivity.kt$MainActivity$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MerchantPatternMatcher.kt$MerchantPatternMatcher$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PreferencesManager.kt$PreferencesManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsScreen.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SmsProcessor.kt$SmsProcessor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SmsProcessor.kt$SmsProcessor$memoryError: Exception</ID>
+    <ID>TooGenericExceptionCaught:TransactionNatureResolver.kt$TransactionNatureResolver$e: Exception</ID>
+    <ID>TooManyFunctions:CategorizationRuleDao.kt$CategorizationRuleDao</ID>
+    <ID>TooManyFunctions:ClassificationDebugLogger.kt$ClassificationDebugLogger</ID>
+    <ID>TooManyFunctions:ExpenseRepository.kt$ExpenseRepository</ID>
+    <ID>TooManyFunctions:MerchantMemoryDao.kt$MerchantMemoryDao</ID>
+    <ID>TooManyFunctions:PreferencesManager.kt$PreferencesManager</ID>
+    <ID>TooManyFunctions:SmsProcessor.kt$SmsProcessor</ID>
+    <ID>TooManyFunctions:TransactionDao.kt$TransactionDao</ID>
+    <ID>TooManyFunctions:TransactionLinkDao.kt$TransactionLinkDao</ID>
+    <ID>TooManyFunctions:TransactionNatureResolver.kt$TransactionNatureResolver</ID>
+    <ID>UnusedParameter:CounterpartyExtractor.kt$CounterpartyExtractor$smsBody: String</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$categories: List&lt;Category&gt;</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$category: Category</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$currentMerchant: String?</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$hasCounterparty: Boolean</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$hasMerchant: Boolean</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$isReclassification: Boolean = false</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$isSalaryCredit: Boolean</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$isSelfTransfer: Boolean</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$isSelfTransfer: Boolean = false</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$sender: String?</ID>
+    <ID>UnusedParameter:SmsProcessor.kt$SmsProcessor$smsBody: String</ID>
+    <ID>UnusedParameter:TransactionNatureResolver.kt$TransactionNatureResolver$detectedAccountType: String = "UNKNOWN"</ID>
+    <ID>UnusedParameter:TransactionNatureResolver.kt$TransactionNatureResolver$isCredit: Boolean</ID>
+    <ID>UnusedParameter:TransactionNatureResolver.kt$TransactionNatureResolver$isDebit: Boolean</ID>
+    <ID>UnusedParameter:TransactionTypeResolver.kt$TransactionTypeResolver$transaction: Transaction?</ID>
+    <ID>UnusedPrivateMember:SmsProcessor.kt$SmsProcessor$private fun logPairingSummaryToDebugFile(event: String, data: Map&lt;String, Any&gt;)</ID>
+    <ID>UnusedPrivateMember:SmsProcessor.kt$SmsProcessor$private suspend fun detectAndRemoveDuplicates(context: Context)</ID>
+    <ID>UnusedPrivateProperty:AppDatabase.kt$AppDatabase.Companion$/** * Migration from v12 to v13: * - Converts amount (Double) to amountPaisa (Long) * - Converts date (LocalDateTime as millis) to timestamp (Long, same format) * - Adds new columns: transactionType, accountId, smsHash, merchantName * - Removes smsBody column (privacy improvement) * - Creates accounts and merchant_patterns tables * - Ensures "Uncategorized" category exists for orphaned transactions */ private val MIGRATION_12_13 = object : Migration(12, 13) { override fun migrate(db: SupportSQLiteDatabase) { Log.d("AppDatabase", "Running migration 12 -&gt; 13") // Step 1: Create new tables db.execSQL(""" CREATE TABLE IF NOT EXISTS accounts ( id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, isLiability INTEGER NOT NULL DEFAULT 0, isDefault INTEGER NOT NULL DEFAULT 0 ) """) db.execSQL(""" CREATE TABLE IF NOT EXISTS merchant_patterns ( id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, keyword TEXT NOT NULL, categoryName TEXT NOT NULL, isUserDefined INTEGER NOT NULL DEFAULT 1 ) """) db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_patterns_keyword ON merchant_patterns (keyword)") // Step 2: Ensure "Uncategorized" category exists (ID will be used as default) db.execSQL(""" INSERT OR IGNORE INTO categories (name, type, isEnabled, isDefault) VALUES ('Uncategorized', 'VARIABLE_EXPENSE', 1, 1) """) // Step 3: Create new transactions table with correct schema db.execSQL(""" CREATE TABLE IF NOT EXISTS transactions_new ( id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, amountPaisa INTEGER NOT NULL, categoryId INTEGER NOT NULL, timestamp INTEGER NOT NULL, note TEXT, source TEXT NOT NULL DEFAULT 'MANUAL', accountType TEXT NOT NULL DEFAULT 'UNKNOWN', accountId INTEGER, transactionType TEXT NOT NULL DEFAULT 'EXPENSE', isSelfTransfer INTEGER NOT NULL DEFAULT 0, isSalaryCredit INTEGER NOT NULL DEFAULT 0, isIncomeManuallyIncluded INTEGER NOT NULL DEFAULT 0, smsHash TEXT, merchantName TEXT, smsSnippet TEXT, manualClassification TEXT, FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE SET DEFAULT ) """) // Step 4: Copy data from old table, converting amounts to paisa // The old 'date' column was stored as epoch millis, same as new 'timestamp' db.execSQL(""" INSERT INTO transactions_new ( id, amountPaisa, categoryId, timestamp, note, source, accountType, isSelfTransfer, isSalaryCredit, isIncomeManuallyIncluded, manualClassification, transactionType ) SELECT id, CAST(amount * 100 AS INTEGER), categoryId, date, note, source, accountType, isSelfTransfer, isSalaryCredit, isIncomeManuallyIncluded, manualClassification, CASE WHEN isSelfTransfer = 1 THEN 'TRANSFER' WHEN isSalaryCredit = 1 OR isIncomeManuallyIncluded = 1 THEN 'INCOME' ELSE 'EXPENSE' END FROM transactions """) // Step 5: Drop old table and rename new one db.execSQL("DROP TABLE transactions") db.execSQL("ALTER TABLE transactions_new RENAME TO transactions") // Step 6: Recreate indices db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_categoryId ON transactions (categoryId)") db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_timestamp ON transactions (timestamp)") db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_smsHash ON transactions (smsHash)") Log.d("AppDatabase", "Migration 12 -&gt; 13 completed") } }</ID>
+    <ID>UnusedPrivateProperty:AppDatabase.kt$AppDatabase.Companion$/** * Migration from v13 to v14: * - Adds categorization_rules table for user-defined categorization patterns * - Adds undo_log table for batch operation undo capability */ private val MIGRATION_13_14 = object : Migration(13, 14) { override fun migrate(db: SupportSQLiteDatabase) { Log.d("AppDatabase", "Running migration 13 -&gt; 14") // Create categorization_rules table db.execSQL(""" CREATE TABLE IF NOT EXISTS categorization_rules ( id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, pattern TEXT NOT NULL, patternType TEXT NOT NULL, categoryId INTEGER NOT NULL, displayName TEXT NOT NULL, createdAt INTEGER NOT NULL, isActive INTEGER NOT NULL DEFAULT 1, matchCount INTEGER NOT NULL DEFAULT 0, FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE ) """) db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categorization_rules_pattern ON categorization_rules (pattern)") db.execSQL("CREATE INDEX IF NOT EXISTS index_categorization_rules_categoryId ON categorization_rules (categoryId)") db.execSQL("CREATE INDEX IF NOT EXISTS index_categorization_rules_patternType ON categorization_rules (patternType)") // Create undo_log table db.execSQL(""" CREATE TABLE IF NOT EXISTS undo_log ( id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, actionType TEXT NOT NULL, undoData TEXT NOT NULL, performedAt INTEGER NOT NULL, isUndone INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL, affectedCount INTEGER NOT NULL DEFAULT 0 ) """) Log.d("AppDatabase", "Migration 13 -&gt; 14 completed") } }</ID>
+    <ID>UnusedPrivateProperty:AppDatabase.kt$AppDatabase.Companion$/** * Migration from v14 to v15: * - Adds referenceNo column for transaction reference numbers (UPI ref, NEFT ref, RRN) * - Adds isReversal column to flag refunded/reversed transactions * - Adds isSubscription column to flag recurring payments */ private val MIGRATION_14_15 = object : Migration(14, 15) { override fun migrate(db: SupportSQLiteDatabase) { Log.d("AppDatabase", "Running migration 14 -&gt; 15") // Add new columns to transactions table db.execSQL("ALTER TABLE transactions ADD COLUMN referenceNo TEXT DEFAULT NULL") db.execSQL("ALTER TABLE transactions ADD COLUMN isReversal INTEGER NOT NULL DEFAULT 0") db.execSQL("ALTER TABLE transactions ADD COLUMN isSubscription INTEGER NOT NULL DEFAULT 0") Log.d("AppDatabase", "Migration 14 -&gt; 15 completed") } }</ID>
+    <ID>UnusedPrivateProperty:AppDatabase.kt$AppDatabase.Companion$/** * Migration from v15 to v16: * - Adds merchant_memory table for soft learning of merchant→category mappings */ private val MIGRATION_15_16 = object : Migration(15, 16) { override fun migrate(db: SupportSQLiteDatabase) { Log.d("AppDatabase", "Running migration 15 -&gt; 16") // Create merchant_memory table for soft learning db.execSQL(""" CREATE TABLE IF NOT EXISTS merchant_memory ( id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, normalizedMerchant TEXT NOT NULL, originalMerchant TEXT NOT NULL, categoryId INTEGER NOT NULL, occurrenceCount INTEGER NOT NULL DEFAULT 1, firstSeenTimestamp INTEGER NOT NULL, lastSeenTimestamp INTEGER NOT NULL, isLocked INTEGER NOT NULL DEFAULT 0, userConfirmed INTEGER NOT NULL DEFAULT 0, transactionType TEXT, FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE ) """) db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_memory_normalizedMerchant ON merchant_memory (normalizedMerchant)") db.execSQL("CREATE INDEX IF NOT EXISTS index_merchant_memory_categoryId ON merchant_memory (categoryId)") Log.d("AppDatabase", "Migration 15 -&gt; 16 completed") } }</ID>
+    <ID>UnusedPrivateProperty:AppDatabase.kt$AppDatabase.Companion$/** * Migration from v16 to v17: * - Adds fullSmsBody column to store complete raw SMS for detailed viewing */ private val MIGRATION_16_17 = object : Migration(16, 17) { override fun migrate(db: SupportSQLiteDatabase) { Log.d("AppDatabase", "Running migration 16 -&gt; 17") // Add fullSmsBody column to transactions table db.execSQL("ALTER TABLE transactions ADD COLUMN fullSmsBody TEXT DEFAULT NULL") Log.d("AppDatabase", "Migration 16 -&gt; 17 completed") } }</ID>
+    <ID>UnusedPrivateProperty:CounterpartyExtractor.kt$CounterpartyExtractor$private const val TAG = "CounterpartyExtractor"</ID>
+    <ID>UnusedPrivateProperty:CreditCardDetector.kt$CreditCardDetector$private const val TAG = "CreditCardDetector"</ID>
+    <ID>UnusedPrivateProperty:FoodDetector.kt$FoodDetector$private val FOOD_KEYWORDS_WEAK = listOf( "STALL", "SHOP", "STORE", "ENTERPRISES", "CENTRE", "POINT", "CORNER", "WARREN", "TRADERS", "AND" )</ID>
+    <ID>UnusedPrivateProperty:PromotionalFilter.kt$PromotionalFilter$private const val TAG = "PromotionalFilter"</ID>
+    <ID>UnusedPrivateProperty:SelfTransferDetector.kt$SelfTransferDetector$private const val TAG = "SelfTransferDetector"</ID>
+    <ID>UnusedPrivateProperty:SettingsScreen.kt$var showSalaryDayPicker by remember { mutableStateOf(false) }</ID>
+    <ID>UnusedPrivateProperty:SmsProcessor.kt$SmsProcessor$// Removed company-specific keywords (ZF, OPEN TEXT) - these were developer-specific private val SALARY_KEYWORDS = listOf( "SALARY", "PAYROLL", "SAL CREDIT", "MONTHLY SALARY", "EMP SAL", "EPF", "PROVIDENT FUND", "PF CONTRIBUTION", "PF CREDIT" )</ID>
+    <ID>UnusedPrivateProperty:SmsProcessor.kt$SmsProcessor$val upperOriginal = originalMerchant?.uppercase() ?: ""</ID>
+    <ID>WildcardImport:AccountDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:AddCategoryDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AddCategoryDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:AddCategoryDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AddTransactionScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AddTransactionScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:AddTransactionScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AddTransactionViewModel.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:AppDatabase.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:CategorizationRuleDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:CategoryDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:CategoryIcons.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:CategoryManagementScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:CategoryManagementScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:CategoryManagementScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ClassificationDebugLogger.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:CommonDateRangePicker.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:CommonDateRangePicker.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DashboardScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DashboardScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:DashboardScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DashboardScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DashboardScreen.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:DashboardViewModel.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:DashboardViewModel.kt$import java.time.*</ID>
+    <ID>WildcardImport:DashboardViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:DuplicateDetectorTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DuplicateDetectorTest.kt$import org.mockito.kotlin.*</ID>
+    <ID>WildcardImport:ExampleUnitTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ExpenseRepository.kt$import com.saikumar.expensetracker.data.db.*</ID>
+    <ID>WildcardImport:ExpenseRepository.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:FilteredTransactionsScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:FilteredTransactionsScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:FilteredTransactionsScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:FilteredTransactionsViewModel.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:FilteredTransactionsViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:LinkManagerScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LinkManagerScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MainActivity.kt$import com.saikumar.expensetracker.ui.dashboard.*</ID>
+    <ID>WildcardImport:MerchantMemoryDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:MerchantPatternDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:MonthlyOverviewScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MonthlyOverviewScreen.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:MonthlyOverviewScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MonthlyOverviewScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MonthlyOverviewScreen.kt$import com.github.mikephil.charting.data.*</ID>
+    <ID>WildcardImport:MonthlyOverviewViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:SalaryHistoryScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SalaryHistoryScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SettingsScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SmsProcessor.kt$import com.saikumar.expensetracker.data.entity.*</ID>
+    <ID>WildcardImport:SmsProcessorBugFixTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SnowfallAnimation.kt$import androidx.compose.animation.core.*</ID>
+    <ID>WildcardImport:SnowfallAnimation.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:TransactionDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:TransactionEditDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:TransactionEditDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:TransactionEditDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:TransactionLinkDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:UndoLogDao.kt$import androidx.room.*</ID>
+    <ID>Wrapping:AddCategoryDialog.kt$(</ID>
+    <ID>Wrapping:AddTransactionScreen.kt$97 IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }</ID>
+    <ID>Wrapping:AppDatabase.kt$AppDatabase.Companion.&lt;no name provided&gt;$(</ID>
+    <ID>Wrapping:Category.kt$Category$(</ID>
+    <ID>Wrapping:CategoryManagementScreen.kt$(</ID>
+    <ID>Wrapping:CategoryManagementScreen.kt$Text("Are you sure you want to delete '${category.name}'? Transactions will keep their data but show as Unknown.")</ID>
+    <ID>Wrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(</ID>
+    <ID>Wrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(TAG, """ ╔═══════════════════════════════════════════════════════════ ║ 🔄 FINANCIAL INVARIANT APPLIED: ${invariantLog.invariantName} ║───────────────────────────────────────────────────────────── ║ Original Type: ${invariantLog.originalTransactionType} ║ Corrected To: ${invariantLog.correctedTransactionType} ║ Transfer Direction: ${invariantLog.transferDirection} ║ Counterparty: ${invariantLog.counterparty} ║ Reason: ${invariantLog.reason} ║ Confidence: ${invariantLog.confidence} ╚═══════════════════════════════════════════════════════════ """.trimIndent())</ID>
+    <ID>Wrapping:ClassificationDebugLogger.kt$ClassificationDebugLogger$(logId, createRuleExecution( ruleId = "FINANCIAL_INVARIANT", ruleName = invariantLog.invariantName, ruleType = "POST_DECISION_TREE_INVARIANT", input = invariantLog.counterparty ?: "N/A", result = if (invariantLog.applied) "APPLIED" else "NOT_APPLIED", confidence = if (invariantLog.applied) 0.7 else 0.0, // MEDIUM confidence reason = invariantLog.reason ))</ID>
+    <ID>Wrapping:CreditCardDetector.kt$CreditCardDetector$(</ID>
+    <ID>Wrapping:DashboardScreen.kt$SummaryChip("Fixed", state.totalFixedExpenses, Color(0xFFF44336)) { onCategoryClick(CategoryType.FIXED_EXPENSE) }</ID>
+    <ID>Wrapping:DashboardScreen.kt$SummaryChip("Variable", state.totalVariableExpenses, Color(0xFFFF9800)) { onCategoryClick(CategoryType.VARIABLE_EXPENSE) }</ID>
+    <ID>Wrapping:DashboardScreen.kt$SummaryRowList(uiState) { type -&gt; uiState.cycleRange?.let { range -&gt; val startMillis = range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() val endMillis = range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() onCategoryClick(type, startMillis, endMillis) } }</ID>
+    <ID>Wrapping:DashboardScreen.kt$onAdjust()</ID>
+    <ID>Wrapping:DashboardScreen.kt$onCategoryClick(CategoryType.FIXED_EXPENSE)</ID>
+    <ID>Wrapping:DashboardScreen.kt$onCategoryClick(CategoryType.VARIABLE_EXPENSE)</ID>
+    <ID>Wrapping:DashboardScreen.kt$showDateRangePicker = true</ID>
+    <ID>Wrapping:DashboardScreen.kt$viewModel.nextCycle()</ID>
+    <ID>Wrapping:DashboardScreen.kt$viewModel.previousCycle()</ID>
+    <ID>Wrapping:DashboardViewModel.kt$DashboardViewModel$(</ID>
+    <ID>Wrapping:DashboardViewModel.kt$DashboardViewModel$-&gt;</ID>
+    <ID>Wrapping:DuplicateDetector.kt$DuplicateDetector$(</ID>
+    <ID>Wrapping:FilteredTransactionsScreen.kt$(</ID>
+    <ID>Wrapping:FilteredTransactionsViewModel.kt$FilteredTransactionsViewModel$(</ID>
+    <ID>Wrapping:FoodDetector.kt$FoodDetector$(</ID>
+    <ID>Wrapping:MainActivity.kt$MainActivity$(</ID>
+    <ID>Wrapping:MerchantMemoryDao.kt$MerchantMemoryDao$(</ID>
+    <ID>Wrapping:MonthlyOverviewViewModel.kt$MonthlyOverviewViewModel$(</ID>
+    <ID>Wrapping:PromotionalFilter.kt$PromotionalFilter$(</ID>
+    <ID>Wrapping:SalaryHistoryViewModel.kt$SalaryHistoryViewModel$(</ID>
+    <ID>Wrapping:SelfTransferDetector.kt$SelfTransferDetector$(</ID>
+    <ID>Wrapping:SelfTransferScorer.kt$SelfTransferScorer$(</ID>
+    <ID>Wrapping:SettingsScreen.kt$</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(TAG, """ ╔═══════════════════════════════════════════════════════════ ║ 🔒 P2P_OUTGOING_TRANSFER INVARIANT TRIGGERED ║───────────────────────────────────────────────────────────── ║ Counterparty: $counterpartyName ║ Original: EXPENSE (from $matchedRule) ║ Corrected: TRANSFER (direction=OUT) ║───────────────────────────────────────────────────────────── ║ REASON: Money moved to another person; not consumption ╚═══════════════════════════════════════════════════════════ """.trimIndent())</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(TAG, "DEDUP: Duplicate detected via ${duplicateResult.tier} " + "(confidence: ${(duplicateResult.confidence * 100).toInt()}%) - ${duplicateResult.reason}")</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "DECISION_TREE", ruleName = traceItem.split(":")[0].trim(), // Extract level name ruleType = "DECISION_TREE", input = body, result = when { traceItem.contains("MATCHED") -&gt; "MATCHED" traceItem.contains("SKIPPED") -&gt; "SKIPPED" else -&gt; "FAILED" }, reason = traceItem, confidence = if (traceItem.contains("MATCHED")) 1.0 else 0.0 ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "DEDUPLICATION_PASSED", ruleName = "Deduplication Check", ruleType = "HEURISTIC", input = "hash=$smsHash, ref=$referenceNo, amount=$amountPaisa", result = "PASSED", confidence = 1.0, reason = "No duplicates found (checked: SMS hash, ref+amount, fuzzy match)" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "DEDUPLICATION_WATERFALL_${duplicateResult.tier}", ruleName = "Waterfall Duplicate Check (${duplicateResult.tier})", ruleType = "HEURISTIC", input = "hash=$smsHash, ref=$referenceNo, amount=$amountPaisa", result = "FAILED", reason = duplicateResult.reason, confidence = duplicateResult.confidence ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "DIRECTION_CHECK", ruleName = "Transaction Direction Check", ruleType = "HEURISTIC", input = "directionDetected=$directionDetected", result = "FAILED", reason = "No credit/debit keywords found" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "RECLASS_DIRECTION_CHECK", ruleName = "Reclassification Direction Check", ruleType = "HEURISTIC", input = "isCredit=$isCredit, isDebit=$isDebit", result = if (isCredit || isDebit) "MATCHED" else "SKIPPED", reason = "Content-based direction check" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "RECLASS_TERMINAL_GATE_PENDING", ruleName = "Reclassification Pending Gate", ruleType = "DETERMINISTIC", input = content.take(50), result = "MATCHED", reason = "Future tense / Mandate detected during reclassification -&gt; Stopped" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "REVERSAL_DETECTION", ruleName = "Transaction Reversal Detection", ruleType = "HEURISTIC", input = body, result = "MATCHED", confidence = 1.0, reason = "Transaction contains reversal/refund keywords" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "SALARY_DETECTION", ruleName = "Salary Credit Detection", ruleType = "KEYWORD", input = body, result = if (isSalaryCredit) "MATCHED" else "FAILED", confidence = if (isSalaryCredit) 1.0 else 0.0, reason = detectionReason ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "TERMINAL_GATE_INTENT", ruleName = "Intent/Request Gate", ruleType = "DETERMINISTIC", input = body.take(50), result = "MATCHED", reason = "OTP / Request detected -&gt; INTENT (Ignored)" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "TERMINAL_GATE_PENDING", ruleName = "Pending/Mandate Gate", ruleType = "DETERMINISTIC", input = body.take(50), result = "MATCHED", reason = "Future tense / Mandate detected -&gt; PENDING" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ClassificationDebugLogger.createRuleExecution( ruleId = "VERIFICATION_DEBIT_SKIP", ruleName = "Verification Debit Detection", ruleType = "HEURISTIC", input = "amount=$amountPaisa paisa, isDebit=$isDebit", result = "MATCHED", reason = "Small amount (≤₹1) debit detected - likely UPI/account verification, excluded from analytics" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, FinalDecision( transactionType = TransactionType.IGNORE.name, categoryId = -1, categoryName = "Bank Verification", confidence = "HIGH", finalConfidence = 0.95, requiresUserConfirmation = false, reasoning = "₹1 verification debit - excluded from expense analytics per audit requirements" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, FinalDecision( transactionType = TransactionType.PENDING.name, categoryId = mandateCategory?.id ?: -1, categoryName = mandateCategory?.name ?: "Unknown", confidence = "HIGH", finalConfidence = 1.0, requiresUserConfirmation = false, reasoning = "Terminal Gate (Reclass): Future/Mandate detected" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, FinalDecision( transactionType = TransactionType.PENDING.name, categoryId = mandateCategory?.id ?: -1, categoryName = mandateCategory?.name ?: "Unknown", confidence = "HIGH", finalConfidence = 1.0, requiresUserConfirmation = false, reasoning = "Terminal Gate: Future/Mandate detected", status = "PENDING", entityType = pendingTxn.entityType.name, isExpenseEligible = false ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, FinalDecision( transactionType = finalTransaction.transactionType.name, categoryId = finalCategory.id, categoryName = finalCategory.name, confidence = if (finalConfidenceInvariant &lt; 0.8) "MEDIUM" else "HIGH", finalConfidence = finalConfidenceInvariant, requiresUserConfirmation = requiresConfirmation, reasoning = when { invariantLogs.isNotEmpty() -&gt; "INVARIANTS APPLIED: ${invariantLogs.joinToString(", ")}" p2pInvariantLog.applied -&gt; "P2P_OUTGOING_TRANSFER invariant applied: ${p2pInvariantLog.originalTransactionType} → ${p2pInvariantLog.correctedTransactionType}, counterparty: ${p2pInvariantLog.counterparty}" isFallbackRule -&gt; "Fallback rule used (${natureResolution.matchedRule}), low confidence (${(computedConfidence * 100).toInt()}%), evidence issues: ${evidenceIssues.joinToString(", ")}" requiresConfirmation -&gt; "Unidentified credit (direction=CREDIT, no income rule matched); requires user confirmation" evidenceIssues.isNotEmpty() -&gt; "Category identified: ${finalCategory.name}, Type: $finalTransactionType, but confidence reduced due to: ${evidenceIssues.joinToString(", ")}" else -&gt; "Category identified: ${finalCategory.name}, Type: $finalTransactionType (matched rule: ${natureResolution.matchedIncomeRule ?: natureResolution.matchedRule})" }, status = "COMPLETED", entityType = entityType.name, isExpenseEligible = finalTransaction.isExpenseEligible ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, FinalDecision( transactionType = finalTransactionType.name, categoryId = finalCategory.id, categoryName = finalCategory.name, confidence = "INFO", finalConfidence = 1.0, requiresUserConfirmation = false, reasoning = "Transaction skipped: $finalTransactionType" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, FinalDecision( transactionType = finalUpdate.transactionType.name, categoryId = finalUpdate.categoryId, categoryName = newCategory?.name ?: "Unknown", confidence = if (finalConfidenceInvariant &gt;= 0.8) "HIGH" else "MEDIUM", finalConfidence = finalConfidenceInvariant, requiresUserConfirmation = false, reasoning = "Category identified: ${newCategory?.name}, Type: ${finalUpdate.transactionType}" + if (invariantLogs.isNotEmpty()) " [INVARIANTS: ${invariantLogs.joinToString("; ")}]" else "" ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ParsedFields( merchantName = merchant, upiId = extractUpiId(content), neftReference = extractNeftReference(content), detectedKeywords = emptyList(), accountTypeDetected = detectAccountType(content).name, senderInferred = null, receiverInferred = null, extractedSnippet = content, merchantSanitization = MerchantSanitization(applied = false), merchantResolution = MerchantResolution( originalMerchant = originalMerchant, resolvedMerchant = resolvedMerchant, resolutionRule = merchantResolutionRule ) ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$(logId, ParsedFields( merchantName = merchantName, upiId = extractUpiId(body), neftReference = extractNeftReference(body), detectedKeywords = emptyList(), // Could be populated more thoroughly accountTypeDetected = detectAccountType(body).name, senderInferred = sender, receiverInferred = null, extractedSnippet = extractedSnippet, counterpartyExtraction = counterpartyExtraction, merchantSanitization = sanitizationLog, merchantResolution = MerchantResolution( originalMerchant = sanitizedMerchant ?: extractedMerchant, resolvedMerchant = resolvedMerchant, resolutionRule = merchantResolutionRule ) ))</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$it.name.equals(SmsConstants.CategoryNames.BONUS, ignoreCase = true)</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$it.name.equals(SmsConstants.CategoryNames.CASHBACK, ignoreCase = true)</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$it.name.equals(SmsConstants.CategoryNames.INTEREST, ignoreCase = true)</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$it.name.equals(SmsConstants.CategoryNames.INVESTMENTS_DIVIDENDS, ignoreCase = true)</ID>
+    <ID>Wrapping:SmsProcessor.kt$SmsProcessor$it.name.equals(SmsConstants.CategoryNames.REFUND, ignoreCase = true)</ID>
+    <ID>Wrapping:SmsProcessorBugFixTest.kt$SmsProcessorBugFixTest$(</ID>
+    <ID>Wrapping:TransactionDao.kt$TransactionDao$(</ID>
+    <ID>Wrapping:TransactionEditDialog.kt$Text("Note")</ID>
+    <ID>Wrapping:TransactionEditDialog.kt$Text("Save")</ID>
+    <ID>Wrapping:TransactionEditDialog.kt$note = it</ID>
+    <ID>Wrapping:TransactionEditDialog.kt$onConfirm(selectedCategory.id, note, accountType, applyToSimilar, manualClassification)</ID>
+    <ID>Wrapping:TransactionLinkDao.kt$TransactionLinkDao$(</ID>
+    <ID>Wrapping:TransactionNatureResolver.kt$TransactionNatureResolver$(</ID>
+    <ID>Wrapping:TransactionNatureResolver.kt$TransactionNatureResolver$(TAG, """ ╔═══════════════════════════════════════════════════════════ ║ TRANSACTION NATURE RESOLUTION ║ ID: $transactionId ║───────────────────────────────────────────────────────────── ║ Nature: ${resolution.nature} ║ Matched Rule: ${resolution.matchedRule} ║ Confidence: ${(resolution.confidence * 100).toInt()}% ║ Reasoning: ${resolution.reasoning} ║───────────────────────────────────────────────────────────── ║ Rule Trace: ${resolution.ruleTrace.joinToString("\n") { "║ $it" }} ║═════════════════════════════════════════════════════════════ """.trimIndent())</ID>
+    <ID>Wrapping:TransactionTypeResolver.kt$TransactionTypeResolver$(</ID>
+    <ID>Wrapping:TransactionValidator.kt$TransactionValidator$(</ID>
+  </CurrentIssues>
+</SmellBaseline>

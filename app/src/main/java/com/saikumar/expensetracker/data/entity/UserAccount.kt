@@ -1,0 +1,18 @@
+package com.saikumar.expensetracker.data.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+
+
+@Entity(tableName = "user_accounts")
+data class UserAccount(
+    @PrimaryKey
+    val accountNumberLast4: String, // e.g., "2725"
+    val bankName: String,          // e.g., "HDFC"
+    val accountType: AccountType,
+    val isMyAccount: Boolean = true,
+    val alias: String? = null,     // e.g., "Salary Account"
+    val accountHolderName: String? = null, // e.g., "GODALA SAIKUMAR REDDY" - discovered from NEFT
+    val detectedAt: Long = System.currentTimeMillis()
+)

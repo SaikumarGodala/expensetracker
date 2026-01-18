@@ -22,6 +22,12 @@ class SettingsViewModel(private val preferencesManager: PreferencesManager) : Vi
     val debugMode: StateFlow<Boolean> = preferencesManager.debugMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val themeMode: StateFlow<Int> = preferencesManager.themeMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val colorPalette: StateFlow<String> = preferencesManager.colorPalette
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "DYNAMIC")
+
     fun setSalaryDay(day: Int) {
         viewModelScope.launch {
             preferencesManager.setSalaryDay(day)
@@ -37,6 +43,18 @@ class SettingsViewModel(private val preferencesManager: PreferencesManager) : Vi
     fun setSmsAutoRead(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.setSmsAutoRead(enabled)
+        }
+    }
+    
+    fun setThemeMode(mode: Int) {
+        viewModelScope.launch {
+            preferencesManager.setThemeMode(mode)
+        }
+    }
+    
+    fun setColorPalette(palette: String) {
+        viewModelScope.launch {
+            preferencesManager.setColorPalette(palette)
         }
     }
 

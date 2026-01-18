@@ -1,34 +1,27 @@
 package com.saikumar.expensetracker.ui.dashboard
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.saikumar.expensetracker.ui.theme.*
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
-import com.github.mikephil.charting.utils.ColorTemplate
 import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import com.saikumar.expensetracker.data.entity.*
 import com.saikumar.expensetracker.util.CategoryIcons
@@ -36,13 +29,15 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.saikumar.expensetracker.ui.common.TransactionEditDialog
+import java.util.Locale
 
 /**
  * Format paisa amount to rupee display string
  */
 private fun formatAmount(paisa: Long): String {
     val rupees = paisa / 100.0
-    return "₹${String.format("%,.0f", rupees)}"
+    return "₹${String.format(Locale.getDefault(), "%,.0f", rupees)}"
 }
 
 /**
@@ -61,16 +56,20 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
     var showDateRangePicker by remember { mutableStateOf(false) }
 
     if (editingTransaction != null) {
-        EditTransactionDialog(
+        TransactionEditDialog(
             transaction = editingTransaction!!,
             categories = uiState.categories,
             onDismiss = { editingTransaction = null },
-            onConfirm = { categoryId, note, isSelfTransfer, accountType, isIncomeManuallyIncluded, updateSimilar, manualClassification ->
-                viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, isSelfTransfer, accountType, isIncomeManuallyIncluded, updateSimilar, manualClassification)
+            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification ->
+                viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)
                 editingTransaction = null
             },
             onAddCategory = { name, type ->
                 viewModel.addCategory(name, type)
+            },
+            onDelete = { txn ->
+                viewModel.deleteTransaction(txn)
+                editingTransaction = null
             }
         )
     }
@@ -81,14 +80,13 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
         val dateRangePickerState = rememberDateRangePickerState(initialSelectedStartDateMillis = initialStart, initialSelectedEndDateMillis = initialEnd)
         
         DatePickerDialog(
-            onDismissRequest = { showDateRangePicker = false },
+            onDismissRequest = { },
             confirmButton = {
                 TextButton(onClick = {
                     if (dateRangePickerState.selectedStartDateMillis != null && dateRangePickerState.selectedEndDateMillis != null) {
                         val start = Instant.ofEpochMilli(dateRangePickerState.selectedStartDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()
                         val end = Instant.ofEpochMilli(dateRangePickerState.selectedEndDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()
                         viewModel.setCustomCycle(start, end)
-                        showDateRangePicker = false
                     }
                 }) { Text("Apply") }
             }
@@ -107,7 +105,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })
+                    CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { })
                     HeroBalanceCard(uiState)
                 }
             }
@@ -118,22 +116,40 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
                     onCategoryClick(type, startMillis, endMillis)
                 }
             } }
-            item { Box(modifier = Modifier.padding(16.dp)) { DashboardChart(uiState) } }
+            // Removed spending breakdown chart - already have category breakdown in Overview
             item {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.onSearchQueryChanged(it) },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     placeholder = { Text("Search transactions") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    singleLine = true
                 )
             }
+            
+            // STATEMENTS SECTION
+            if (uiState.statements.isNotEmpty()) {
+                item {
+                    Text(
+                        "Statements", 
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), 
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                items(uiState.statements, key = { it.transaction.id }) { transaction ->
+                    TransactionItem(transaction, onClick = { editingTransaction = transaction })
+                }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+            }
+
             val groupedTransactions = uiState.transactions.groupBy { timestampToLocalDate(it.transaction.timestamp) }
             groupedTransactions.forEach { (date, transactions) ->
-                stickyHeader { DateHeader(date, 0.0) }
+                stickyHeader { DateHeader(date) }
                 items(transactions, key = { it.transaction.id }) { transaction ->
-                    TransactionItem(transaction, onClick = { editingTransaction = transaction })
+                    val linkDetail = uiState.transactionLinks[transaction.transaction.id]
+                    TransactionItem(transaction, linkType = linkDetail?.type, onClick = { editingTransaction = transaction })
                 }
             }
         }
@@ -143,10 +159,10 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
 @Composable
 fun CycleSelector(state: DashboardUiState, onPrevious: () -> Unit, onNext: () -> Unit, onAdjust: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null) }
+        IconButton(onClick = onPrevious) { Icon(Icons.Default.KeyboardArrowLeft, null) }
         // Month name derived from END date (reflects current working month)
         Text(text = state.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "...", modifier = Modifier.clickable { onAdjust() }, fontWeight = FontWeight.SemiBold)
-        IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }
+        IconButton(onClick = onNext) { Icon(Icons.Default.KeyboardArrowRight, null) }
     }
 }
 
@@ -154,18 +170,18 @@ fun CycleSelector(state: DashboardUiState, onPrevious: () -> Unit, onNext: () ->
 fun HeroBalanceCard(state: DashboardUiState) {
     Column {
         Text("Remaining Money", style = MaterialTheme.typography.labelLarge)
-        Text("₹${String.format("%,.0f", state.extraMoney)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
+        Text("₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 fun SummaryRowList(state: DashboardUiState, onCategoryClick: (CategoryType) -> Unit) {
     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SummaryChip("Income", state.totalIncome, Color(0xFF4CAF50)) { onCategoryClick(CategoryType.INCOME) } }
-        item { SummaryChip("Fixed", state.totalFixedExpenses, Color(0xFFF44336)) { onCategoryClick(CategoryType.FIXED_EXPENSE) } }
-        item { SummaryChip("Variable", state.totalVariableExpenses, Color(0xFFFF9800)) { onCategoryClick(CategoryType.VARIABLE_EXPENSE) } }
-        item { SummaryChip("Invest", state.totalInvestments, Color(0xFF2196F3)) { onCategoryClick(CategoryType.INVESTMENT) } }
-        item { SummaryChip("Vehicle", state.totalVehicleExpenses, Color(0xFF9C27B0)) { onCategoryClick(CategoryType.VEHICLE) } }
+        item { SummaryChip("Income", state.totalIncome, IncomeGreen) { onCategoryClick(CategoryType.INCOME) } }
+        item { SummaryChip("Fixed", state.totalFixedExpenses, ExpenseRed) { onCategoryClick(CategoryType.FIXED_EXPENSE) } }
+        item { SummaryChip("Variable", state.totalVariableExpenses, PendingOrange) { onCategoryClick(CategoryType.VARIABLE_EXPENSE) } }
+        item { SummaryChip("Invest", state.totalInvestments, TransferBlue) { onCategoryClick(CategoryType.INVESTMENT) } }
+        item { SummaryChip("Vehicle", state.totalVehicleExpenses, VehiclePurple) { onCategoryClick(CategoryType.VEHICLE) } }
     }
 }
 
@@ -174,13 +190,13 @@ fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -> Unit
     Surface(shape = MaterialTheme.shapes.medium, color = color.copy(alpha = 0.1f), modifier = Modifier.clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium)
-            Text("₹${String.format("%,.0f", amount)}", fontWeight = FontWeight.Bold, color = color)
+            Text("₹${String.format(Locale.getDefault(), "%,.0f", amount)}", fontWeight = FontWeight.Bold, color = color)
         }
     }
 }
 
 @Composable
-fun DateHeader(date: LocalDate, dailyTotal: Double) {
+fun DateHeader(date: LocalDate) {
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Text(date.format(DateTimeFormatter.ofPattern("dd MMM yyyy")), fontWeight = FontWeight.Bold)
     }
@@ -191,11 +207,17 @@ fun DashboardChart(state: DashboardUiState) {
     val total = state.totalFixedExpenses + state.totalVariableExpenses + state.totalVehicleExpenses + state.totalInvestments
     if (total <= 0) return
     
-    Card(modifier = Modifier.fillMaxWidth().height(250.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Spending Breakdown", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.height(8.dp))
             AndroidView(
-                factory = { context -> 
+                factory = { context ->
                     PieChart(context).apply { 
                         description.isEnabled = false
                         legend.isEnabled = true
@@ -204,7 +226,7 @@ fun DashboardChart(state: DashboardUiState) {
                         transparentCircleRadius = 45f
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth().height(220.dp),
                 update = { chart ->
                     val entries = mutableListOf<PieEntry>()
                     if (state.totalFixedExpenses > 0) entries.add(PieEntry(state.totalFixedExpenses.toFloat(), "Fixed"))
@@ -214,10 +236,10 @@ fun DashboardChart(state: DashboardUiState) {
                     
                     val dataSet = PieDataSet(entries, "").apply { 
                         colors = listOf(
-                            android.graphics.Color.parseColor("#F44336"), // Fixed - Red
-                            android.graphics.Color.parseColor("#FF9800"), // Variable - Orange
-                            android.graphics.Color.parseColor("#9C27B0"), // Vehicle - Purple
-                            android.graphics.Color.parseColor("#2196F3")  // Investment - Blue
+                            ExpenseRed.toArgb(),      // Fixed - Red
+                            PendingOrange.toArgb(),   // Variable - Orange
+                            VehiclePurple.toArgb(),   // Vehicle - Purple
+                            TransferBlue.toArgb()     // Investment - Blue
                         )
                         setDrawValues(true)
                         valueTextSize = 12f
@@ -232,41 +254,83 @@ fun DashboardChart(state: DashboardUiState) {
 }
 
 @Composable
-fun TransactionItem(item: TransactionWithCategory, onClick: () -> Unit) {
+fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, onClick: () -> Unit) {
     val transactionType = item.transaction.transactionType
-    val isTransfer = transactionType == TransactionType.TRANSFER
+    val isSelfTransferLinked = linkType == LinkType.SELF_TRANSFER
+    // Trust the LinkType if present, otherwise fall back to TransactionType
+    val isTransfer = isSelfTransferLinked || transactionType == TransactionType.TRANSFER
+    
     val isIncome = transactionType == TransactionType.INCOME
     val isLiabilityPayment = transactionType == TransactionType.LIABILITY_PAYMENT
+    val isRefund = linkType == LinkType.REFUND || transactionType == TransactionType.REFUND
+    val isCashback = transactionType == TransactionType.CASHBACK
+    
+    val isPending = transactionType == TransactionType.PENDING
+    val isIgnored = transactionType == TransactionType.IGNORE
+    val isStatement = transactionType == TransactionType.STATEMENT // new
+    
+    val isInvestment = item.category.type == CategoryType.INVESTMENT ||
+                       transactionType == TransactionType.INVESTMENT_OUTFLOW ||
+                       transactionType == TransactionType.INVESTMENT_CONTRIBUTION
+
     val categoryIcon = CategoryIcons.getIcon(item.category.name)
     
+    // Complete TransactionType handling with distinct colors
+    // IMPORTANT: isInvestment checked BEFORE isTransfer so investments show as blue
     val containerColor = when {
+        isIgnored -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        isPending -> HighlightBackground  // Amber lightest
+        isStatement -> MaterialTheme.colorScheme.surface // Clean/White for Statement
+        isInvestment -> InvestmentBlueLight  // Blue tint for ALL Investments (check before transfer!)
         isTransfer -> MaterialTheme.colorScheme.surfaceVariant
         isLiabilityPayment -> MaterialTheme.colorScheme.tertiaryContainer
+        isRefund -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        isCashback -> CashbackGold  // Golden/yellow tint
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
     
     val amountColor = when {
+        isIgnored -> Color.Gray.copy(alpha = 0.5f)
+        isPending -> PendingText  // Amber
+        isStatement -> MaterialTheme.colorScheme.primary
+        isInvestment -> InvestmentBlueText  // Blue for ALL Investments (check before transfer!)
         isTransfer -> Color.Gray
         isLiabilityPayment -> MaterialTheme.colorScheme.tertiary
-        isIncome -> Color(0xFF4CAF50)
-        else -> Color(0xFFEF5350)
+        isRefund -> UndoGreen  // Light green (money back)
+        isCashback -> CashbackText  // Gold/amber
+        isIncome -> IncomeGreen
+        else -> ExpenseRedLight
     }
     
     val icon = when {
+        isIgnored -> Icons.Default.VisibilityOff
+        isPending -> Icons.Default.Schedule
+        isStatement -> Icons.Default.ReceiptLong
+        isInvestment -> Icons.Default.TrendingUp  // Investment icon (check before transfer!)
         isTransfer -> Icons.Default.SwapHoriz
         isLiabilityPayment -> Icons.Default.CreditCard
+        isRefund -> Icons.Default.Refresh
+        isCashback -> Icons.Default.CardGiftcard
         else -> categoryIcon
     }
     
     val displayName = when {
-        isTransfer -> "Self Transfer"
+        isIgnored -> "Ignored"
+        isPending -> "Pending"
+        isStatement -> "CC Statement"
+        isInvestment -> item.category.name  // Show actual category (Mutual Funds, RD, etc.)
+        isTransfer -> item.category.name // Show actual category (P2P Transfers, Self Transfer, etc.)
         isLiabilityPayment -> "CC Payment"
+        isRefund -> "Refund / Reversal"
+        isCashback -> "Cashback"
         else -> item.category.name
     }
     
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick), 
-        colors = CardDefaults.cardColors(containerColor = containerColor)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), // Softer corners
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)) // Glassy border
     ) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = amountColor)
@@ -275,326 +339,11 @@ fun TransactionItem(item: TransactionWithCategory, onClick: () -> Unit) {
                 Text(displayName, fontWeight = FontWeight.Bold)
                 Text(
                     item.transaction.merchantName ?: item.transaction.note ?: item.category.name, 
-                    style = MaterialTheme.typography.bodySmall, 
+                    style = MaterialTheme.typography.bodySmall,
                     maxLines = 1
                 )
             }
             Text(formatAmount(item.transaction.amountPaisa), color = amountColor, fontWeight = FontWeight.Bold)
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditTransactionDialog(
-    transaction: TransactionWithCategory, 
-    categories: List<Category>, 
-    onDismiss: () -> Unit, 
-    onConfirm: (Long, String, Boolean, AccountType, Boolean, Boolean, String?) -> Unit,
-    onAddCategory: ((String, CategoryType) -> Unit)? = null
-) {
-    var selectedCategory by remember { mutableStateOf(transaction.category) }
-    var note by remember { mutableStateOf(transaction.transaction.note ?: "") }
-    var isSelfTransfer by remember { mutableStateOf(transaction.transaction.isSelfTransfer) }
-    var isIncomeManuallyIncluded by remember { mutableStateOf(transaction.transaction.isIncomeManuallyIncluded) }
-    var accountType by remember { mutableStateOf(transaction.transaction.accountType) }
-    var applyToSimilar by remember { mutableStateOf(false) }
-    var categoryExpanded by remember { mutableStateOf(false) }
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
-    var manualClassification by remember { mutableStateOf(transaction.transaction.manualClassification) }
-    
-    val merchantKeyword = transaction.transaction.merchantName
-    val isUnknownCategory = selectedCategory.name.contains("Unknown", ignoreCase = true)
-
-    if (showAddCategoryDialog && onAddCategory != null) {
-        AddCategoryDialog(
-            onDismiss = { showAddCategoryDialog = false },
-            onConfirm = { name, type ->
-                onAddCategory(name, type)
-                showAddCategoryDialog = false
-            }
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Transaction Details") },
-        text = {
-            Box(modifier = Modifier.heightIn(max = 450.dp)) {
-                val dialogScrollState = rememberScrollState()
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.verticalScroll(dialogScrollState)
-                ) {
-                // Amount display - convert paisa to rupees
-                Text("Amount: ${formatAmount(transaction.transaction.amountPaisa)}", style = MaterialTheme.typography.titleMedium)
-                
-                Text("Transaction Type: ${transaction.transaction.transactionType.name}")
-                Text("Detected as Salary: ${if (transaction.transaction.isSalaryCredit) "YES" else "NO"}")
-                
-                // Show merchant if available
-                if (merchantKeyword != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Merchant: $merchantKeyword",
-                            modifier = Modifier.padding(8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-                
-                // SMS Context/Snippet display - useful for debugging and trust
-                val smsSnippet = transaction.transaction.smsSnippet
-                if (!smsSnippet.isNullOrBlank() && transaction.transaction.source == TransactionSource.SMS) {
-                    var isExpanded by remember { mutableStateOf(false) }
-                    
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().clickable { isExpanded = !isExpanded }
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "📱 Original Context",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Icon(
-                                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isExpanded || smsSnippet.length <= 80) smsSnippet else smsSnippet.take(77) + "...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = if (isExpanded) Int.MAX_VALUE else 2
-                            )
-                        }
-                    }
-                }
-                
-                // Unknown category alert
-                if (isUnknownCategory) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "⚠️ This transaction could not be auto-categorized. Please select a category below.",
-                            modifier = Modifier.padding(8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-                
-                // Category dropdown
-                ExposedDropdownMenuBox(
-                    expanded = categoryExpanded,
-                    onExpandedChange = { categoryExpanded = !categoryExpanded },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = selectedCategory.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false }
-                    ) {
-                        categories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            CategoryIcons.getIcon(category.name), 
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(category.name)
-                                    }
-                                },
-                                onClick = {
-                                    selectedCategory = category
-                                    categoryExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                // Add New Category button
-                if (onAddCategory != null) {
-                    TextButton(
-                        onClick = { showAddCategoryDialog = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add New Category")
-                    }
-                }
-                
-                OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isSelfTransfer, onCheckedChange = { isSelfTransfer = it; if (it) manualClassification = "NEUTRAL" })
-                    Text("Mark as Self-Transfer")
-                }
-                
-                // Manual Classification Override (only if not self-transfer)
-                if (!isSelfTransfer) {
-                    Text("Classification Override:", style = MaterialTheme.typography.labelSmall)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = manualClassification == null,
-                            onClick = { manualClassification = null },
-                            label = { Text("Auto") }
-                        )
-                        FilterChip(
-                            selected = manualClassification == "INCOME",
-                            onClick = { manualClassification = "INCOME"; isIncomeManuallyIncluded = true },
-                            label = { Text("Income") }
-                        )
-                        FilterChip(
-                            selected = manualClassification == "EXPENSE",
-                            onClick = { manualClassification = "EXPENSE"; isIncomeManuallyIncluded = false },
-                            label = { Text("Expense") }
-                        )
-                        FilterChip(
-                            selected = manualClassification == "NEUTRAL",
-                            onClick = { manualClassification = "NEUTRAL"; isIncomeManuallyIncluded = false },
-                            label = { Text("Neutral") }
-                        )
-                    }
-                }
-                
-                // Apply to similar transactions option - with smart matching
-                // Show if: merchant keyword exists AND (category changed OR has matchable pattern)
-                val smsContent = transaction.transaction.smsSnippet ?: ""
-                
-                // Extract UPI ID
-                val upiId = if (smsContent.contains("@") && !smsContent.contains("@gmail") && !smsContent.contains("@yahoo")) {
-                    val regex = Regex("([a-zA-Z0-9._-]+@[a-zA-Z]+)")
-                    regex.find(smsContent)?.value?.lowercase()
-                } else null
-                
-                // Extract NEFT bank code (e.g., DEUTN52025... → DEUT)
-                val neftBankCode = if (smsContent.contains("NEFT", ignoreCase = true)) {
-                    val neftRefRegex = Regex("(?i)NEFT[\\s-]+(?:Cr[\\s-]+)?([A-Z0-9]+)")
-                    val neftRef = neftRefRegex.find(smsContent)?.groupValues?.getOrNull(1)
-                    neftRef?.take(4)?.uppercase() // First 4 letters = bank code
-                } else null
-                
-                val hasMatchablePattern = upiId != null || neftBankCode != null
-                val matchPattern = upiId ?: neftBankCode ?: merchantKeyword?.uppercase() ?: ""
-                val matchType = when {
-                    upiId != null -> "UPI ID"
-                    neftBankCode != null -> "NEFT Source"
-                    merchantKeyword != null -> "Merchant"
-                    else -> "Amount + Date"  // Fallback for transactions without clear pattern
-                }
-                
-                // Show Apply to Similar whenever category is changed
-                // Even if no pattern is found, user can still choose to apply
-                if (selectedCategory.id != transaction.category.id) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    Surface(
-                        color = if (applyToSimilar) 
-                            MaterialTheme.colorScheme.primaryContainer 
-                        else 
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Checkbox(
-                                    checked = applyToSimilar, 
-                                    onCheckedChange = { applyToSimilar = it }
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "🔄 Apply to similar transactions",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        "Match by $matchType: $matchPattern",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            
-                            if (applyToSimilar) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shape = MaterialTheme.shapes.extraSmall,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Info,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "All matching transactions will be updated to \"${selectedCategory.name}\"",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                Text("This transaction will not affect income totals unless marked.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(selectedCategory.id, note, isSelfTransfer, accountType, isIncomeManuallyIncluded, applyToSimilar, manualClassification) }) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }

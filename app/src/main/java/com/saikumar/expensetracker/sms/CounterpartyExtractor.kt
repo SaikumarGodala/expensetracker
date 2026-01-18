@@ -1,0 +1,539 @@
+package com.saikumar.expensetracker.sms
+
+import java.util.regex.Pattern
+
+/**
+ * Robust Counterparty Extractor - Template Based
+ *
+ * This extractor uses a template-based approach rather than generic regex patterns.
+ * Each bank SMS format is matched against a known template, and the counterparty is
+ * extracted from the correct position in the template.
+ */
+object CounterpartyExtractor {
+
+    data class Counterparty(
+        val name: String?,
+        val upiId: String?,
+        val type: CounterpartyType
+    )
+
+    enum class CounterpartyType {
+        MERCHANT, PERSON, BANK_ACCOUNT, UNKNOWN
+    }
+
+    // --- TEMPLATE PATTERNS ---
+    
+    // HDFC "Sent Rs.XXX To <NAME>" pattern (UPI P2P)
+    private val HDFC_SENT_TO_PATTERN = Pattern.compile(
+        "Sent\\s+Rs\\.?[\\d,\\.]+\\s+(?:From\\s+HDFC[^\\n]*\\n)?To\\s+([A-Z][A-Za-z\\s]{2,50})\\s*\\nOn",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // HDFC "Spent Rs.XXX At <MERCHANT>" pattern (Credit Card POS)
+    private val HDFC_SPENT_AT_PATTERN = Pattern.compile(
+        "Spent\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*At\\s+([A-Z][A-Za-z0-9\\s]{2,50}?)(?:\\s+(?:Gur|new|On\\s+\\d))",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // HDFC "Txn Rs.XXX On HDFC Bank Card At <VPA>" pattern (Card via UPI)
+    private val HDFC_CARD_UPI_PATTERN = Pattern.compile(
+        "Txn\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*At\\s+([a-zA-Z0-9._-]+)@[a-zA-Z]+",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // ICICI "INR XXX spent using ICICI Bank Card on DD-MON-YY on <MERCHANT>" pattern
+    private val ICICI_SPENT_ON_PATTERN = Pattern.compile(
+        "INR\\s+[\\d,\\.]+\\s+spent\\s+using\\s+ICICI[^\\n]*on\\s+\\d{2}-[A-Z][a-z]{2}-\\d{2}\\s+on\\s+([A-Z][A-Za-z0-9\\s]{2,30})",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // ICICI "Rs X,XXX spent on ICICI Bank Card XX... on DD-Mon-YY at <MERCHANT>" pattern
+    private val ICICI_SPENT_AT_PATTERN = Pattern.compile(
+        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*at\\s+([A-Z][A-Za-z0-9\\s\\.]+?)\\.",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // ICICI "Acct debited for Rs XXX; <NAME> credited" pattern
+    private val ICICI_DEBITED_CREDITED_PATTERN = Pattern.compile(
+        "debited\\s+for\\s+Rs\\s+[\\d,\\.]+[^;]*;\\s*([A-Za-z][A-Za-z0-9\\s]{2,50})\\s+credited",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // Credit Alert "credited from VPA <VPA>"
+    private val CREDIT_ALERT_VPA_PATTERN = Pattern.compile(
+        "credited\\s+to\\s+[^\\n]+from\\s+VPA\\s+([a-zA-Z0-9._-]+@[a-zA-Z]+)",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // NEFT Salary pattern: "NEFT Cr-XXXX-<EMPLOYER>-<EMPLOYEE>-XXXX"
+    private val NEFT_SALARY_PATTERN = Pattern.compile(
+        "for\\s+NEFT\\s+Cr-[A-Z0-9]+-([A-Z][A-Za-z\\s]+(?:PRIVATE|PVT|LTD|LIMITED|TECHNOLOGIES|INDIA|CORP|INC|SOLUTIONS)?[^-]*)-",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // FT/Clearing deposit: "FT- XXXX - <ENTITY> -"
+    private val FT_DEPOSIT_PATTERN = Pattern.compile(
+        "for\\s+FT-\\s*[\\dX-]+\\s*-\\s*([A-Z][A-Za-z\\s]+(?:CORPORATION|LIMITED|CLEARING)?[^-]*?)\\s*-",
+        Pattern.CASE_INSENSITIVE
+    )
+    
+    // UPI ID extraction (fallback)
+    private val UPI_PATTERN = Pattern.compile("([a-zA-Z0-9._-]+@[a-zA-Z]+)")
+
+    // --- MAIN ENTRY POINT ---
+    fun extract(body: String, transactionType: TransactionExtractor.TransactionType): Counterparty {
+        // Template matching in order of specificity
+        
+        // 1. HDFC "Sent To <NAME>" (P2P Transfer / UPI Payment)
+        HDFC_SENT_TO_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanName(rawName)
+                if (isValidName(name)) {
+                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType))
+                }
+            }
+        }
+        
+        // 2. HDFC "Spent At <MERCHANT>" (CC POS)
+        HDFC_SPENT_AT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanName(rawName)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT)
+                }
+            }
+        }
+        
+        // 3. HDFC Card + UPI - Extract merchant from VPA prefix
+        HDFC_CARD_UPI_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val vpaPrefix = m.group(1) ?: return@let
+                val merchantName = extractMerchantFromVpa(vpaPrefix)
+                return if (merchantName != null && isValidName(merchantName)) {
+                    Counterparty(merchantName, null, CounterpartyType.MERCHANT)
+                } else {
+                    // VPA is junk (paytmqr, q12345, etc.) - return UNKNOWN
+                    Counterparty(null, null, CounterpartyType.UNKNOWN)
+                }
+            }
+        }
+        
+        // 4. ICICI "spent using ICICI Bank Card on <MERCHANT>"
+        ICICI_SPENT_ON_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanName(rawName)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT)
+                }
+            }
+        }
+        
+        // 5. ICICI "spent on ICICI Bank Card at <MERCHANT>"
+        ICICI_SPENT_AT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanName(rawName)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT)
+                }
+            }
+        }
+        
+        // 6. ICICI "debited; <NAME> credited"
+        ICICI_DEBITED_CREDITED_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanName(rawName)
+                if (isValidName(name)) {
+                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType))
+                }
+            }
+        }
+        
+        // 7. NEFT Salary deposits
+        NEFT_SALARY_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanEmployerName(rawName)
+                if (name.isNotBlank() && name.length >= 3) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT) // Employer is like a merchant
+                }
+            }
+        }
+        
+        // 8. FT/Clearing deposits (stock sales, etc.)
+        FT_DEPOSIT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                val name = cleanEmployerName(rawName)
+                if (name.isNotBlank() && name.length >= 3) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT)
+                }
+            }
+        }
+        
+        // 9. Credit Alert VPA
+        CREDIT_ALERT_VPA_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val upi = m.group(1) ?: return@let
+                val name = extractNameFromUpi(upi)
+                val type = classifyVpa(upi, transactionType)
+                return if (name != null && type != CounterpartyType.UNKNOWN) {
+                    Counterparty(name, upi, type)
+                } else {
+                    Counterparty(null, upi, CounterpartyType.UNKNOWN)
+                }
+            }
+        }
+        
+        // 10. Fallback: Extract UPI ID if present
+        val upi = extractUpiId(body)
+        if (upi != null) {
+            val name = extractNameFromUpi(upi)
+            val type = classifyVpa(upi, transactionType)
+            return if (name != null && type != CounterpartyType.UNKNOWN) {
+                Counterparty(name, upi, type)
+            } else {
+                Counterparty(null, upi, CounterpartyType.UNKNOWN)
+            }
+        }
+        
+        // No counterparty found
+        return Counterparty(null, null, CounterpartyType.UNKNOWN)
+    }
+
+    // --- UTILITIES ---
+    
+    private fun extractUpiId(body: String): String? {
+        val m = UPI_PATTERN.matcher(body)
+        return if (m.find()) m.group(1) else null
+    }
+    
+    /**
+     * Extract a human-readable name from a UPI ID.
+     * Returns null for junk VPAs.
+     */
+    private fun extractNameFromUpi(upiId: String): String? {
+        val prefix = upiId.substringBefore("@")
+        val lower = prefix.lowercase()
+        
+        // Junk VPA prefixes - return null
+        if (isJunkVpaPrefix(lower)) {
+            return null
+        }
+        
+        // Clean the prefix
+        val cleaned = prefix
+            .replace(".", " ")
+            .replace("_", " ")
+            .replace("-", " ")
+            .trim()
+        
+        return if (cleaned.length >= 3 && cleaned.any { it.isLetter() }) {
+            cleaned
+        } else null
+    }
+    
+    /**
+     * Check if a VPA prefix is junk (paytmqr, q12345, phone numbers, etc.)
+     */
+    private fun isJunkVpaPrefix(lower: String): Boolean {
+        return lower.startsWith("paytmqr") ||
+               lower.startsWith("paytm.") ||
+               lower.startsWith("paytm-") ||
+               lower.startsWith("bharatpe") ||
+               lower.startsWith("phonemerchant") ||
+               lower.startsWith("gpay-") ||
+               lower.startsWith("ezetap") ||
+               lower.startsWith("vyapar.") ||
+               lower.startsWith("googlepay") ||
+               lower.matches(Regex("^q\\d+.*")) ||           // q12345...
+               lower.matches(Regex("^[0-9]{10,}.*")) ||      // Phone numbers (10+ digits)
+               lower.matches(Regex("^[0-9]+-[0-9]+.*")) ||   // 9949530533-2
+               lower.matches(Regex("^[0-9]+$"))              // Pure numbers
+    }
+    
+    private fun extractMerchantFromVpa(vpaPrefix: String): String? {
+        val lower = vpaPrefix.lowercase()
+        
+        // Junk VPA prefixes - return null (no valid merchant)
+        if (isJunkVpaPrefix(lower)) {
+            return null
+        }
+        
+        // Known merchant VPA patterns
+        val knownMerchants = mapOf(
+            "zeptonow" to "Zepto",
+            "swiggy" to "Swiggy",
+            "zomato" to "Zomato",
+            "myntra" to "Myntra",
+            "licious" to "Licious",
+            "cf.licious" to "Licious",
+            "dineout" to "Dineout",
+            "bookmyshow" to "BookMyShow",
+            "priveplex" to "PVR",
+            "gameonlevel" to "Game On",
+            "mandikinga" to "Mandi King",
+            "mandiking" to "Mandi King"
+        )
+        
+        for ((pattern, name) in knownMerchants) {
+            if (lower.contains(pattern)) return name
+        }
+        
+        // Clean up generic VPA prefixes
+        val cleaned = vpaPrefix
+            .replace(Regex("\\d+$"), "")  // Remove trailing numbers
+            .replace(Regex("[._-]"), " ")  // Replace separators
+            .trim()
+        
+        return if (cleaned.length >= 3 && cleaned.any { it.isLetter() }) {
+            cleaned.split(" ")
+                .filter { it.isNotBlank() && it.length > 1 }
+                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+                .takeIf { it.isNotBlank() && !isJunkVpaPrefix(it.lowercase()) }
+        } else null
+    }
+    
+    /**
+     * Clean employer name from NEFT/FT messages
+     */
+    private fun cleanEmployerName(rawName: String): String {
+        return rawName
+            .replace(Regex("\\s{2,}"), " ")
+            .replace(Regex("PRIVATE\\s+LIMITED", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("PVT\\s+LTD", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("LIMITED", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("CORPORATION", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("CLEARING", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("INDIA", RegexOption.IGNORE_CASE), "")
+            .trim()
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .take(3) // Max 3 words
+            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+    }
+    
+    private fun cleanName(name: String): String {
+        return name
+            .replace(Regex("\\s{2,}"), " ")  // Collapse multiple spaces
+            .replace(Regex("[\\r\\n]+.*"), "")  // Remove everything after newline
+            .replace(Regex("^(Gur|new|On)\\s.*", RegexOption.IGNORE_CASE), "")  // Remove trailing noise
+            .trim()
+    }
+    
+    private fun isValidName(name: String): Boolean {
+        val lower = name.lowercase()
+        
+        // Blocklist
+        val blocked = setOf(
+            "not you", "on", "at", "to", "via", "from", "for", "by",
+            "upi", "imps", "neft", "ref", "info", "update", "alert",
+            "your card", "card ending", "hdfc bank", "icici bank", "sbi card",
+            "rs", "inr", "payment", "transaction", "txn", "https", "http",
+            "call", "sms", "block"
+        )
+        
+        if (blocked.any { lower.startsWith(it) || lower == it }) return false
+        if (name.length < 3) return false
+        if (name.all { it.isDigit() || it.isWhitespace() }) return false
+        if (lower.matches(Regex("^\\d{2,4}$"))) return false  // Just numbers like "100"
+        
+        return true
+    }
+    
+    private fun classifyName(name: String, transactionType: TransactionExtractor.TransactionType): CounterpartyType {
+        // For Expenses (card spends, shopping), always MERCHANT
+        if (transactionType == TransactionExtractor.TransactionType.EXPENSE) {
+            return CounterpartyType.MERCHANT
+        }
+        
+        // For TRANSFER and INCOME, check if looks like a person name (2-4 words, all alphabetic)
+        val words = name.split(" ").filter { it.isNotBlank() }
+        val allAlphabetic = words.all { w -> w.all { it.isLetter() || it == '.' } }
+        
+        return if (words.size in 2..4 && allAlphabetic) {
+            CounterpartyType.PERSON
+        } else if (words.size == 1 && words[0].all { it.isLetter() } && words[0].length >= 3) {
+            // Single word names like "SHIVKUMAR", "PRATIKSHA" are also PERSON
+            CounterpartyType.PERSON
+        } else {
+            CounterpartyType.MERCHANT
+        }
+    }
+    
+    private fun classifyVpa(upiId: String, transactionType: TransactionExtractor.TransactionType): CounterpartyType {
+        val prefix = upiId.substringBefore("@").lowercase()
+        
+        // Junk VPAs
+        if (isJunkVpaPrefix(prefix)) {
+            return CounterpartyType.UNKNOWN
+        }
+        
+        // For Expenses, default to MERCHANT (even for VPAs)
+        if (transactionType == TransactionExtractor.TransactionType.EXPENSE) {
+            return CounterpartyType.MERCHANT
+        }
+        
+        // For Income/Transfer, VPAs are likely PERSON
+        return CounterpartyType.PERSON
+    }
+    
+    /**
+     * Extract the account holder name from NEFT/deposit messages.
+     * 
+     * NEFT format: "NEFT Cr-{IFSC}-{SENDER}-{RECEIVER_NAME}-{REF}"
+     * Example: "NEFT Cr-BOFA0CN6215-OPEN TEXT TECHNOLOGIES-GODALA SAIKUMAR REDDY-BOFAH25364"
+     * 
+     * Returns the receiver name (which is the user's account holder name) or null.
+     */
+    fun extractAccountHolderName(body: String): String? {
+        // Pattern 1: NEFT Cr-IFSC-SENDER-RECEIVER-REF
+        // Use non-greedy match with [^-]+ for sender/receiver
+        val neftPattern = Pattern.compile(
+            "NEFT\\s+Cr-([A-Z0-9]+)-([^-]+)-([^-]+)-([A-Z0-9]+)",
+            Pattern.CASE_INSENSITIVE
+        )
+        
+        neftPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val name = m.group(3)?.trim() // Receiver is group 3
+                if (name != null && name.length >= 3 && name.contains(" ")) {
+                    // Skip if looks like a reference number (mostly digits)
+                    if (name.count { it.isDigit() } > name.length / 2) return@let
+                    return name.uppercase()
+                }
+            }
+        }
+        
+        // Pattern 2: credited to HDFC Bank A/c XX... for NEFT...-SENDER-RECEIVER-REF
+        val depositPattern = Pattern.compile(
+            "for\\s+NEFT[^-]*-([^-]+)-([^-]+)-[A-Z0-9]+",
+            Pattern.CASE_INSENSITIVE
+        )
+        
+        depositPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val name = m.group(2)?.trim() // Receiver is group 2
+                if (name != null && name.length >= 3 && name.contains(" ")) {
+                    if (name.count { it.isDigit() } > name.length / 2) return@let
+                    return name.uppercase()
+                }
+            }
+        }
+        
+        return null
+    }
+    
+    /**
+     * Detect if an NEFT message is a self-transfer.
+     * 
+     * Self-transfer pattern: NEFT Cr-{IFSC}-{SENDER_NAME}-{RECEIVER_NAME}-{REF}
+     * When SENDER_NAME == RECEIVER_NAME (or very similar), it's a self-transfer.
+     * 
+     * Example: "NEFT Cr-SURY0BK0000-GODALA SAIKUMAR REDDY-GODALA SAIKUMAR REDDY-SURYN25351683110"
+     * This is money moving from user's Suryoday account to user's HDFC account.
+     */
+    fun isNeftSelfTransfer(body: String): Boolean {
+        // Pattern to extract both sender and receiver names from NEFT
+        // NEFT Cr-{IFSC}-{SENDER}-{RECEIVER}-{REF}
+        // Use non-greedy match for names (anything between dashes that isn't a dash)
+        val neftPattern = Pattern.compile(
+            "NEFT\\s+Cr-([A-Z0-9]+)-([^-]+)-([^-]+)-([A-Z0-9]+)",
+            Pattern.CASE_INSENSITIVE
+        )
+        
+        neftPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val sender = m.group(2)?.trim()?.uppercase() ?: return false
+                val receiver = m.group(3)?.trim()?.uppercase() ?: return false
+                
+                // Skip if either name looks like a reference number (mostly digits)
+                if (sender.count { it.isDigit() } > sender.length / 2) return false
+                if (receiver.count { it.isDigit() } > receiver.length / 2) return false
+                
+                // Check if sender and receiver are the same or very similar
+                if (sender == receiver) {
+                    return true
+                }
+                
+                // Check fuzzy match - if both have same significant name parts
+                val senderParts = sender.split("\\s+".toRegex()).filter { it.length >= 3 && it.all { c -> c.isLetter() } }.toSet()
+                val receiverParts = receiver.split("\\s+".toRegex()).filter { it.length >= 3 && it.all { c -> c.isLetter() } }.toSet()
+                
+                // If at least 2 significant parts match, it's likely the same person
+                val commonParts = senderParts.intersect(receiverParts)
+                if (commonParts.size >= 2) {
+                    return true
+                }
+            }
+        }
+        
+        return false
+    }
+    
+    /**
+     * Extract NEFT source information (IFSC + sender) for salary pattern tracking.
+     * 
+     * NEFT format: "NEFT Cr-{IFSC}-{SENDER}-{RECEIVER}-{REF}"
+     * Example: "NEFT Cr-BOFA0CN6215-OPEN TEXT TECHNOLOGIES-GODALA SAIKUMAR-BOFAH25364"
+     * 
+     * @return Pair of (IFSC, Sender) or null if not an NEFT message
+     */
+    fun extractNeftSource(body: String): Pair<String, String>? {
+        // Pattern to extract IFSC and sender from NEFT credit
+        // NEFT Cr-{IFSC}-{SENDER}-{RECEIVER}-{REF}
+        // Use non-greedy match with [^-]+ for sender
+        val neftPattern = Pattern.compile(
+            "NEFT\\s+Cr-([A-Z0-9]+)-([^-]+)-([^-]+)-([A-Z0-9]+)",
+            Pattern.CASE_INSENSITIVE
+        )
+        
+        neftPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val ifsc = m.group(1)?.trim()?.uppercase() ?: return null
+                val sender = m.group(2)?.trim()?.uppercase() ?: return null
+                
+                // Skip if sender looks like a reference number (mostly digits)
+                if (sender.count { it.isDigit() } > sender.length / 2) return@let
+                
+                // Normalize sender (remove trailing spaces, normalize whitespace)
+                val normalizedSender = sender.split("\\s+".toRegex())
+                    .filter { it.isNotEmpty() }
+                    .joinToString(" ")
+                
+                if (normalizedSender.length >= 3) {
+                    return Pair(ifsc, normalizedSender)
+                }
+            }
+        }
+        
+        // Also check ICICI format: "NEFT-IFSC-SENDER"
+        val iciciPattern = Pattern.compile(
+            "NEFT-([A-Z0-9]+)-([^-\\.]+)",
+            Pattern.CASE_INSENSITIVE
+        )
+        
+        iciciPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val ifsc = m.group(1)?.trim()?.uppercase() ?: return null
+                val sender = m.group(2)?.trim()?.uppercase() ?: return null
+                
+                if (sender.count { it.isDigit() } > sender.length / 2) return@let
+                
+                val normalizedSender = sender.split("\\s+".toRegex())
+                    .filter { it.isNotEmpty() }
+                    .joinToString(" ")
+                
+                if (normalizedSender.length >= 3) {
+                    return Pair(ifsc, normalizedSender)
+                }
+            }
+        }
+        
+        return null
+    }
+}
