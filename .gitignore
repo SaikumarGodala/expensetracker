@@ -14,7 +14,18 @@
 .cxx
 local.properties
 
-# Debug logs
+# Android specific
+/app/build
+/app/release
+
+# Keystore
+*.jks
+*.keystore
+
+# Google Services (Safety)
+google-services.json
+
+# Project specific (Debug logs)
 log_batch_*.json
 **/log_batch_*.json
 *.log
@@ -24,3 +35,10 @@ index.html
 
 # IDE specific
 *.hprof
+
+# Python / Scripts
+*.pyc
+__pycache__/
+venv/
+scripts/venv/
+*.egg-info/

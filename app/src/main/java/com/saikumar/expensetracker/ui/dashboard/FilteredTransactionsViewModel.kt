@@ -15,7 +15,14 @@ class FilteredTransactionsViewModel(
     private val repository: ExpenseRepository
 ) : ViewModel() {
 
-    private val _filterParams = MutableStateFlow<Triple<CategoryType, Long, Long>?>(null)
+    private data class FilterState(
+        val type: CategoryType, 
+        val start: Long, 
+        val end: Long,
+        val categoryName: String? = null
+    )
+
+    private val _filterParams = MutableStateFlow<FilterState?>(null)
 
     val categories: StateFlow<List<Category>> = repository.allEnabledCategories
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -24,31 +31,51 @@ class FilteredTransactionsViewModel(
     val transactions: StateFlow<List<TransactionWithCategory>> = _filterParams.flatMapLatest { params ->
         if (params == null) return@flatMapLatest flowOf(emptyList())
         
-        val (type, startMillis, endMillis) = params
+        val (type, startMillis, endMillis, categoryName) = params
 
         repository.getTransactionsInPeriod(startMillis, endMillis).map { list ->
-            // P0 FIX: Only show COMPLETED transactions
-            // For INCOME type, show transactions with TransactionType.INCOME or CASHBACK
-            if (type == CategoryType.INCOME) {
-                list.filter { 
-                    it.transaction.status == TransactionStatus.COMPLETED &&
-                    (it.transaction.transactionType == TransactionType.INCOME ||
-                     it.transaction.transactionType == TransactionType.CASHBACK)
-                }.sortedByDescending { it.transaction.timestamp }
+            // Base filter: Status COMPLETED and Type matches CategoryType logic
+            val baseFiltered = when (type) {
+                CategoryType.INCOME -> {
+                    list.filter { 
+                        it.transaction.status == TransactionStatus.COMPLETED &&
+                        (it.transaction.transactionType == TransactionType.INCOME ||
+                         it.transaction.transactionType == TransactionType.CASHBACK)
+                    }
+                }
+                CategoryType.INVESTMENT -> {
+                    // Investment filter: include all investment-related types
+                    list.filter { 
+                        it.transaction.status == TransactionStatus.COMPLETED &&
+                        it.category.type == CategoryType.INVESTMENT &&
+                        (it.transaction.transactionType == TransactionType.EXPENSE ||
+                         it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
+                         it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION)
+                    }
+                }
+                else -> {
+                    // Other expense types (FIXED_EXPENSE, VARIABLE_EXPENSE, VEHICLE)
+                    list.filter { 
+                        it.transaction.status == TransactionStatus.COMPLETED &&
+                        it.category.type == type && 
+                        (it.transaction.transactionType == TransactionType.EXPENSE ||
+                         it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW)
+                    }
+                }
+            }
+            
+            // Apply Category Name filter if present
+            if (categoryName != null) {
+                 baseFiltered.filter { it.category.name == categoryName }
+                     .sortedByDescending { it.transaction.timestamp }
             } else {
-                // Fix Issue 4: Include INVESTMENT_OUTFLOW for Investment categories
-                list.filter { 
-                    it.transaction.status == TransactionStatus.COMPLETED &&
-                    it.category.type == type && 
-                    (it.transaction.transactionType == TransactionType.EXPENSE ||
-                     it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW)
-                }.sortedByDescending { it.transaction.timestamp }
+                 baseFiltered.sortedByDescending { it.transaction.timestamp }
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun setFilter(type: CategoryType, start: Long, end: Long) {
-        _filterParams.value = Triple(type, start, end)
+    fun setFilter(type: CategoryType, start: Long, end: Long, categoryName: String? = null) {
+        _filterParams.value = FilterState(type, start, end, categoryName)
     }
 
     fun updateTransactionDetails(

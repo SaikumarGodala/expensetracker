@@ -104,8 +104,21 @@ data class Transaction(
     /** Whether this transaction meets strict expense eligibility rules */
     val isExpenseEligible: Boolean = true,
     
+    /** Last 4 digits of the bank account this transaction belongs to (from SMS) */
+    val accountNumberLast4: String? = null,
+    
     /** Timestamp when this transaction was soft-deleted (null if active) */
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+    
+    /**
+     * Classification confidence score (0-100).
+     * - 100: User manually verified/categorized
+     * - 80-99: High confidence (exact merchant match, strong pattern)
+     * - 50-79: Medium confidence (partial match, fallback category)
+     * - 0-49: Low confidence (uncategorized, generic fallback)
+     * Lower scores may trigger "Needs Review" UI indicators.
+     */
+    val confidenceScore: Int = 75 // Default to medium-high for auto-classified
 ) {
     companion object {
         /** Default category ID for uncategorized transactions */

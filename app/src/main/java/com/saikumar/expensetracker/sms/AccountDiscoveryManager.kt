@@ -59,6 +59,16 @@ object AccountDiscoveryManager {
         dao.insert(newAccount)
     }
 
+    suspend fun updateHolderName(dao: UserAccountDao, last4: String, holderName: String) {
+        if (holderName.isBlank()) return
+        
+        // Log discovery
+        Log.d(TAG, "Discovered Account Holder Name for $last4: $holderName")
+        
+        // Update DB
+        dao.updateAccountHolderName(last4, holderName)
+    }
+
     private fun inferBankName(sender: String): String {
         return when {
             sender.contains("HDFC", ignoreCase = true) -> "HDFC Bank"

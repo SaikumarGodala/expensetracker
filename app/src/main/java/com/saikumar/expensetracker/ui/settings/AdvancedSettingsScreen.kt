@@ -1,0 +1,309 @@
+package com.saikumar.expensetracker.ui.settings
+
+import android.util.Log
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.saikumar.expensetracker.sms.SmsProcessor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun AdvancedSettingsScreen(
+    viewModel: SettingsViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Advanced Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+
+            // App Appearance
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    
+                    // Theme Mode: Compact Row
+                    val themeMode by viewModel.themeMode.collectAsState()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Theme", style = MaterialTheme.typography.titleSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            FilterChip(
+                                selected = themeMode == 0,
+                                onClick = { viewModel.setThemeMode(0) },
+                                label = { Text("System") },
+                                modifier = Modifier.height(32.dp)
+                            )
+                            FilterChip(
+                                selected = themeMode == 1,
+                                onClick = { viewModel.setThemeMode(1) },
+                                label = { Text("Light") },
+                                modifier = Modifier.height(32.dp)
+                            )
+                            FilterChip(
+                                selected = themeMode == 2,
+                                onClick = { viewModel.setThemeMode(2) },
+                                label = { Text("Dark") },
+                                modifier = Modifier.height(32.dp)
+                            )
+                        }
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    
+                    // Color Palette: Compact Layout
+                    Text("Color Palette", style = MaterialTheme.typography.titleSmall)
+                    val colorPalette by viewModel.colorPalette.collectAsState()
+                    
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val palettes = listOf("DYNAMIC", "OCEAN", "FOREST", "SUNSET", "SNOW")
+                        palettes.forEach { palette ->
+                            val isSelected = colorPalette == palette
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.setColorPalette(palette) },
+                                label = { 
+                                    if (palette == "DYNAMIC") Text("Default", style = MaterialTheme.typography.labelMedium) 
+                                    else Text(palette.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelMedium) 
+                                },
+                                leadingIcon = if (isSelected) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                } else if (palette == "SNOW") {
+                                    { Text("❄️", style = MaterialTheme.typography.labelMedium) }
+                                } else null,
+                                modifier = Modifier.height(32.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Debug Mode Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Debug Mode", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Enable detailed classification logs",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        Switch(
+                            checked = viewModel.debugMode.collectAsState().value,
+                            onCheckedChange = { viewModel.setDebugMode(it) }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // Log All SMS Button
+                    OutlinedButton(
+                        onClick = {
+                            val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                            app.applicationScope.launch(Dispatchers.IO) {
+                                withContext(Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "📱 Logging ALL existing SMS messages...", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                try {
+                                    val count = com.saikumar.expensetracker.util.RawSmsLogger.scanAndLogAllSms(context)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "✅ Logged $count SMS messages to Downloads/ExpenseTrackerLogs/", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("SettingsScreen", "SMS logging failed", e)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "❌ Failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Export SMS Logs (Debug)")
+                    }
+                    Text(
+                        "Exports SMS locally for debugging. No data leaves your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+
+            // ML Training Data Export Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("ML Training Data", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Export merchant→category mappings for ML classifier training",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    OutlinedButton(
+                        onClick = {
+                            val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                            app.applicationScope.launch(Dispatchers.IO) {
+                                withContext(Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "📊 Exporting training data...", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                try {
+                                    val (file, stats) = com.saikumar.expensetracker.ml.TrainingDataExporter.export(context)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(
+                                            context, 
+                                            "✅ Exported ${stats.totalSamples} samples (${stats.categories} categories) to ${file.name}", 
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                    Log.d("AdvancedSettings", com.saikumar.expensetracker.ml.TrainingDataExporter.generateReport(stats))
+                                } catch (e: Exception) {
+                                    Log.e("AdvancedSettings", "ML export failed", e)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "❌ Export failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Export Training Data")
+                    }
+                    Text(
+                        "JSON file saved to app's external files directory",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+
+
+
+            // Salary Company Names Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Salary Company Names", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Add company names to detect salary credits accurately. Match is case-insensitive.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    
+                    val salaryCompanyNames by viewModel.salaryCompanyNames.collectAsState()
+                    var newCompanyName by remember { mutableStateOf("") }
+                    
+                    // Input field with Add button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newCompanyName,
+                            onValueChange = { newCompanyName = it },
+                            placeholder = { Text("e.g., INFY, TCS, WIPRO") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = {
+                                if (newCompanyName.trim().length >= 3) {
+                                    viewModel.addSalaryCompanyName(newCompanyName)
+                                    newCompanyName = ""
+                                }
+                            },
+                            enabled = newCompanyName.trim().length >= 3
+                        ) {
+                            Text("Add")
+                        }
+                    }
+                    
+                    // Display chips for existing company names
+                    if (salaryCompanyNames.isNotEmpty()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            salaryCompanyNames.forEach { name ->
+                                InputChip(
+                                    selected = false,
+                                    onClick = { viewModel.removeSalaryCompanyName(name) },
+                                    label = { Text(name) },
+                                    trailingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove $name",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

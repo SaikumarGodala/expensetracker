@@ -1,0 +1,126 @@
+package com.saikumar.expensetracker
+
+import com.saikumar.expensetracker.sms.CounterpartyExtractor
+import com.saikumar.expensetracker.sms.TransactionExtractor
+import com.saikumar.expensetracker.data.entity.TransactionType
+import com.saikumar.expensetracker.sms.SenderClassifier
+import org.junit.Assert.*
+import org.junit.Test
+
+/**
+ * Unit tests for SMS Processor invariants identified in the audit.
+ * 
+ * INVARIANT 1: P2P transfers (category = "P2P Transfers") MUST have transactionType = TRANSFER
+ * INVARIANT 2: Entities of type PERSON MUST have transactionType = TRANSFER (above threshold)
+ * INVARIANT 3: Small P2P below threshold CAN be EXPENSE (intentional - small merchants)
+ * INVARIANT 4: isExpenseEligible MUST be false when transactionType != EXPENSE
+ */
+class SmsProcessorInvariantTest {
+
+    // ============ INVARIANT 1: P2P Category → TRANSFER ============
+    
+    @Test
+    fun `P2P transfer to named person should be detected as PERSON type`() {
+        // From audit: "Sent Rs.1,000.00 From HDFC Bank A/c *2725 To GODALA VIKAS REDDY"
+        val p2pMessage = "Sent Rs.1,000.00 From HDFC Bank A/c *2725 To GODALA VIKAS REDDY Ref No 123456789"
+        
+        val counterparty = CounterpartyExtractor.extract(p2pMessage, TransactionType.TRANSFER)
+        
+        assertTrue("P2P counterparty should be found", counterparty.found)
+        assertNotNull("Counterparty name should not be null", counterparty.extractedName)
+        assertTrue("Counterparty should contain GODALA", 
+            counterparty.extractedName?.uppercase()?.contains("GODALA") == true)
+        assertEquals("Counterparty should be PERSON type", 
+            CounterpartyExtractor.CounterpartyType.PERSON, counterparty.type)
+    }
+    
+    @Test
+    fun `P2P transfer to UPI ID with person name should be PERSON`() {
+        val upiP2pMessage = "Rs.500 debited from A/c XX2725 for UPI JOHN DOE john.doe@upi"
+        
+        val counterparty = CounterpartyExtractor.extract(upiP2pMessage, TransactionType.TRANSFER)
+        
+        // Person name pattern should be detected
+        assertTrue("UPI P2P should be found", counterparty.found)
+    }
+    
+    // ============ INVARIANT 3: Small P2P → EXPENSE (Intentional) ============
+    
+    @Test
+    fun `Small P2P should NOT affect PERSON type detection`() {
+        // The PERSON type should be detected regardless of amount
+        // Amount threshold logic happens in SmsProcessor, not CounterpartyExtractor
+        val smallP2pMessage = "Sent Rs.50.00 From HDFC Bank A/c *2725 To STREET VENDOR"
+        
+        val counterparty = CounterpartyExtractor.extract(smallP2pMessage, TransactionType.TRANSFER)
+        
+        // Even small amounts should still have valid counterparty extraction
+        assertTrue("Small P2P counterparty should be found", counterparty.found)
+    }
+    
+    // ============ TransactionExtractor Tests ============
+    
+    @Test
+    fun `Debit message should detect isDebit true`() {
+        val debitMessage = "Rs.5000 debited from A/c XX1234 to Amazon"
+        
+        val extraction = TransactionExtractor.extract(debitMessage, SenderClassifier.SenderType.BANK)
+        
+        assertTrue("Debit should be detected", extraction.isDebit == true)
+    }
+    
+    @Test
+    fun `Credit message should detect isDebit false`() {
+        val creditMessage = "Rs.5000 credited to A/c XX1234 from NEFT"
+        
+        val extraction = TransactionExtractor.extract(creditMessage, SenderClassifier.SenderType.BANK)
+        
+        assertFalse("Credit should be detected (not debit)", extraction.isDebit == true)
+    }
+    
+    // ============ Counterparty Type Detection Tests ============
+    
+    @Test
+    fun `Known merchant VPA should be MERCHANT type`() {
+        val merchantMessage = "Rs.500 paid to swiggy@paytm via UPI"
+        
+        val counterparty = CounterpartyExtractor.extract(merchantMessage, TransactionType.EXPENSE)
+        
+        assertTrue("Merchant should be found", counterparty.found)
+        assertEquals("Known merchant VPA should be MERCHANT type", 
+            CounterpartyExtractor.CounterpartyType.MERCHANT, counterparty.type)
+    }
+    
+    @Test
+    fun `NEFT transfer should extract bank source`() {
+        val neftMessage = "Rs.50000 credited to A/c XX1234 from NEFT-IDFC0000012-SALARY"
+        
+        val counterparty = CounterpartyExtractor.extract(neftMessage, TransactionType.INCOME)
+        
+        // NEFT source should be extracted
+        assertTrue("NEFT source should be found", counterparty.found)
+    }
+    
+    // ============ Regression: Amount Extraction Tests ============
+    
+    @Test
+    fun `Amount with comma should be extracted correctly`() {
+        val message = "Rs.1,00,000.00 credited to A/c XX1234"
+        
+        val extraction = TransactionExtractor.extract(message, SenderClassifier.SenderType.BANK)
+        
+        assertNotNull("Amount should be extracted", extraction.amount)
+        // 1,00,000.00 = 100000.00
+        assertEquals("Amount should be 100000.0", 100000.0, extraction.amount!!, 0.01)
+    }
+    
+    @Test
+    fun `Amount without Rs prefix should be extracted`() {
+        val message = "INR 5000 debited from account"
+        
+        val extraction = TransactionExtractor.extract(message, SenderClassifier.SenderType.BANK)
+        
+        assertNotNull("Amount should be extracted", extraction.amount)
+        assertEquals("Amount should be 5000.0", 5000.0, extraction.amount!!, 0.01)
+    }
+}

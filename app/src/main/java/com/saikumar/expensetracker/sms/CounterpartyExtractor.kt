@@ -1,5 +1,6 @@
 package com.saikumar.expensetracker.sms
 
+import com.saikumar.expensetracker.data.entity.TransactionType // AUDIT: Unified enum
 import java.util.regex.Pattern
 
 /**
@@ -14,12 +15,22 @@ object CounterpartyExtractor {
     data class Counterparty(
         val name: String?,
         val upiId: String?,
-        val type: CounterpartyType
+        val type: CounterpartyType,
+        val trace: List<String> = emptyList()
     )
 
     enum class CounterpartyType {
         MERCHANT, PERSON, BANK_ACCOUNT, UNKNOWN
     }
+    
+    // FIX #2: Cashback/Reward VPA patterns - these are MERCHANT/SYSTEM, not PERSON
+    private val CASHBACK_VPA_PATTERNS = listOf(
+        "cashback", "reward", "promo", "refund", "bhimcashback",
+        "googlepay", "gpay", "phoneperefund", 
+        // Merchant/Gateway prefixes that indicate NOT a person
+        "razorpay", "payu", "cashfree", "billdesk", "ccavenue", "paytmqr",
+        "swiggy", "zomato", "uber", "ola", "licious", "instamart", "blinkit", "zepto"
+    )
 
     // --- TEMPLATE PATTERNS ---
     
@@ -59,6 +70,20 @@ object CounterpartyExtractor {
         Pattern.CASE_INSENSITIVE
     )
     
+    // IDFC FIRST Bank "A/c debited by Rs XXX; <NAME> credited" pattern
+    private val IDFC_DEBITED_CREDITED_PATTERN = Pattern.compile(
+        "debited\\s+by\\s+Rs\\.?\\s*[\\d,\\.]+[^;]*;\\s*([A-Za-z][A-Za-z0-9\\s]{2,50})\\s+credited",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Axis Bank "Spent INR XXX ... PYU*Swiggy" pattern
+    // Also handles "Razorpay*Sw", "AIRTEL PAYM", etc.
+    // Handles optional timestamp line between Card No and Merchant
+    private val AXIS_SPENT_PATTERN = Pattern.compile(
+        "Spent\\s+INR\\s+[\\d,\\.]+\\s+Axis\\s+Bank\\s+Card\\s+no\\.\\s+XX\\d{4}[^\\n]*\\n(?:[^\\n]*\\d{2}:\\d{2}[^\\n]*\\n)?([A-Za-z0-9\\*\\s\\._-]+)\\n",
+        Pattern.CASE_INSENSITIVE
+    )
+    
     // Credit Alert "credited from VPA <VPA>"
     private val CREDIT_ALERT_VPA_PATTERN = Pattern.compile(
         "credited\\s+to\\s+[^\\n]+from\\s+VPA\\s+([a-zA-Z0-9._-]+@[a-zA-Z]+)",
@@ -81,17 +106,19 @@ object CounterpartyExtractor {
     private val UPI_PATTERN = Pattern.compile("([a-zA-Z0-9._-]+@[a-zA-Z]+)")
 
     // --- MAIN ENTRY POINT ---
-    fun extract(body: String, transactionType: TransactionExtractor.TransactionType): Counterparty {
+    fun extract(body: String, transactionType: TransactionType): Counterparty {
         // Template matching in order of specificity
+        val trace = mutableListOf<String>()
         
         // 1. HDFC "Sent To <NAME>" (P2P Transfer / UPI Payment)
         HDFC_SENT_TO_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
-                val name = cleanName(rawName)
+                trace.add("Matched Template: HDFC_SENT_TO")
+                val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
-                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType))
-                }
+                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType), trace)
+                } else trace.add("Invalid name rejected: $name")
             }
         }
         
@@ -99,10 +126,11 @@ object CounterpartyExtractor {
         HDFC_SPENT_AT_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
-                val name = cleanName(rawName)
+                trace.add("Matched Template: HDFC_SPENT_AT")
+                val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
-                    return Counterparty(name, null, CounterpartyType.MERCHANT)
-                }
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
             }
         }
         
@@ -110,12 +138,14 @@ object CounterpartyExtractor {
         HDFC_CARD_UPI_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val vpaPrefix = m.group(1) ?: return@let
+                trace.add("Matched Template: HDFC_CARD_UPI")
                 val merchantName = extractMerchantFromVpa(vpaPrefix)
                 return if (merchantName != null && isValidName(merchantName)) {
-                    Counterparty(merchantName, null, CounterpartyType.MERCHANT)
+                    trace.add("Extracted Merchant from VPA prefix: $vpaPrefix -> $merchantName")
+                    Counterparty(merchantName, null, CounterpartyType.MERCHANT, trace)
                 } else {
-                    // VPA is junk (paytmqr, q12345, etc.) - return UNKNOWN
-                    Counterparty(null, null, CounterpartyType.UNKNOWN)
+                    trace.add("VPA prefix '$vpaPrefix' deemed junk/invalid")
+                    Counterparty(null, null, CounterpartyType.UNKNOWN, trace)
                 }
             }
         }
@@ -124,10 +154,11 @@ object CounterpartyExtractor {
         ICICI_SPENT_ON_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
-                val name = cleanName(rawName)
+                trace.add("Matched Template: ICICI_SPENT_ON")
+                val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
-                    return Counterparty(name, null, CounterpartyType.MERCHANT)
-                }
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
             }
         }
         
@@ -135,21 +166,48 @@ object CounterpartyExtractor {
         ICICI_SPENT_AT_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
-                val name = cleanName(rawName)
+                trace.add("Matched Template: ICICI_SPENT_AT")
+                val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
-                    return Counterparty(name, null, CounterpartyType.MERCHANT)
-                }
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
+        // 5b. Axis Bank "Spent INR ... <MERCHANT>" pattern (captures messy merchant names like PYU*Swiggy)
+        AXIS_SPENT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: AXIS_SPENT")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
             }
         }
         
-        // 6. ICICI "debited; <NAME> credited"
+        // 6. ICICI "debited; <NAME> credited" - ALWAYS P2P (PERSON transfer)
         ICICI_DEBITED_CREDITED_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
-                val name = cleanName(rawName)
+                trace.add("Matched Template: ICICI_DEBITED_CREDITED")
+                val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
-                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType))
-                }
+                    // FIX: Force PERSON type - this pattern is always P2P, not merchant
+                    return Counterparty(name, extractUpiId(body), CounterpartyType.PERSON, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+        
+        // 6b. IDFC FIRST Bank "debited by Rs XXX; <NAME> credited" - ALWAYS P2P
+        IDFC_DEBITED_CREDITED_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: IDFC_DEBITED_CREDITED")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, extractUpiId(body), CounterpartyType.PERSON, trace)
+                } else trace.add("Invalid name rejected: $name")
             }
         }
         
@@ -157,9 +215,11 @@ object CounterpartyExtractor {
         NEFT_SALARY_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: NEFT_SALARY")
                 val name = cleanEmployerName(rawName)
                 if (name.isNotBlank() && name.length >= 3) {
-                    return Counterparty(name, null, CounterpartyType.MERCHANT) // Employer is like a merchant
+                    trace.add("Cleaned Employer Name")
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace) // Employer is like a merchant
                 }
             }
         }
@@ -168,9 +228,11 @@ object CounterpartyExtractor {
         FT_DEPOSIT_PATTERN.matcher(body).let { m ->
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: FT_DEPOSIT")
                 val name = cleanEmployerName(rawName)
                 if (name.isNotBlank() && name.length >= 3) {
-                    return Counterparty(name, null, CounterpartyType.MERCHANT)
+                    trace.add("Cleaned Entity Name")
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
                 }
             }
         }
@@ -178,13 +240,16 @@ object CounterpartyExtractor {
         // 9. Credit Alert VPA
         CREDIT_ALERT_VPA_PATTERN.matcher(body).let { m ->
             if (m.find()) {
+                trace.add("Matched Template: CREDIT_ALERT_VPA")
                 val upi = m.group(1) ?: return@let
                 val name = extractNameFromUpi(upi)
                 val type = classifyVpa(upi, transactionType)
                 return if (name != null && type != CounterpartyType.UNKNOWN) {
-                    Counterparty(name, upi, type)
+                    trace.add("Extracted Name from UPI: $name")
+                    Counterparty(name, upi, type, trace)
                 } else {
-                    Counterparty(null, upi, CounterpartyType.UNKNOWN)
+                    trace.add("Could not extract valid name/type from VPA")
+                    Counterparty(null, upi, CounterpartyType.UNKNOWN, trace)
                 }
             }
         }
@@ -192,17 +257,21 @@ object CounterpartyExtractor {
         // 10. Fallback: Extract UPI ID if present
         val upi = extractUpiId(body)
         if (upi != null) {
+            trace.add("Fallback: Found UPI ID")
             val name = extractNameFromUpi(upi)
             val type = classifyVpa(upi, transactionType)
             return if (name != null && type != CounterpartyType.UNKNOWN) {
-                Counterparty(name, upi, type)
+                trace.add("Extracted Name from UPI: $name")
+                Counterparty(name, upi, type, trace)
             } else {
-                Counterparty(null, upi, CounterpartyType.UNKNOWN)
+                trace.add("Could not extract valid name/type from VPA")
+                Counterparty(null, upi, CounterpartyType.UNKNOWN, trace)
             }
         }
         
         // No counterparty found
-        return Counterparty(null, null, CounterpartyType.UNKNOWN)
+        trace.add("No Template Matched")
+        return Counterparty(null, null, CounterpartyType.UNKNOWN, trace)
     }
 
     // --- UTILITIES ---
@@ -221,7 +290,7 @@ object CounterpartyExtractor {
         val lower = prefix.lowercase()
         
         // Junk VPA prefixes - return null
-        if (isJunkVpaPrefix(lower)) {
+        if (isJunkVpaPrefix(lower) && !lower.startsWith("paytmqr")) {
             return null
         }
         
@@ -232,7 +301,7 @@ object CounterpartyExtractor {
             .replace("-", " ")
             .trim()
         
-        return if (cleaned.length >= 3 && cleaned.any { it.isLetter() }) {
+        return if (cleaned.length >= 3 && (cleaned.any { it.isLetter() } || cleaned == "paytmqr")) {
             cleaned
         } else null
     }
@@ -241,20 +310,33 @@ object CounterpartyExtractor {
      * Check if a VPA prefix is junk (paytmqr, q12345, phone numbers, etc.)
      */
     private fun isJunkVpaPrefix(lower: String): Boolean {
-        return lower.startsWith("paytmqr") ||
-               lower.startsWith("paytm.") ||
+        // Special exception: paytmqr is a valid generic merchant identifier
+        if (lower.startsWith("paytmqr")) return false
+        
+       return lower.startsWith("paytm.") ||
                lower.startsWith("paytm-") ||
                lower.startsWith("bharatpe") ||
                lower.startsWith("phonemerchant") ||
                lower.startsWith("gpay-") ||
                lower.startsWith("ezetap") ||
                lower.startsWith("vyapar.") ||
-               lower.startsWith("googlepay") ||
-               lower.matches(Regex("^q\\d+.*")) ||           // q12345...
-               lower.matches(Regex("^[0-9]{10,}.*")) ||      // Phone numbers (10+ digits)
-               lower.matches(Regex("^[0-9]+-[0-9]+.*")) ||   // 9949530533-2
-               lower.matches(Regex("^[0-9]+$"))              // Pure numbers
+               lower.startsWith("googlepay")
     }
+
+    private val KNOWN_MERCHANT_VPAS = mapOf(
+        "zeptonow" to "Zepto",
+        "swiggy" to "Swiggy",
+        "zomato" to "Zomato",
+        "myntra" to "Myntra",
+        "licious" to "Licious",
+        "cf.licious" to "Licious",
+        "dineout" to "Dineout",
+        "bookmyshow" to "BookMyShow",
+        "priveplex" to "PVR",
+        "gameonlevel" to "Game On",
+        "mandikinga" to "Mandi King",
+        "mandiking" to "Mandi King"
+    )
     
     private fun extractMerchantFromVpa(vpaPrefix: String): String? {
         val lower = vpaPrefix.lowercase()
@@ -265,28 +347,13 @@ object CounterpartyExtractor {
         }
         
         // Known merchant VPA patterns
-        val knownMerchants = mapOf(
-            "zeptonow" to "Zepto",
-            "swiggy" to "Swiggy",
-            "zomato" to "Zomato",
-            "myntra" to "Myntra",
-            "licious" to "Licious",
-            "cf.licious" to "Licious",
-            "dineout" to "Dineout",
-            "bookmyshow" to "BookMyShow",
-            "priveplex" to "PVR",
-            "gameonlevel" to "Game On",
-            "mandikinga" to "Mandi King",
-            "mandiking" to "Mandi King"
-        )
-        
-        for ((pattern, name) in knownMerchants) {
+        for ((pattern, name) in KNOWN_MERCHANT_VPAS) {
             if (lower.contains(pattern)) return name
         }
         
         // Clean up generic VPA prefixes
         val cleaned = vpaPrefix
-            .replace(Regex("\\d+$"), "")  // Remove trailing numbers
+            .replace(Regex("\\d+$"), "")  // Remove trailing numbers (SWIGGY8 -> SWIGGY)
             .replace(Regex("[._-]"), " ")  // Replace separators
             .trim()
         
@@ -317,12 +384,66 @@ object CounterpartyExtractor {
             .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
     }
     
-    private fun cleanName(name: String): String {
-        return name
+    private fun cleanName(name: String, trace: MutableList<String>? = null): String {
+        val original = name
+        var cleaned = name.trim()
+        
+        // Remove common patterns
+        val preReplace = cleaned
+        cleaned = cleaned.replace(Regex("(?i)^(At|To|From)\\s+"), "")
+        if (preReplace != cleaned) trace?.add("Removed Preposition prefix")
+        
+        // Fix Axis/Payment Gateway prefixes
+        if (cleaned.contains("*")) {
+            val parts = cleaned.split("*")
+            if (parts.size > 1) {
+                // Handle cases like "PYU*Swiggy", "Razorpay*Sw", "CAS*Swiggy"
+                val prefix = parts[0].uppercase()
+                val suffix = parts[1]
+                
+                // Known gateway prefixes
+                if (prefix in listOf("PYU", "CAS", "RAZORPAY", "PAYU", "CCAVENUE", "HDFC", "AXIS", "ICICI", "AIRTEL", "PAYTM")) {
+                    cleaned = suffix
+                    trace?.add("Stripped Gateway Prefix: $prefix")
+                }
+            }
+        }
+        
+        // Handle "Razorpay*Sw" -> "Swiggy" specific partials
+        if (cleaned.equals("Sw", ignoreCase = true) || cleaned.equals("Swi", ignoreCase = true)) {
+            cleaned = "Swiggy"
+            trace?.add("Normalized partial 'Sw/Swi' -> Swiggy")
+        }
+        if (cleaned.equals("Instama", ignoreCase = true)) {
+             cleaned = "Instamart"
+             trace?.add("Normalized partial 'Instama' -> Instamart")
+        }
+        
+        // Clean trailing dots and digits (e.g. "MANDIKING.6603" -> "MANDIKING")
+        if (cleaned.matches(Regex(".*[.\\d]+$"))) {
+             val pre = cleaned
+             cleaned = cleaned.replace(Regex("[.\\d]+$"), "")
+             if (pre != cleaned) trace?.add("Stripped trailing dots/digits")
+        }
+        
+        // Clean UP digits in the middle (SWIGGY8@ybl -> SWIGGY)
+        // If it's a VPA-like string or just has digits at end purely
+        if (cleaned.matches(Regex("^[a-zA-Z]+\\d+$"))) {
+             val pre = cleaned
+             cleaned = cleaned.replace(Regex("\\d+$"), "")
+             if (pre != cleaned) trace?.add("Stripped end-digits from alpha-numeric name")
+        }
+
+        cleaned = cleaned
             .replace(Regex("\\s{2,}"), " ")  // Collapse multiple spaces
             .replace(Regex("[\\r\\n]+.*"), "")  // Remove everything after newline
             .replace(Regex("^(Gur|new|On)\\s.*", RegexOption.IGNORE_CASE), "")  // Remove trailing noise
             .trim()
+            
+        if (cleaned != original && trace?.isEmpty() == true) {
+             trace.add("General cleanup (spacing/newlines)")
+        }
+        return cleaned
     }
     
     private fun isValidName(name: String): Boolean {
@@ -345,17 +466,29 @@ object CounterpartyExtractor {
         return true
     }
     
-    private fun classifyName(name: String, transactionType: TransactionExtractor.TransactionType): CounterpartyType {
+    private fun classifyName(name: String, transactionType: TransactionType): CounterpartyType {
         // For Expenses (card spends, shopping), always MERCHANT
-        if (transactionType == TransactionExtractor.TransactionType.EXPENSE) {
+        if (transactionType == TransactionType.EXPENSE) {
             return CounterpartyType.MERCHANT
         }
         
         // For TRANSFER and INCOME, check if looks like a person name (2-4 words, all alphabetic)
-        val words = name.split(" ").filter { it.isNotBlank() }
-        val allAlphabetic = words.all { w -> w.all { it.isLetter() || it == '.' } }
-        
-        return if (words.size in 2..4 && allAlphabetic) {
+    val words = name.split(" ").filter { it.isNotBlank() }
+    val allAlphabetic = words.all { w -> w.all { it.isLetter() || it == '.' } }
+    val upper = name.uppercase()
+
+    // KNOWN MERCHANTS that look like people or have 2-3 words
+    if (upper.contains("ZERODHA") || 
+        upper.contains("ICCL") || 
+        upper.contains("INDIAN CLEARING") || 
+        upper.contains("TECHNOLOGIES") || 
+        upper.contains("PRIVATE") || 
+        upper.contains("LIMITED") ||
+        upper.contains("BROKING")) {
+        return CounterpartyType.MERCHANT
+    }
+    
+    return if (words.size in 2..4 && allAlphabetic) {
             CounterpartyType.PERSON
         } else if (words.size == 1 && words[0].all { it.isLetter() } && words[0].length >= 3) {
             // Single word names like "SHIVKUMAR", "PRATIKSHA" are also PERSON
@@ -365,16 +498,32 @@ object CounterpartyExtractor {
         }
     }
     
-    private fun classifyVpa(upiId: String, transactionType: TransactionExtractor.TransactionType): CounterpartyType {
+    private fun classifyVpa(upiId: String, transactionType: TransactionType): CounterpartyType {
         val prefix = upiId.substringBefore("@").lowercase()
+        
+        // 0. Known Merchants -> MERCHANT
+        for (pattern in KNOWN_MERCHANT_VPAS.keys) {
+            if (prefix.contains(pattern)) return CounterpartyType.MERCHANT
+        }
+
+        // Q-codes (Card-UPI) -> MERCHANT (Offline Merchant)
+        if (prefix.matches(Regex("^q\\d+.*"))) {
+            return CounterpartyType.MERCHANT
+        }
         
         // Junk VPAs
         if (isJunkVpaPrefix(prefix)) {
             return CounterpartyType.UNKNOWN
         }
         
+        // FIX #2: Cashback/Reward VPAs are MERCHANT (system), not PERSON
+        // Example: bhimcashback@hdfcbank, googlepay@axisbank (rewards), etc.
+        if (CASHBACK_VPA_PATTERNS.any { prefix.contains(it) }) {
+            return CounterpartyType.MERCHANT
+        }
+        
         // For Expenses, default to MERCHANT (even for VPAs)
-        if (transactionType == TransactionExtractor.TransactionType.EXPENSE) {
+        if (transactionType == TransactionType.EXPENSE) {
             return CounterpartyType.MERCHANT
         }
         

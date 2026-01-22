@@ -92,14 +92,12 @@ object ClassificationDebugLogger {
     }
     private class LogBuilder {
         var transactionId: String = UUID.randomUUID().toString()
-        var timestamp: Long = System.currentTimeMillis()
         var rawInput: RawInputCapture? = null
         var parsedFields: ParsedFields? = null
         val ruleTrace = mutableListOf<RuleExecution>()
         var conflictResolution: ConflictResolution? = null
         var finalDecision: FinalDecision? = null
         var userOverride: UserOverride? = null
-        var debugMode: Boolean = true
         var errorDetails: ErrorDetails? = null
         
         fun build(): ClassificationDebugLog? {
@@ -113,7 +111,6 @@ object ClassificationDebugLogger {
                     transactionType = "ERROR",
                     categoryId = 0,
                     categoryName = "ERROR",
-                    confidence = "NONE",
                     finalConfidence = 0.0,
                     requiresUserConfirmation = true,
                     reasoning = "Processing failed: ${errorDetails?.message}",
@@ -125,14 +122,12 @@ object ClassificationDebugLogger {
             
             return ClassificationDebugLog(
                 transactionId = transactionId,
-                timestamp = timestamp,
                 rawInput = raw,
                 parsedFields = parsed,
                 ruleTrace = ruleTrace.toList(),
                 conflictResolution = conflictResolution,
                 finalDecision = decision,
                 userOverride = userOverride,
-                debugMode = debugMode,
                 error = errorDetails
             )
         }
@@ -152,19 +147,17 @@ object ClassificationDebugLogger {
     }
     
     /**
-     * Update RawInputCapture with parsed amount and direction.
+     * Update RawInputCapture with parsed amount.
      * Called after parsing to populate values that weren't available at startLog time.
      */
-    fun updateRawInput(logId: String, amountPaisa: Long, direction: String, accountType: String? = null) {
+    fun updateLogAmount(logId: String, amountPaisa: Long) {
         val builder = activeLog[logId] ?: return
         val current = builder.rawInput ?: return
         
         builder.rawInput = current.copy(
-            amount = amountPaisa,
-            direction = direction,
-            accountType = accountType ?: current.accountType
+            amount = amountPaisa
         )
-        Log.d(TAG, "[$logId] Updated raw input: amount=$amountPaisa, direction=$direction")
+        Log.d(TAG, "[$logId] Updated raw input amount: $amountPaisa")
     }
     
     /**
@@ -326,7 +319,7 @@ object ClassificationDebugLogger {
      * Write log to Downloads folder using MediaStore for easier access
      */
     private suspend fun writeLogToFile(context: Context, log: ClassificationDebugLog) {
-        val fileName = "log_${log.timestamp}_${log.transactionId.take(8)}.json"
+        val fileName = "log_${log.rawInput.receivedTimestamp}_${log.transactionId.take(8)}.json"
         val jsonContent = gson.toJson(log)
         writeContentToFile(context, fileName, jsonContent)
     }
@@ -419,6 +412,7 @@ object ClassificationDebugLogger {
             result = result,
             confidence = confidence,
             reason = reason
+            // Removed executionTimestamp
         )
     }
 }

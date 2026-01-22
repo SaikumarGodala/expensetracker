@@ -20,10 +20,11 @@ fun FilteredTransactionsScreen(
     categoryType: CategoryType,
     startDate: Long,
     endDate: Long,
+    categoryName: String? = null,
     onNavigateBack: () -> Unit
 ) {
-    LaunchedEffect(categoryType, startDate, endDate) {
-        viewModel.setFilter(categoryType, startDate, endDate)
+    LaunchedEffect(categoryType, startDate, endDate, categoryName) {
+        viewModel.setFilter(categoryType, startDate, endDate, categoryName)
     }
 
     val transactions by viewModel.transactions.collectAsState()
@@ -59,12 +60,19 @@ fun FilteredTransactionsScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Text(when (categoryType) {
-                        CategoryType.INCOME -> "Income"
-                        CategoryType.FIXED_EXPENSE -> "Fixed Expenses"
-                        CategoryType.VARIABLE_EXPENSE -> "Variable Expenses"
-                        CategoryType.INVESTMENT -> "Investments"
-                        CategoryType.VEHICLE -> "Vehicle"
+                    Text(if (categoryName != null) {
+                        categoryName
+                    } else {
+                        when (categoryType) {
+                            CategoryType.INCOME -> "Income"
+                            CategoryType.FIXED_EXPENSE -> "Fixed Expenses"
+                            CategoryType.VARIABLE_EXPENSE -> "Variable Expenses"
+                            CategoryType.INVESTMENT -> "Investments"
+                            CategoryType.VEHICLE -> "Vehicle"
+                            CategoryType.IGNORE -> "Invalid/Ignore"
+                            CategoryType.STATEMENT -> "Statements"
+                            CategoryType.LIABILITY -> "CC Bill Payments"
+                        }
                     })
                 },
                 navigationIcon = {

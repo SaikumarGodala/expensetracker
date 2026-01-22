@@ -67,11 +67,14 @@ object TransactionTypeResolver {
         if (newCategory != null) {
             return when (newCategory.type) {
                 CategoryType.INCOME -> TransactionType.INCOME
-                // All other category types map to EXPENSE
+                // All expense category types map to EXPENSE
                 CategoryType.FIXED_EXPENSE,
                 CategoryType.VARIABLE_EXPENSE,
                 CategoryType.INVESTMENT,
                 CategoryType.VEHICLE -> TransactionType.EXPENSE
+                CategoryType.IGNORE -> TransactionType.IGNORE
+                CategoryType.STATEMENT -> TransactionType.STATEMENT
+                CategoryType.LIABILITY -> TransactionType.LIABILITY_PAYMENT
             }
         }
         

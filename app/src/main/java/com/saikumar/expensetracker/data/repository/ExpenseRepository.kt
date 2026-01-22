@@ -236,4 +236,18 @@ class ExpenseRepository(
     suspend fun cancelPendingTransaction(id: Long) {
         pendingTransactionDao.cancel(id)
     }
+
+    /**
+     * Retroactively update transactions for new Transfer Circle members to P2P.
+     */
+    suspend fun updateTransactionsToP2P(merchantNames: List<String>) {
+        val p2pCategory = categoryDao.getCategoryByName("P2P Transfers")
+        if (p2pCategory != null) {
+            transactionDao.updateTransactionsForMerchants(
+                merchantNames,
+                p2pCategory.id,
+                com.saikumar.expensetracker.data.entity.TransactionType.TRANSFER
+            )
+        }
+    }
 }

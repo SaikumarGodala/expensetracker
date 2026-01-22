@@ -50,6 +50,15 @@ object TransactionValidator {
                     transactionType == TransactionType.TRANSFER) ValidationResult.Valid 
                 else ValidationResult.Invalid("Investment categories valid for Expense, Investment, or Transfer.")
             }
+            CategoryType.IGNORE, CategoryType.STATEMENT -> {
+                // IGNORE and STATEMENT categories are flexible but generally map to IGNORE/STATEMENT types
+                ValidationResult.Valid
+            }
+            CategoryType.LIABILITY -> {
+                // LIABILITY categories should only be used for LIABILITY_PAYMENT transactions
+                if (transactionType == TransactionType.LIABILITY_PAYMENT) ValidationResult.Valid
+                else ValidationResult.Invalid("Liability categories can only be used for CC Bill Payments.")
+            }
         }
         return mapResult
     }
@@ -65,6 +74,9 @@ object TransactionValidator {
             CategoryType.VARIABLE_EXPENSE,
             CategoryType.VEHICLE -> listOf(TransactionType.EXPENSE, TransactionType.LIABILITY_PAYMENT, TransactionType.TRANSFER)
             CategoryType.INVESTMENT -> listOf(TransactionType.EXPENSE, TransactionType.INVESTMENT_OUTFLOW, TransactionType.TRANSFER)
+            CategoryType.IGNORE -> listOf(TransactionType.IGNORE)
+            CategoryType.STATEMENT -> listOf(TransactionType.STATEMENT)
+            CategoryType.LIABILITY -> listOf(TransactionType.LIABILITY_PAYMENT)
         }
     }
 }

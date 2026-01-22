@@ -11,6 +11,7 @@ import com.saikumar.expensetracker.data.entity.TransactionStatus
 import com.saikumar.expensetracker.data.entity.AccountType
 import com.saikumar.expensetracker.data.entity.Transaction
 import com.saikumar.expensetracker.data.repository.ExpenseRepository
+import com.saikumar.expensetracker.data.entity.UserAccount
 import com.saikumar.expensetracker.util.CycleRange
 import com.saikumar.expensetracker.util.CycleUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,31 +35,81 @@ data class MonthlyOverviewUiState(
     val income: Double = 0.0,
     val expenses: Double = 0.0,
     val investments: Double = 0.0,
-    val categoryBreakdown: Map<CategoryType, List<CategorySummary>> = emptyMap()
+    val categoryBreakdown: Map<CategoryType, List<CategorySummary>> = emptyMap(),
+    val detectedAccounts: List<UserAccount> = emptyList(),
+    val selectedAccounts: Set<String> = emptySet()
 )
 
 class MonthlyOverviewViewModel(
     private val repository: ExpenseRepository,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
 ) : ViewModel() {
 
     private val _referenceDate = MutableStateFlow(LocalDate.now())
     private val _customRange = MutableStateFlow<CycleRange?>(null)
     
+    // Account Filter State (Persisted)
+    val selectedAccounts = preferencesManager.selectedAccounts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+        
+    val detectedAccounts: StateFlow<List<UserAccount>> = userAccountDao.getAllAccountsFlow()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     val allCategories = repository.allEnabledCategories
+    
+    private data class FilterParams(
+        val range: CycleRange,
+        val selectedAccounts: Set<String>,
+        val accounts: List<UserAccount>
+    )
+
+    fun toggleAccountFilter(accountNumber: String) {
+        viewModelScope.launch {
+            val current = selectedAccounts.value.toMutableSet()
+            if (current.contains(accountNumber)) {
+                current.remove(accountNumber)
+            } else {
+                current.add(accountNumber)
+            }
+            preferencesManager.updateSelectedAccounts(current)
+        }
+    }
+    
+    fun clearAccountFilter() {
+        viewModelScope.launch {
+            preferencesManager.updateSelectedAccounts(emptySet())
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<MonthlyOverviewUiState> = combine(_referenceDate, _customRange) { refDate, customRange ->
-        customRange ?: CycleUtils.getCurrentCycleRange(refDate)
-    }.flatMapLatest { range ->
+    val uiState: StateFlow<MonthlyOverviewUiState> = combine(
+        _referenceDate, 
+        _customRange,
+        selectedAccounts,
+        detectedAccounts
+    ) { refDate, customRange, selectedAccts, accounts ->
+        val range = customRange ?: CycleUtils.getCurrentCycleRange(refDate)
+        FilterParams(range, selectedAccts, accounts)
+    }.flatMapLatest { params ->
         // Convert range to timestamps for query
-        val startTimestamp = range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endTimestamp = range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val startTimestamp = params.range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endTimestamp = params.range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         
         repository.getTransactionsInPeriod(startTimestamp, endTimestamp).map { transactions ->
+            // Filter by selected accounts first
+            val accountFilteredParams = if (params.selectedAccounts.isEmpty()) {
+                transactions
+            } else {
+                transactions.filter { txn ->
+                    val smsBody = txn.transaction.fullSmsBody ?: ""
+                    params.selectedAccounts.any { last4 -> smsBody.contains(last4) }
+                }
+            }
+            
             // Filter out only true self-transfers and liability payments
             // P0 FIX: Only count COMPLETED transactions to prevent pending/future transactions from inflating totals
-            val activeTransactions = transactions.filter { 
+            val activeTransactions = accountFilteredParams.filter { 
                 it.transaction.status == TransactionStatus.COMPLETED &&  // CRITICAL: Only completed transactions
                 it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT &&
                 it.transaction.transactionType != TransactionType.TRANSFER  // Self-transfers excluded
@@ -102,11 +153,13 @@ class MonthlyOverviewViewModel(
                 .groupBy { it.category.type }
             
             MonthlyOverviewUiState(
-                cycleRange = range,
+                cycleRange = params.range,
                 income = income,
                 expenses = expenses,
                 investments = investments,
-                categoryBreakdown = breakdown
+                categoryBreakdown = breakdown,
+                detectedAccounts = params.accounts,
+                selectedAccounts = params.selectedAccounts
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MonthlyOverviewUiState())
@@ -220,11 +273,12 @@ class MonthlyOverviewViewModel(
 
     class Factory(
         private val repository: ExpenseRepository,
-        private val preferencesManager: PreferencesManager
+        private val preferencesManager: PreferencesManager,
+        private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MonthlyOverviewViewModel(repository, preferencesManager) as T
+            return MonthlyOverviewViewModel(repository, preferencesManager, userAccountDao) as T
         }
     }
 }

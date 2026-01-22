@@ -5,8 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,23 +69,119 @@ fun CategoryManagementScreen(
             }
         }
     ) { padding ->
+        // Track expanded sections
+        var expandedSections by remember { mutableStateOf(setOf<CategoryType>()) }
+        
+        // Group categories by type
+        val groupedCategories = categories
+            .groupBy { it.type }
+            .toSortedMap(compareBy { categoryType ->
+                when (categoryType) {
+                    CategoryType.INCOME -> 0
+                    CategoryType.FIXED_EXPENSE -> 1
+                    CategoryType.LIABILITY -> 2
+                    CategoryType.VARIABLE_EXPENSE -> 3
+                    CategoryType.INVESTMENT -> 4
+                    CategoryType.VEHICLE -> 5
+                    CategoryType.IGNORE -> 6
+                    CategoryType.STATEMENT -> 7
+                }
+            })
+        
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(categories.sortedBy { it.type.ordinal }) { category ->
-                CategoryItem(
-                    category = category,
-                    onEdit = { editingCategory = category }
-                )
+            groupedCategories.forEach { (type, categoriesInType) ->
+                val isExpanded = expandedSections.contains(type)
+                
+                // Collapsible section header
+                item(key = "header_${type.name}") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { 
+                                expandedSections = if (isExpanded) {
+                                    expandedSections - type
+                                } else {
+                                    expandedSections + type
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isExpanded) 
+                                        Icons.Default.ExpandMore 
+                                    else 
+                                        Icons.Default.ChevronRight,
+                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = getCategoryTypeName(type),
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                            Text(
+                                text = "${categoriesInType.size}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+                
+                // Categories in this type (only shown when expanded)
+                if (isExpanded) {
+                    items(
+                        items = categoriesInType.sortedBy { it.name },
+                        key = { it.id }
+                    ) { category ->
+                        CategoryItem(
+                            category = category,
+                            onEdit = { editingCategory = category }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun CategoryItem(category: Category, onEdit: () -> Unit) {
+private fun getCategoryTypeName(type: CategoryType): String {
+    return when (type) {
+        CategoryType.INCOME -> "Income"
+        CategoryType.FIXED_EXPENSE -> "Fixed Expenses"
+        CategoryType.VARIABLE_EXPENSE -> "Variable Expenses"
+        CategoryType.INVESTMENT -> "Investments"
+        CategoryType.VEHICLE -> "Vehicle"
+        CategoryType.IGNORE -> "Invalid/Ignore"
+        CategoryType.STATEMENT -> "Statement"
+        CategoryType.LIABILITY -> "Liability Payments"
+    }
+}
+
+@Composable
+fun CategoryItem(
+    category: Category, 
+    categoryColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    onEdit: () -> Unit
+) {
+    val iconColor = if (categoryColor == androidx.compose.ui.graphics.Color.Unspecified) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        categoryColor
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)
     ) {
@@ -97,6 +192,7 @@ fun CategoryItem(category: Category, onEdit: () -> Unit) {
             Icon(
                 CategoryIcons.getIcon(category.name),
                 contentDescription = null,
+                tint = iconColor,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -109,6 +205,9 @@ fun CategoryItem(category: Category, onEdit: () -> Unit) {
                         CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                         CategoryType.INVESTMENT -> "Investment"
                         CategoryType.VEHICLE -> "Vehicle"
+                        CategoryType.IGNORE -> "Invalid/Ignore"
+                        CategoryType.STATEMENT -> "Statement"
+                        CategoryType.LIABILITY -> "CC Bill Payment"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -179,6 +278,9 @@ fun EditCategoryDialog(
                             CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                             CategoryType.INVESTMENT -> "Investment"
                             CategoryType.VEHICLE -> "Vehicle"
+                            CategoryType.IGNORE -> "Invalid/Ignore"
+                            CategoryType.STATEMENT -> "Statement"
+                            CategoryType.LIABILITY -> "CC Bill Payment"
                         },
                         onValueChange = {},
                         readOnly = true,
@@ -200,6 +302,9 @@ fun EditCategoryDialog(
                                         CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                                         CategoryType.INVESTMENT -> "Investment"
                                         CategoryType.VEHICLE -> "Vehicle"
+                                        CategoryType.IGNORE -> "Invalid/Ignore"
+                                        CategoryType.STATEMENT -> "Statement"
+                                        CategoryType.LIABILITY -> "CC Bill Payment"
                                     })
                                 },
                                 onClick = {
@@ -274,6 +379,9 @@ fun AddNewCategoryDialog(
                             CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                             CategoryType.INVESTMENT -> "Investment"
                             CategoryType.VEHICLE -> "Vehicle"
+                            CategoryType.IGNORE -> "Invalid/Ignore"
+                            CategoryType.STATEMENT -> "Statement"
+                            CategoryType.LIABILITY -> "CC Bill Payment"
                         },
                         onValueChange = {},
                         readOnly = true,
@@ -295,6 +403,9 @@ fun AddNewCategoryDialog(
                                         CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                                         CategoryType.INVESTMENT -> "Investment"
                                         CategoryType.VEHICLE -> "Vehicle"
+                                        CategoryType.IGNORE -> "Invalid/Ignore"
+                                        CategoryType.STATEMENT -> "Statement"
+                                        CategoryType.LIABILITY -> "CC Bill Payment"
                                     })
                                 },
                                 onClick = {

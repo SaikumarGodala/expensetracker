@@ -80,32 +80,91 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
         val dateRangePickerState = rememberDateRangePickerState(initialSelectedStartDateMillis = initialStart, initialSelectedEndDateMillis = initialEnd)
         
         DatePickerDialog(
-            onDismissRequest = { },
+            onDismissRequest = { showDateRangePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     if (dateRangePickerState.selectedStartDateMillis != null && dateRangePickerState.selectedEndDateMillis != null) {
                         val start = Instant.ofEpochMilli(dateRangePickerState.selectedStartDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()
                         val end = Instant.ofEpochMilli(dateRangePickerState.selectedEndDateMillis!!).atZone(ZoneId.systemDefault()).toLocalDate()
                         viewModel.setCustomCycle(start, end)
+                        showDateRangePicker = false
                     }
                 }) { Text("Apply") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDateRangePicker = false }) { Text("Cancel") }
             }
         ) { DateRangePicker(state = dateRangePickerState) }
     }
     
+    var showSearchDialog by remember { mutableStateOf(false) }
+    
+    if (showSearchDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSearchDialog = false },
+            title = { Text("Search Transactions") },
+            text = {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.onSearchQueryChanged(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Enter search term...") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showSearchDialog = false }) {
+                    Text("Close")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    viewModel.onSearchQueryChanged("")
+                    showSearchDialog = false
+                }) {
+                    Text("Clear")
+                }
+            }
+        )
+    }
+    
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Dashboard", fontWeight = FontWeight.Bold) }) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onNavigateToAdd, containerColor = MaterialTheme.colorScheme.primary) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text("Add Transaction")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Search FAB (Left Edge)
+                FloatingActionButton(
+                    onClick = { showSearchDialog = true },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = "Search")
+                }
+                // Add Transaction FAB (Right Edge)
+                FloatingActionButton(
+                    onClick = onNavigateToAdd,
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add")
+                }
             }
         }
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { })
+                    CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })
+                    
+                    // Account Filter Dropdown
+                    AccountFilterDropdown(
+                        accounts = uiState.detectedAccounts,
+                        selectedAccounts = uiState.selectedAccounts,
+                        transactions = uiState.transactions,
+                        onToggle = { viewModel.toggleAccountFilter(it) },
+                        onClearAll = { viewModel.clearAccountFilter() }
+                    )
+                    
                     HeroBalanceCard(uiState)
                 }
             }
@@ -117,33 +176,45 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
                 }
             } }
             // Removed spending breakdown chart - already have category breakdown in Overview
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    placeholder = { Text("Search transactions") },
-                )
-            }
             
-            // STATEMENTS SECTION
+            // STATEMENTS SECTION (Collapsible)
             if (uiState.statements.isNotEmpty()) {
                 item {
-                    Text(
-                        "Statements", 
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), 
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    var statementsExpanded by remember { mutableStateOf(false) }
+                    
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { statementsExpanded = !statementsExpanded }
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Statements (${uiState.statements.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Icon(
+                                if (statementsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (statementsExpanded) "Collapse" else "Expand"
+                            )
+                        }
+                        
+                        if (statementsExpanded) {
+                            uiState.statements.forEach { stmt ->
+                                TransactionItem(
+                                    item = stmt,
+                                    linkType = uiState.transactionLinks[stmt.transaction.id]?.type,
+                                    onClick = { editingTransaction = stmt }
+                                )
+                            }
+                        }
+                    }
                 }
-                items(uiState.statements, key = { it.transaction.id }) { transaction ->
-                    TransactionItem(transaction, onClick = { editingTransaction = transaction })
-                }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-                item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
             }
-
+            
             val groupedTransactions = uiState.transactions.groupBy { timestampToLocalDate(it.transaction.timestamp) }
             groupedTransactions.forEach { (date, transactions) ->
                 stickyHeader { DateHeader(date) }
@@ -159,18 +230,94 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
 @Composable
 fun CycleSelector(state: DashboardUiState, onPrevious: () -> Unit, onNext: () -> Unit, onAdjust: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) { Icon(Icons.Default.KeyboardArrowLeft, null) }
-        // Month name derived from END date (reflects current working month)
-        Text(text = state.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "...", modifier = Modifier.clickable { onAdjust() }, fontWeight = FontWeight.SemiBold)
-        IconButton(onClick = onNext) { Icon(Icons.Default.KeyboardArrowRight, null) }
+        IconButton(onClick = onPrevious) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = MaterialTheme.colorScheme.onBackground) }
+        Text(
+            text = state.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "...", 
+            modifier = Modifier.clickable { onAdjust() }, 
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        IconButton(onClick = onNext) { Icon(Icons.Default.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onBackground) }
     }
 }
 
 @Composable
 fun HeroBalanceCard(state: DashboardUiState) {
+    var showBreakdown by remember { mutableStateOf(false) }
+    
     Column {
-        Text("Remaining Money", style = MaterialTheme.typography.labelLarge)
-        Text("₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable { showBreakdown = !showBreakdown }
+        ) {
+            Text(
+                "Remaining Money", 
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                if (showBreakdown) Icons.Default.KeyboardArrowUp else Icons.Default.Info,
+                contentDescription = if (showBreakdown) "Hide breakdown" else "Show breakdown",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+        }
+        Text(
+            "₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", 
+            style = MaterialTheme.typography.displayMedium, 
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        
+        // Expandable breakdown
+        if (showBreakdown) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    BreakdownRow("Income", state.totalIncome, IncomeGreen, isAddition = true)
+                    BreakdownRow("Fixed Expenses", state.totalFixedExpenses, ExpenseRed, isAddition = false)
+                    BreakdownRow("Variable Expenses", state.totalVariableExpenses, PendingOrange, isAddition = false)
+                    BreakdownRow("Investments", state.totalInvestments, TransferBlue, isAddition = false)
+                    BreakdownRow("Vehicle", state.totalVehicleExpenses, VehiclePurple, isAddition = false)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Remaining", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}",
+                            fontWeight = FontWeight.Bold,
+                            color = if (state.extraMoney >= 0) IncomeGreen else ExpenseRed
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreakdownRow(label: String, amount: Double, color: Color, isAddition: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            "${if (isAddition) "+" else "−"} $label",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            "₹${String.format(Locale.getDefault(), "%,.0f", amount)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = color
+        )
     }
 }
 
@@ -187,9 +334,13 @@ fun SummaryRowList(state: DashboardUiState, onCategoryClick: (CategoryType) -> U
 
 @Composable
 fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -> Unit) {
-    Surface(shape = MaterialTheme.shapes.medium, color = color.copy(alpha = 0.1f), modifier = Modifier.clickable(onClick = onClick)) {
+    Surface(shape = MaterialTheme.shapes.medium, color = color.copy(alpha = 0.15f), modifier = Modifier.clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(
+                label, 
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Text("₹${String.format(Locale.getDefault(), "%,.0f", amount)}", fontWeight = FontWeight.Bold, color = color)
         }
     }
@@ -198,7 +349,90 @@ fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -> Unit
 @Composable
 fun DateHeader(date: LocalDate) {
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(date.format(DateTimeFormatter.ofPattern("dd MMM yyyy")), fontWeight = FontWeight.Bold)
+        Text(
+            date.format(DateTimeFormatter.ofPattern("EEEE, dd MMM")), 
+            style = MaterialTheme.typography.titleSmall, 
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+fun AccountFilterDropdown(
+    accounts: List<com.saikumar.expensetracker.data.entity.UserAccount>,
+    selectedAccounts: Set<String>,
+    transactions: List<TransactionWithCategory> = emptyList(), // AUDIT: Added for count display
+    onToggle: (String) -> Unit,
+    onClearAll: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Box(modifier = Modifier.padding(bottom = 8.dp)) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.FilterList, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                if (selectedAccounts.isEmpty()) "Filter Accounts" 
+                else "${selectedAccounts.size} Account(s) Selected"
+            )
+        }
+        
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            if (accounts.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No accounts detected yet", style = MaterialTheme.typography.bodySmall) },
+                    onClick = { }
+                )
+            } else {
+                if (selectedAccounts.isNotEmpty()) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Close, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Clear All", color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        onClick = {
+                            onClearAll()
+                            expanded = false
+                        }
+                    )
+                    HorizontalDivider()
+                }
+                
+                accounts.forEach { account ->
+                    val typeLabel = if (account.accountType == com.saikumar.expensetracker.data.entity.AccountType.CREDIT_CARD) "CC" else "A/c"
+                    // Count transactions for this account
+                    val txnCount = transactions.count { txn ->
+                        txn.transaction.fullSmsBody?.contains(account.accountNumberLast4) == true ||
+                        txn.transaction.accountNumberLast4 == account.accountNumberLast4
+                    }
+                    val label = "${account.bankName} $typeLabel XX${account.accountNumberLast4} ($txnCount)"
+                    
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = account.accountNumberLast4 in selectedAccounts,
+                                    onCheckedChange = null
+                                )
+                                Text(label)
+                            }
+                        },
+                        onClick = { onToggle(account.accountNumberLast4) }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -273,31 +507,42 @@ fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, o
                        transactionType == TransactionType.INVESTMENT_OUTFLOW ||
                        transactionType == TransactionType.INVESTMENT_CONTRIBUTION
 
+    // AUDIT FIX: Flag uncategorized and unverified income transactions for review
+    val isUncategorized = item.category.name == "Uncategorized"
+    val isUnverifiedIncome = item.category.name == "Unverified Income"
+    val needsReview = isUncategorized || isUnverifiedIncome
+
     val categoryIcon = CategoryIcons.getIcon(item.category.name)
     
-    // Complete TransactionType handling with distinct colors
+    // Use app's theme state, not just system setting
+    val isDarkTheme = LocalIsDarkTheme.current
+    
+    // Complete TransactionType handling with distinct colors - DARK MODE AWARE
     // IMPORTANT: isInvestment checked BEFORE isTransfer so investments show as blue
     val containerColor = when {
         isIgnored -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        isPending -> HighlightBackground  // Amber lightest
-        isStatement -> MaterialTheme.colorScheme.surface // Clean/White for Statement
-        isInvestment -> InvestmentBlueLight  // Blue tint for ALL Investments (check before transfer!)
+        isPending -> if (isDarkTheme) HighlightBackgroundDark else HighlightBackground
+        needsReview -> if (isDarkTheme) Color(0xFF664400) else Color(0xFFFFF3CD) // Amber warning
+        isStatement -> MaterialTheme.colorScheme.surface
+        isInvestment -> if (isDarkTheme) InvestmentBlueDark else InvestmentBlueLight
         isTransfer -> MaterialTheme.colorScheme.surfaceVariant
-        isLiabilityPayment -> MaterialTheme.colorScheme.tertiaryContainer
-        isRefund -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-        isCashback -> CashbackGold  // Golden/yellow tint
+        isLiabilityPayment -> if (isDarkTheme) LiabilityPurpleDark else MaterialTheme.colorScheme.tertiaryContainer
+        isRefund -> if (isDarkTheme) RefundGreenDark else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        isCashback -> if (isDarkTheme) CashbackGoldDark else CashbackGold
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
     
+    // Amount color - must be visible on containerColor background
     val amountColor = when {
         isIgnored -> Color.Gray.copy(alpha = 0.5f)
-        isPending -> PendingText  // Amber
+        isPending -> if (isDarkTheme) Color.White else PendingText
+        needsReview -> if (isDarkTheme) Color(0xFFFFB74D) else Color(0xFFE65100) // Amber/Orange
         isStatement -> MaterialTheme.colorScheme.primary
-        isInvestment -> InvestmentBlueText  // Blue for ALL Investments (check before transfer!)
+        isInvestment -> if (isDarkTheme) Color.White else InvestmentBlueText
         isTransfer -> Color.Gray
-        isLiabilityPayment -> MaterialTheme.colorScheme.tertiary
-        isRefund -> UndoGreen  // Light green (money back)
-        isCashback -> CashbackText  // Gold/amber
+        isLiabilityPayment -> if (isDarkTheme) Color.White else MaterialTheme.colorScheme.tertiary
+        isRefund -> if (isDarkTheme) Color.White else UndoGreen
+        isCashback -> if (isDarkTheme) Color.White else CashbackText
         isIncome -> IncomeGreen
         else -> ExpenseRedLight
     }
@@ -305,6 +550,7 @@ fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, o
     val icon = when {
         isIgnored -> Icons.Default.VisibilityOff
         isPending -> Icons.Default.Schedule
+        needsReview -> Icons.Default.Warning // Warning icon for needs review
         isStatement -> Icons.Default.ReceiptLong
         isInvestment -> Icons.Default.TrendingUp  // Investment icon (check before transfer!)
         isTransfer -> Icons.Default.SwapHoriz
@@ -317,29 +563,57 @@ fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, o
     val displayName = when {
         isIgnored -> "Ignored"
         isPending -> "Pending"
+        needsReview -> "Needs Review ⚠️" // Clear call-to-action
         isStatement -> "CC Statement"
+        isSelfTransferLinked -> "Self Transfer"  // Show "Self Transfer" for linked transactions
         isInvestment -> item.category.name  // Show actual category (Mutual Funds, RD, etc.)
-        isTransfer -> item.category.name // Show actual category (P2P Transfers, Self Transfer, etc.)
+        isTransfer -> item.category.name // Show actual category (P2P Transfers, etc.)
         isLiabilityPayment -> "CC Payment"
         isRefund -> "Refund / Reversal"
         isCashback -> "Cashback"
         else -> item.category.name
     }
     
+    // Text color for content inside the card - must contrast with containerColor
+    val contentColor = when {
+        // For custom colored backgrounds, use appropriate contrast
+        isIgnored -> MaterialTheme.colorScheme.onSurfaceVariant
+        isPending -> if (isDarkTheme) Color.White else Color(0xFF5D4037) // Brown text on amber
+        needsReview -> if (isDarkTheme) Color.White else Color(0xFF5D4037) // Brown text on amber
+        isStatement -> MaterialTheme.colorScheme.onSurface
+        isInvestment -> if (isDarkTheme) Color.White else Color(0xFF0D47A1) // Blue text
+        isTransfer -> MaterialTheme.colorScheme.onSurfaceVariant
+        isLiabilityPayment -> if (isDarkTheme) Color.White else Color(0xFF4A1259) // Purple text
+        isRefund -> if (isDarkTheme) Color.White else Color(0xFF1B5E20) // Green text
+        isCashback -> if (isDarkTheme) Color.White else Color(0xFF5D4037) // Brown/gold text
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    
+    val subtitleColor = when {
+        isIgnored || isPending || needsReview || isInvestment || isLiabilityPayment || isRefund || isCashback -> 
+            contentColor.copy(alpha = 0.7f)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), // Softer corners
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)) // Glassy border
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
     ) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = amountColor)
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(displayName, fontWeight = FontWeight.Bold)
+                Text(
+                    displayName, 
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
                 Text(
                     item.transaction.merchantName ?: item.transaction.note ?: item.category.name, 
                     style = MaterialTheme.typography.bodySmall,
+                    color = subtitleColor,
                     maxLines = 1
                 )
             }

@@ -9,7 +9,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
@@ -92,6 +91,9 @@ class MainActivity : ComponentActivity() {
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
                         
+                        // Hide bottom nav on onboarding screen
+                        if (currentRoute == "onboarding") return@Scaffold
+                        
                         NavigationBar {
                             NavigationBarItem(
                                 icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
@@ -118,14 +120,30 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
+                    // Check onboarding state
+                    val hasSeenOnboarding by app.preferencesManager.hasSeenOnboarding.collectAsState(initial = true)
+                    val startDestination = if (hasSeenOnboarding) "dashboard" else "onboarding"
+                    
                     NavHost(
                         navController = navController,
-                        startDestination = "dashboard",
+                        startDestination = startDestination,
                         modifier = Modifier.padding(innerPadding)
                     ) {
+                        composable("onboarding") {
+                            com.saikumar.expensetracker.ui.onboarding.OnboardingScreen(
+                                onComplete = {
+                                    scope.launch {
+                                        app.preferencesManager.setOnboardingComplete()
+                                        navController.navigate("dashboard") {
+                                            popUpTo("onboarding") { inclusive = true }
+                                        }
+                                    }
+                                }
+                            )
+                        }
                         composable("dashboard") {
                             val viewModel: DashboardViewModel = viewModel(
-                                factory = DashboardViewModel.Factory(app.repository, app.preferencesManager, app.database.cycleOverrideDao())
+                                factory = DashboardViewModel.Factory(app.repository, app.preferencesManager, app.database.cycleOverrideDao(), app.database.userAccountDao())
                             )
                             DashboardScreen(
                                 viewModel, 
@@ -141,7 +159,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("overview") {
                             val viewModel: MonthlyOverviewViewModel = viewModel(
-                                factory = MonthlyOverviewViewModel.Factory(app.repository, app.preferencesManager)
+                                factory = MonthlyOverviewViewModel.Factory(app.repository, app.preferencesManager, app.database.userAccountDao())
                             )
                             MonthlyOverviewScreen(
                                 viewModel, 
@@ -157,20 +175,33 @@ class MainActivity : ComponentActivity() {
                                 viewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onNavigateToSalaryHistory = { navController.navigate("salary_history") },
-                                onNavigateToLinkManager = { navController.navigate("link_manager") },
                                 onNavigateToCategories = { navController.navigate("category_management") },
-                                onNavigateToRetirement = { navController.navigate("retirement") }
+                                onNavigateToRetirement = { navController.navigate("retirement") },
+                                onNavigateToInterestTransactions = {
+                                    // Use a very wide date range to show all time
+                                    // Filter by "Interest" category
+                                    navController.navigate("filtered/${CategoryType.INCOME.name}/0/4102444800000?categoryName=Interest") 
+                                },
+                                onNavigateToAdvanced = { navController.navigate("advanced_settings") },
+                                onNavigateToTransferCircle = { navController.navigate("transfer_circle") }
+                            )
+                        }
+                        composable("transfer_circle") {
+                            com.saikumar.expensetracker.ui.transfercircle.TransferCircleScreen(
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("advanced_settings") {
+                            val viewModel: SettingsViewModel = viewModel(
+                                factory = SettingsViewModel.Factory(app.preferencesManager)
+                            )
+                            com.saikumar.expensetracker.ui.settings.AdvancedSettingsScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
                             )
                         }
                         composable("retirement") {
                             RetirementScreen(onBack = { navController.popBackStack() })
-                        }
-                        composable("link_manager") {
-                            val viewModel: com.saikumar.expensetracker.ui.settings.LinkManagerViewModel = viewModel()
-                            com.saikumar.expensetracker.ui.settings.LinkManagerScreen(
-                                onNavigateBack = { navController.popBackStack() },
-                                viewModel = viewModel
-                            )
                         }
                         composable("category_management") {
                             val categories by app.repository.allCategories.collectAsState(initial = emptyList())
@@ -208,22 +239,36 @@ class MainActivity : ComponentActivity() {
                             SalaryHistoryScreen(viewModel, onNavigateBack = { navController.popBackStack() })
                         }
                         composable(
-                            "filtered/{type}/{start}/{end}",
+                            "filtered/{type}/{start}/{end}?categoryName={categoryName}",
                             arguments = listOf(
                                 navArgument("type") { type = NavType.StringType },
                                 navArgument("start") { type = NavType.LongType },
-                                navArgument("end") { type = NavType.LongType }
+                                navArgument("end") { type = NavType.LongType },
+                                navArgument("categoryName") { 
+                                    type = NavType.StringType 
+                                    nullable = true
+                                    defaultValue = null
+                                }
                             )
                         ) { backStackEntry ->
                             val typeStr = backStackEntry.arguments?.getString("type") ?: return@composable
                             val start = backStackEntry.arguments?.getLong("start") ?: return@composable
                             val end = backStackEntry.arguments?.getLong("end") ?: return@composable
+                            val categoryName = backStackEntry.arguments?.getString("categoryName")
+                            
                             val type = CategoryType.valueOf(typeStr)
                             
                             val viewModel: FilteredTransactionsViewModel = viewModel(
                                 factory = FilteredTransactionsViewModel.Factory(app.repository)
                             )
-                            FilteredTransactionsScreen(viewModel, type, start, end, onNavigateBack = { navController.popBackStack() })
+                            FilteredTransactionsScreen(
+                                viewModel, 
+                                type, 
+                                start, 
+                                end, 
+                                categoryName, 
+                                onNavigateBack = { navController.popBackStack() }
+                            )
                         }
                     }
                 }

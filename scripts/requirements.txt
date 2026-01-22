@@ -1,0 +1,13 @@
+# ML Merchant Classifier Requirements
+# For RTX 4060 with CUDA support
+
+# Core ML
+torch>=2.0.0
+transformers>=4.35.0
+
+# Utilities
+tqdm>=4.65.0
+pandas>=2.0.0
+
+# Optional: faster inference
+accelerate>=0.24.0

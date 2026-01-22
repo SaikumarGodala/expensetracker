@@ -5,12 +5,16 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.saikumar.expensetracker.data.entity.UserAccount
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserAccountDao {
 
     @Query("SELECT * FROM user_accounts")
     suspend fun getAllAccounts(): List<UserAccount>
+    
+    @Query("SELECT * FROM user_accounts ORDER BY bankName, accountType")
+    fun getAllAccountsFlow(): Flow<List<UserAccount>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(account: UserAccount)

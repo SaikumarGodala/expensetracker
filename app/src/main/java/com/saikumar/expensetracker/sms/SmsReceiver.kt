@@ -12,6 +12,9 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Log.d("SmsReceiver", "SMS Broadcast Received")
         
+        // DEBUG: Toast to confirm receiver is triggered (remove in production)
+        android.widget.Toast.makeText(context, "📩 SMS Received by ExpenseTracker", android.widget.Toast.LENGTH_SHORT).show()
+        
         if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
             val fullBody = messages.joinToString("") { it.displayMessageBody }

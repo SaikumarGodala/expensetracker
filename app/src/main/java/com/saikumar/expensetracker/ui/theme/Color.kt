@@ -48,7 +48,7 @@ val TransferBlue = Color(0xFF2196F3)     // Investment/Transfer (Material Blue 5
 val PendingOrange = Color(0xFFFF9800)    // Variable/Pending (Material Orange 500)
 val VehiclePurple = Color(0xFF9C27B0)    // Vehicle (Material Purple 500)
 
-// States & Highlights
+// States & Highlights - LIGHT MODE
 val WarningYellow = Color(0xFFFFC107)    // Material Amber 500
 val PendingText = Color(0xFFFF8F00)      // Darker Orange for text
 val HighlightBackground = Color(0xFFFFF8E1) // Amber 50
@@ -57,6 +57,13 @@ val CashbackText = Color(0xFFFFB300)     // Dark Gold (Amber 600)
 val InvestmentBlueLight = Color(0xFFE3F2FD) // Blue 50
 val InvestmentBlueText = Color(0xFF1976D2)  // Blue 700
 val UndoGreen = Color(0xFF66BB6A)        // Green 400 (Refund)
+
+// States & Highlights - DARK MODE VARIANTS (brighter for visibility)
+val HighlightBackgroundDark = Color(0xFF5D4037)    // Warmer brown (brighter amber)
+val CashbackGoldDark = Color(0xFF6D5F00)           // Brighter gold/olive
+val InvestmentBlueDark = Color(0xFF1565C0)         // Brighter blue (Blue 800)
+val LiabilityPurpleDark = Color(0xFF5E35B1)        // Deep purple (Purple 600) - less magenta
+val RefundGreenDark = Color(0xFF2E7D32)            // Brighter green (Green 800)
 
 // Base UI
 val TextPrimary = Color(0xFF212121)

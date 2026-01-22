@@ -9,6 +9,7 @@ import com.saikumar.expensetracker.util.PreferencesManager
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(private val preferencesManager: PreferencesManager) : ViewModel() {
@@ -79,6 +80,37 @@ class SettingsViewModel(private val preferencesManager: PreferencesManager) : Vi
     fun removeSalaryCompanyName(name: String) {
         viewModelScope.launch {
             preferencesManager.removeSalaryCompanyName(name)
+        }
+    }
+    
+    // Small P2P threshold - below this amount, P2P is treated as merchant expense
+    val smallP2pThresholdPaise: StateFlow<Long> = preferencesManager.smallP2pThresholdPaise
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 50000L)
+    
+    fun setSmallP2pThresholdRupees(rupees: Int) {
+        viewModelScope.launch {
+            preferencesManager.setSmallP2pThresholdPaise(rupees.toLong() * 100)
+        }
+    }
+
+    // Total Interest Earned
+    private val _totalInterest = kotlinx.coroutines.flow.MutableStateFlow(0.0)
+    val totalInterest: StateFlow<Double> = _totalInterest.asStateFlow()
+
+    fun loadTotalInterest(context: Context) {
+        viewModelScope.launch {
+            try {
+                // Use IO dispatcher for DB ops
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val db = com.saikumar.expensetracker.data.db.AppDatabase.getDatabase(context, viewModelScope)
+                    
+                    // Use optimized SQL query with Join
+                    val interestPaisa = db.transactionDao().getTotalInterestPaisa() ?: 0L
+                    _totalInterest.value = interestPaisa / 100.0
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

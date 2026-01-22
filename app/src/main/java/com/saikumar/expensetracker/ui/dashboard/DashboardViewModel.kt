@@ -37,9 +37,11 @@ data class DashboardUiState(
     val totalExpenses: Double = 0.0,
     val extraMoney: Double = 0.0,
     val transactions: List<TransactionWithCategory> = emptyList(),
-    val statements: List<TransactionWithCategory> = emptyList(), // Separated statements
-    // Stores detail about the link: Linked Transaction ID + Type
-    val transactionLinks: Map<Long, LinkDetail> = emptyMap()
+    val statements: List<TransactionWithCategory> = emptyList(),
+    val transactionLinks: Map<Long, LinkDetail> = emptyMap(),
+    // Account filter
+    val detectedAccounts: List<UserAccount> = emptyList(),
+    val selectedAccounts: Set<String> = emptySet()
 )
 
 data class Quadruple<A, B, C, D>(
@@ -52,18 +54,47 @@ data class Quadruple<A, B, C, D>(
 class DashboardViewModel(
     private val repository: ExpenseRepository,
     private val preferencesManager: PreferencesManager,
-    private val cycleOverrideDao: CycleOverrideDao
+    private val cycleOverrideDao: CycleOverrideDao,
+    private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
 ) : ViewModel() {
 
     private data class FilterParams(
         val range: CycleRange,
         val categories: List<Category>,
-        val query: String
+        val query: String,
+        val selectedAccounts: Set<String>,
+        val accounts: List<UserAccount>
     )
 
     private val _referenceDate = MutableStateFlow(LocalDate.now())
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
+    
+    // Account filter state (synced via PreferencesManager)
+    val selectedAccounts = preferencesManager.selectedAccounts
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+    
+    // Detected accounts flow
+    val detectedAccounts: StateFlow<List<UserAccount>> = userAccountDao.getAllAccountsFlow()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    
+    fun toggleAccountFilter(accountNumber: String) {
+        viewModelScope.launch {
+            val current = selectedAccounts.value.toMutableSet()
+            if (current.contains(accountNumber)) {
+                current.remove(accountNumber)
+            } else {
+                current.add(accountNumber)
+            }
+            preferencesManager.updateSelectedAccounts(current)
+        }
+    }
+    
+    fun clearAccountFilter() {
+        viewModelScope.launch {
+            preferencesManager.setSelectedAccounts(emptySet())
+        }
+    }
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
@@ -71,18 +102,27 @@ class DashboardViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<DashboardUiState> = combine(
-        _referenceDate,
-        repository.allEnabledCategories,
-        _searchQuery,
-        preferencesManager.salaryDay
-    ) { refDate, categories, query, salaryDay ->
-        Quadruple(refDate, categories, query, salaryDay)
+        combine(
+            _referenceDate,
+            repository.allEnabledCategories,
+            _searchQuery,
+            preferencesManager.salaryDay
+        ) { refDate, categories, query, salaryDay ->
+            Quadruple(refDate, categories, query, salaryDay)
+        },
+        selectedAccounts,
+        detectedAccounts
+    ) { quad, selectedAccts, accounts ->
+        FilterParams(
+            CycleUtils.getCurrentCycleRange(quad.first),
+            quad.second,
+            quad.third,
+            selectedAccts,
+            accounts
+        )
     }
-    .flatMapLatest { quad ->
-        val refDate = quad.first
-        val categories = quad.second
-        val query = quad.third
-        val salaryDay = quad.fourth
+    .flatMapLatest { params ->
+        val refDate = LocalDate.now().withMonth(params.range.startDate.monthValue)
         val yearMonth = refDate.format(DateTimeFormatter.ofPattern("yyyy-MM"))
         cycleOverrideDao.getOverride(yearMonth).map { override ->
             val range = override?.let {
@@ -90,8 +130,8 @@ class DashboardViewModel(
                     Instant.ofEpochMilli(it.startDate).atZone(ZoneId.systemDefault()).toLocalDateTime(),
                     Instant.ofEpochMilli(it.endDate).atZone(ZoneId.systemDefault()).toLocalDateTime()
                 )
-            } ?: CycleUtils.getCurrentCycleRange(refDate)
-            FilterParams(range, categories, query)
+            } ?: params.range
+            FilterParams(range, params.categories, params.query, params.selectedAccounts, params.accounts)
         }
     }.flatMapLatest { params ->
         // Convert CycleRange to epoch millis for query
@@ -116,11 +156,20 @@ class DashboardViewModel(
                 val (statements, otherTransactions) = sortedTransactions.partition { 
                     it.transaction.transactionType == TransactionType.STATEMENT 
                 }
+                
+                // ACCOUNT FILTER: Filter by selected accounts
+                val accountFilteredTransactions = if (params.selectedAccounts.isEmpty()) {
+                    otherTransactions
+                } else {
+                    otherTransactions.filter { txn ->
+                        val smsBody = txn.transaction.fullSmsBody ?: ""
+                        params.selectedAccounts.any { last4 -> smsBody.contains(last4) }
+                    }
+                }
 
                 // ACCOUNTING RULE: Use TransactionType for filtering
                 // P0 FIX: Only count COMPLETED transactions to prevent pending/future transactions from inflating totals
-                // Example: "Standing instruction will be debited on Feb 1" received Jan 28 shouldn't count in January
-                val activeTransactions = otherTransactions.filter { 
+                val activeTransactions = accountFilteredTransactions.filter { 
                     it.transaction.status == TransactionStatus.COMPLETED &&  // CRITICAL: Only completed transactions
                     it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT &&
                     it.transaction.transactionType != TransactionType.TRANSFER &&  // Self-transfers excluded
@@ -130,9 +179,11 @@ class DashboardViewModel(
                 }
                 
                 // ACCOUNTING RULE: Income = TransactionType.INCOME + CASHBACK (positive adjustments)
+                // EXCLUDE P2P Transfers from income - they are visible but don't count
                 val income = activeTransactions
                     .filter { 
-                        it.transaction.transactionType == TransactionType.INCOME ||
+                        (it.transaction.transactionType == TransactionType.INCOME && 
+                         it.category.name != "P2P Transfers") ||
                         it.transaction.transactionType == TransactionType.CASHBACK  // Cashback is positive
                     }
                     .sumOf { it.transaction.amountPaisa / 100.0 }
@@ -173,9 +224,9 @@ class DashboardViewModel(
                 val totalExpenses = (fixed + variable) - refundAmount
 
                 val filteredTransactions = if (params.query.isBlank()) {
-                    otherTransactions
+                    accountFilteredTransactions
                 } else {
-                    otherTransactions.filter {
+                    accountFilteredTransactions.filter {
                         it.category.name.contains(params.query, ignoreCase = true) ||
                         (it.transaction.note?.contains(params.query, ignoreCase = true) == true) ||
                         (it.transaction.merchantName?.contains(params.query, ignoreCase = true) == true)
@@ -192,9 +243,11 @@ class DashboardViewModel(
                     totalVehicleExpenses = vehicle,
                     totalExpenses = totalExpenses,
                     extraMoney = income - (totalExpenses + vehicle + investment),
-                    transactions = filteredTransactions, // Main list (Excludes Statements)
-                    statements = statements, // Separate list
-                    transactionLinks = linkMap
+                    transactions = filteredTransactions,
+                    statements = statements,
+                    transactionLinks = linkMap,
+                    detectedAccounts = params.accounts,
+                    selectedAccounts = params.selectedAccounts
                 )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
@@ -317,11 +370,12 @@ class DashboardViewModel(
     class Factory(
         private val repository: ExpenseRepository, 
         private val preferencesManager: PreferencesManager, 
-        private val cycleOverrideDao: CycleOverrideDao
+        private val cycleOverrideDao: CycleOverrideDao,
+        private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DashboardViewModel(repository, preferencesManager, cycleOverrideDao) as T
+            return DashboardViewModel(repository, preferencesManager, cycleOverrideDao, userAccountDao) as T
         }
     }
 }

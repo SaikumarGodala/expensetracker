@@ -56,18 +56,18 @@ class ExpenseTrackerApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Pre-initialize database on a background thread to prevent launch JANK/Crashes
+        
+        // Initialize notification channel
+        com.saikumar.expensetracker.util.TransactionNotificationHelper.createNotificationChannel(this)
+        
+        // Initialize ML Classifier
+        com.saikumar.expensetracker.ml.NaiveBayesClassifier.load(this)
+        
+        // Pre-initialize database on a background thread
         applicationScope.launch(Dispatchers.IO) {
             try {
                 database.query("SELECT 1", null).close()
                 Log.d("ExpenseTrackerApp", "Database pre-initialized successfully")
-                
-                // Load user-defined merchant patterns
-                // SmsProcessor.loadUserPatterns(this@ExpenseTrackerApplication)
-                Log.d("ExpenseTrackerApp", "Database initialized")
-                
-                // NOTE: Removed auto-reclassification on startup for performance
-                // Reclassification is now only triggered on user request
             } catch (e: Exception) {
                 Log.e("ExpenseTrackerApp", "Failed to pre-initialize database", e)
             }

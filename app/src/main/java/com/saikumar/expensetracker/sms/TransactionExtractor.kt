@@ -1,12 +1,14 @@
 package com.saikumar.expensetracker.sms
 
+import com.saikumar.expensetracker.data.entity.TransactionType
 import java.util.regex.Pattern
 
 object TransactionExtractor {
 
-    enum class TransactionType {
-        INCOME, EXPENSE, TRANSFER, LIABILITY, PENSION, INVESTMENT, STATEMENT, UNKNOWN
-    }
+    // AUDIT: Removed duplicate enum - now using data.entity.TransactionType directly
+    // Type aliases for mapping compatibility (old names → new names)
+    // LIABILITY → LIABILITY_PAYMENT
+    // INVESTMENT → INVESTMENT_CONTRIBUTION
 
     data class ExtractedTransaction(
         val amount: Double?,
@@ -15,11 +17,15 @@ object TransactionExtractor {
         val accountHint: String? = null
     )
 
-    // Amount patterns
+    // Amount patterns - order matters! More specific patterns first
     private val AMOUNT_PATTERNS = listOf(
+        // Currency prefix patterns (most reliable)
         Pattern.compile("Rs\\.?\\s*([\\d,]+\\.?\\d*)"),
         Pattern.compile("INR\\s*([\\d,]+\\.?\\d*)"),
         Pattern.compile("₹\\s*([\\d,]+\\.?\\d*)"),
+        // "debited by X" / "credited with X" patterns (SBI format)
+        Pattern.compile("(?:debited|credited|spent|withdrawn|deposited)\\s*(?:by|with|of)?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
+        // Amount before keyword pattern (fallback)
         Pattern.compile("([\\d,]+\\.?\\d*)\\s*(?:debited|credited|spent|withdrawn|deposited)")
     )
 
@@ -73,9 +79,10 @@ object TransactionExtractor {
         
         val type = when (senderType) {
             SenderClassifier.SenderType.PENSION -> TransactionType.PENSION
-            SenderClassifier.SenderType.INVESTMENT -> TransactionType.INVESTMENT
+            SenderClassifier.SenderType.INVESTMENT -> TransactionType.INVESTMENT_CONTRIBUTION
             SenderClassifier.SenderType.INSURANCE -> if (isDebit == true) TransactionType.EXPENSE else TransactionType.UNKNOWN
             SenderClassifier.SenderType.BANK -> detectBankTransactionType(body, isDebit)
+            SenderClassifier.SenderType.VIRTUAL_CARD -> detectBankTransactionType(body, isDebit) // Treat like bank
             else -> TransactionType.UNKNOWN
         }
 
@@ -99,16 +106,39 @@ object TransactionExtractor {
 
     private fun detectDebit(body: String): Boolean? {
         val lower = body.lowercase()
+        
+        // FIX #3: Card spending is ALWAYS a debit, regardless of other keywords
+        // Pattern: "On HDFC Bank Card XXX At <merchant>" or "Spent Rs.XXX On Card"
+        if ((lower.contains("on") && lower.contains("bank card") && lower.contains("at")) ||
+            (lower.contains("spent") && lower.contains("card"))) {
+            return true  // DEBIT
+        }
+        
         val hasDebit = DEBIT_KEYWORDS.any { lower.contains(it) }
         val hasCredit = CREDIT_KEYWORDS.any { lower.contains(it) }
+        
         return when {
             hasDebit && !hasCredit -> true
             hasCredit && !hasDebit -> false
             hasDebit && hasCredit -> {
-                // Ambiguous case: "debited for ... credited to..." -> Debit
-                if (lower.contains("debited for")) true
-                else if (lower.contains("credited to your") || lower.contains("credited significantly")) false
-                else null
+                // FIX #4: First-keyword-wins rule
+                // Find position of first debit and first credit keyword
+                val firstDebitPos = DEBIT_KEYWORDS.mapNotNull { 
+                    val idx = lower.indexOf(it)
+                    if (idx >= 0) idx else null 
+                }.minOrNull() ?: Int.MAX_VALUE
+                
+                val firstCreditPos = CREDIT_KEYWORDS.mapNotNull { 
+                    val idx = lower.indexOf(it)
+                    if (idx >= 0) idx else null 
+                }.minOrNull() ?: Int.MAX_VALUE
+                
+                // The first keyword determines direction (your transaction is stated first)
+                when {
+                    firstDebitPos < firstCreditPos -> true   // "debited...credited" = DEBIT
+                    firstCreditPos < firstDebitPos -> false  // "credited...debited" = CREDIT
+                    else -> null  // Shouldn't happen
+                }
             }
             else -> null
         }
@@ -139,11 +169,33 @@ object TransactionExtractor {
                 val recipientName = nameMatch?.groupValues?.getOrNull(1)?.trim()?.uppercase() ?: ""
                 
                 // Check if recipient is a known merchant (not a person)
-                val isMerchant = MERCHANT_SIGNALS.any { recipientName.contains(it) }
+                // Expanded list to include Investment entities which often look like Person names
+                val isMerchant = MERCHANT_SIGNALS.any { recipientName.contains(it) } ||
+                                 recipientName.contains("ZERODHA") || 
+                                 recipientName.contains("ICCL") || 
+                                 recipientName.contains("INDIAN CLEARING") ||
+                                 recipientName.contains("GROWW") ||
+                                 recipientName.contains("KUVERA")
                 
                 if (!isMerchant) {
                     return TransactionType.TRANSFER
                 }
+            }
+        }
+        
+        // 2. DETECT INVESTMENT (High Priority)
+        // Check for known investment keywords/merchants
+        if (lower.contains("zerodha") || lower.contains("groww") || 
+            lower.contains("coin") || lower.contains("kuvera") || 
+            lower.contains("indmoney") || lower.contains("smallcase") ||
+            (lower.contains("mutual") && lower.contains("fund")) ||
+            lower.contains("iccl") || lower.contains("indian clearing")) {
+            
+            // If it's a credit, it's Redemption (Income), otherwise Contribution
+            if (lower.contains("credited") || lower.contains("received") || lower.contains("deposited")) {
+                return TransactionType.INCOME // Will be mapped to Investment Redemption category
+            } else {
+                return TransactionType.INVESTMENT_CONTRIBUTION
             }
         }
         
@@ -166,7 +218,7 @@ object TransactionExtractor {
                            lower.contains("using")
                            
             if (!isExpense) {
-                return TransactionType.LIABILITY
+                return TransactionType.LIABILITY_PAYMENT
             }
         }
 
@@ -181,5 +233,35 @@ object TransactionExtractor {
             false -> TransactionType.INCOME
             null -> TransactionType.UNKNOWN
         }
+    }
+    
+    /**
+     * Detect all keywords matched in the SMS body for debug logging.
+     * Returns a list of matched keywords grouped by category.
+     */
+    fun detectKeywords(body: String): List<String> {
+        val lower = body.lowercase()
+        val matched = mutableListOf<String>()
+        
+        // Check debit keywords
+        DEBIT_KEYWORDS.filter { lower.contains(it) }.forEach { matched.add("DEBIT:$it") }
+        
+        // Check credit keywords
+        CREDIT_KEYWORDS.filter { lower.contains(it) }.forEach { matched.add("CREDIT:$it") }
+        
+        // Check transfer keywords
+        TRANSFER_KEYWORDS.filter { lower.contains(it.lowercase()) }.forEach { matched.add("TRANSFER:$it") }
+        
+        // Check CC payment keywords
+        CC_PAYMENT_KEYWORDS.filter { lower.contains(it) }.forEach { matched.add("CC_PAY:$it") }
+        
+        // Check statement keywords
+        STATEMENT_KEYWORDS.filter { lower.contains(it) }.forEach { matched.add("STATEMENT:$it") }
+        
+        // Check merchant signals (case-insensitive)
+        val upper = body.uppercase()
+        MERCHANT_SIGNALS.filter { upper.contains(it) }.forEach { matched.add("MERCHANT:$it") }
+        
+        return matched
     }
 }

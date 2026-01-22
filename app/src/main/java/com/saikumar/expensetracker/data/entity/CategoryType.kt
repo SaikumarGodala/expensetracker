@@ -5,5 +5,8 @@ enum class CategoryType {
     FIXED_EXPENSE,
     VARIABLE_EXPENSE,
     INVESTMENT,
-    VEHICLE
+    VEHICLE,
+    IGNORE,
+    STATEMENT,
+    LIABILITY
 }

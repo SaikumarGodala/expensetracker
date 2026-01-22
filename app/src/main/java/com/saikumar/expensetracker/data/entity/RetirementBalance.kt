@@ -19,5 +19,7 @@ data class RetirementBalance(
     val contributionPaisa: Long,
     val month: String,           // "Jan-24", "Feb-24"
     val timestamp: Long,
-    val identifier: String       // PRAN for NPS, UAN for EPF
+    val identifier: String,       // PRAN for NPS, UAN for EPF
+    val smsBody: String? = null,
+    val sender: String? = null
 )

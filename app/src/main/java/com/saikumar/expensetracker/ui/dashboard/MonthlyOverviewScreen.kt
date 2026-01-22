@@ -66,9 +66,10 @@ fun MonthlyOverviewScreen(
         CommonDateRangePicker(
             initialStartDate = initialStart,
             initialEndDate = initialEnd,
-            onDismiss = { },
+            onDismiss = { showDateRangePicker = false },
             onConfirm = { start, end ->
                 viewModel.setCustomRange(start, end)
+                showDateRangePicker = false
             }
         )
     }
@@ -93,17 +94,6 @@ fun MonthlyOverviewScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Monthly Overview") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {}
-            )
-        }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
@@ -126,7 +116,7 @@ fun MonthlyOverviewScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { }
+                                .clickable { showDateRangePicker = true }
                                 .padding(8.dp)
                         ) {
                             Text(
@@ -143,6 +133,16 @@ fun MonthlyOverviewScreen(
                         }
                     }
                 }
+                
+                // Account Filter Dropdown
+                AccountFilterDropdown(
+                    accounts = uiState.detectedAccounts,
+                    selectedAccounts = uiState.selectedAccounts,
+                    onToggle = { viewModel.toggleAccountFilter(it) },
+                    onClearAll = { viewModel.clearAccountFilter() }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // Summary cards - clickable to show transactions

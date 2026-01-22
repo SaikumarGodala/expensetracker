@@ -42,6 +42,9 @@ fun AddCategoryDialog(
                             CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                             CategoryType.INVESTMENT -> "Investment"
                             CategoryType.VEHICLE -> "Vehicle"
+                            CategoryType.IGNORE -> "Invalid/Ignore"
+                            CategoryType.STATEMENT -> "Statement"
+                            CategoryType.LIABILITY -> "CC Bill Payment"
                         },
                         onValueChange = {},
                         readOnly = true,
@@ -63,6 +66,9 @@ fun AddCategoryDialog(
                                         CategoryType.VARIABLE_EXPENSE -> "Variable Expense"
                                         CategoryType.INVESTMENT -> "Investment"
                                         CategoryType.VEHICLE -> "Vehicle"
+                                        CategoryType.IGNORE -> "Invalid/Ignore"
+                                        CategoryType.STATEMENT -> "Statement"
+                                        CategoryType.LIABILITY -> "CC Bill Payment"
                                     })
                                 },
                                 onClick = {

@@ -106,10 +106,10 @@ interface TransactionDao {
     suspend fun getTransactionsByCategoryId(categoryId: Long): List<Transaction>
 
     // P1 Fix: Optimized similarity search queries
-    @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL ORDER BY timestamp DESC")
+    @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     suspend fun getTransactionsByMerchant(merchantName: String): List<Transaction>
 
-    @Query("SELECT * FROM transactions WHERE smsSnippet LIKE '%' || :pattern || '%' AND deletedAt IS NULL ORDER BY timestamp DESC")
+    @Query("SELECT * FROM transactions WHERE smsSnippet LIKE '%' || :pattern || '%' AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     suspend fun getTransactionsBySnippetPattern(pattern: String): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL")
@@ -120,17 +120,55 @@ interface TransactionDao {
     
     /**
      * Get ALL transactions (non-deleted) for self-transfer pairing.
-     * key details: ID, Amount, Timestamp, Type, SMS Sender.
+     * key details: ID, Amount, Timestamp, Type, Account Number, SMS Sender.
      */
     @androidx.room.Transaction
     @Query("""
-        SELECT t.id, t.amountPaisa, t.timestamp, t.transactionType, s.sender as smsSender 
+        SELECT t.id, t.amountPaisa, t.timestamp, t.transactionType, t.accountNumberLast4, s.sender as smsSender 
         FROM transactions t 
         LEFT JOIN sms_raw s ON t.rawSmsId = s.rawSmsId
         WHERE t.deletedAt IS NULL 
         ORDER BY t.timestamp DESC
     """)
     suspend fun getAllTransactionsSync(): List<TransactionPairCandidate>
+    
+    /**
+     * Get all transactions with merchant names for ML training data export.
+     * Includes only transactions with non-null merchant names.
+     */
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE merchantName IS NOT NULL 
+        AND deletedAt IS NULL 
+        ORDER BY timestamp DESC
+    """)
+    suspend fun getAllForMlExport(): List<Transaction>
+    
+    /**
+     * Bulk update category and type for list of merchants (e.g. for P2P Transfer Circle updates)
+     */
+    @Query("UPDATE transactions SET categoryId = :categoryId, transactionType = :type WHERE merchantName IN (:merchantNames) AND deletedAt IS NULL")
+    suspend fun updateTransactionsForMerchants(
+        merchantNames: List<String>, 
+        categoryId: Long, 
+        type: com.saikumar.expensetracker.data.entity.TransactionType
+    )
+
+    /**
+     * Get transactions with sender info for ML training.
+     */
+    @Query("""
+        SELECT t.merchantName, t.categoryId, t.confidenceScore, s.sender as smsSender 
+        FROM transactions t 
+        LEFT JOIN sms_raw s ON t.rawSmsId = s.rawSmsId
+        WHERE t.merchantName IS NOT NULL 
+        AND t.deletedAt IS NULL 
+        ORDER BY t.timestamp DESC
+    """)
+    suspend fun getAllForMlExportWithSender(): List<MlExportCandidate>
+    
+    @Query("SELECT SUM(t.amountPaisa) FROM transactions t INNER JOIN categories c ON t.categoryId = c.id WHERE c.name = 'Interest' AND t.deletedAt IS NULL")
+    suspend fun getTotalInterestPaisa(): Long?
 }
 
 data class TransactionPairCandidate(
@@ -138,5 +176,13 @@ data class TransactionPairCandidate(
     val amountPaisa: Long,
     val timestamp: Long,
     val transactionType: com.saikumar.expensetracker.data.entity.TransactionType,
+    val accountNumberLast4: String?,
+    val smsSender: String?
+)
+
+data class MlExportCandidate(
+    val merchantName: String,
+    val categoryId: Long,
+    val confidenceScore: Int,
     val smsSender: String?
 )

@@ -5,14 +5,12 @@ package com.saikumar.expensetracker.data.entity
  */
 data class ClassificationDebugLog(
     val transactionId: String,
-    val timestamp: Long,
     val rawInput: RawInputCapture,
     val parsedFields: ParsedFields,
     val ruleTrace: List<RuleExecution>,
     val conflictResolution: ConflictResolution? = null,
     val finalDecision: FinalDecision,
     val userOverride: UserOverride? = null,
-    val debugMode: Boolean = true,
     val error: ErrorDetails? = null
 )
 
@@ -27,9 +25,7 @@ data class RawInputCapture(
     val source: String,
     val receivedTimestamp: Long,
     val sender: String?,
-    val amount: Long,
-    val direction: String,
-    val accountType: String
+    val amount: Long
 )
 
 data class ParsedFields(
@@ -46,28 +42,22 @@ data class ParsedFields(
 )
 
 data class CounterpartyExtraction(
-    val extractedName: String? = null,
-    val extractionRule: String? = null,
-    val confidence: String = "MEDIUM",
-    val found: Boolean = false,
-    // Enhanced diagnostics: direction independence
-    val directionAtExtraction: String? = null,  // "DEBIT", "CREDIT", or "UNKNOWN"
-    val phrasesMatched: List<String> = emptyList(),  // e.g., ["credited", "from", "aishwarya rao"]
-    val suppressedByDirection: Boolean = false  // true if extraction was blocked by direction bias (should never happen)
+    val rawTrace: String,
+    val extractedName: String?,
+    val method: String
 )
 
 data class MerchantSanitization(
-    val applied: Boolean = false,
-    val deferred: Boolean = false,
-    val originalMerchant: String? = null,
-    val sanitizedTo: String? = null,
-    val reason: String? = null
+    val original: String,
+    val sanitized: String,
+    val strategy: String,
+    val steps: List<String> = emptyList()
 )
 
 data class MerchantResolution(
-    val originalMerchant: String? = null,
-    val resolvedMerchant: String? = null,
-    val resolutionRule: String? = null
+    val source: String,
+    val finalName: String,
+    val aliasUsed: Boolean
 )
 
 data class RuleExecution(
@@ -76,8 +66,7 @@ data class RuleExecution(
     val ruleType: String,
     val result: String,
     val confidence: Double,
-    val reason: String? = null,
-    val executionTimestamp: Long = 0
+    val reason: String? = null
 )
 
 data class ConflictResolution(
@@ -91,13 +80,16 @@ data class FinalDecision(
     val transactionType: String,
     val categoryId: Long,
     val categoryName: String,
-    val confidence: String,
     val finalConfidence: Double,
     val requiresUserConfirmation: Boolean,
-    val reasoning: String? = null,  // Only populated for errors/special cases
+    val reasoning: String? = null,
     val status: String = "COMPLETED",
     val entityType: String = "UNKNOWN",
-    val isExpenseEligible: Boolean = true
+    val isExpenseEligible: Boolean = true,
+    // NEW FIELDS
+    val matchedPatternId: String? = null,
+    val whyNotOtherCategories: List<String> = emptyList(),
+    val confidenceBreakdown: Map<String, Double> = emptyMap()
 )
 
 data class UserOverride(

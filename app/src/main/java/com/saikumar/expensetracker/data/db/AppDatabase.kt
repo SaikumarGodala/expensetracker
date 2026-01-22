@@ -27,9 +27,11 @@ import kotlinx.coroutines.CoroutineScope
         RetirementBalance::class,
         UserAccount::class,
         MerchantAlias::class,
-        NeftSource::class
+        NeftSource::class,
+        TransferCircleMember::class,
+        TransferCircleAlias::class
     ],
-    version = 31,
+    version = 39, // Added smsBody/sender to RetirementBalance
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -49,6 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userAccountDao(): UserAccountDao
     abstract fun merchantAliasDao(): com.saikumar.expensetracker.data.dao.MerchantAliasDao
     abstract fun neftSourceDao(): NeftSourceDao
+    abstract fun transferCircleDao(): com.saikumar.expensetracker.data.dao.TransferCircleDao
 
     companion object {
         @Volatile
@@ -56,38 +59,75 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun seedDefaultCategories(db: SupportSQLiteDatabase) {
             val categories = listOf(
+                // Income Categories
                 "Salary" to "INCOME",
                 "Freelance / Other" to "INCOME",
                 "Refund" to "INCOME",
                 "Cashback" to "INCOME",
                 "Interest" to "INCOME",
+                "Dividend" to "INCOME",
+                "Rental Income" to "INCOME",
+                "Bonus" to "INCOME",
                 "Other Income" to "INCOME",
+                "Investment Redemption" to "INCOME",
+                "Unverified Income" to "INCOME",
+                
+                // Fixed Expenses
+                "Rent" to "FIXED_EXPENSE",
                 "Housing" to "FIXED_EXPENSE",
                 "Utilities" to "FIXED_EXPENSE",
                 "Insurance" to "FIXED_EXPENSE",
                 "Subscriptions" to "FIXED_EXPENSE",
                 "Mobile + WiFi" to "FIXED_EXPENSE",
                 "Loan EMI" to "FIXED_EXPENSE",
-                "Credit Bill Payments" to "FIXED_EXPENSE",
+                "Education / Fees" to "FIXED_EXPENSE",
+                
+                // Liability
+                "Credit Bill Payments" to "LIABILITY",
+                
+                // Variable Expenses
                 "Groceries" to "VARIABLE_EXPENSE",
                 "Dining Out" to "VARIABLE_EXPENSE",
-                "Entertainment" to "VARIABLE_EXPENSE",
-                "Travel" to "VARIABLE_EXPENSE",
-                "Cab & Taxi" to "VARIABLE_EXPENSE",
                 "Food Delivery" to "VARIABLE_EXPENSE",
+                "Entertainment" to "VARIABLE_EXPENSE",
+                "Transportation" to "VARIABLE_EXPENSE",
                 "Medical" to "VARIABLE_EXPENSE",
                 "Shopping" to "VARIABLE_EXPENSE",
+                "Clothing" to "VARIABLE_EXPENSE",
+                "Furniture" to "VARIABLE_EXPENSE",
+                "Electronics" to "VARIABLE_EXPENSE",
+                "Personal Care" to "VARIABLE_EXPENSE",
+                "Gym & Fitness" to "VARIABLE_EXPENSE",
+                "Gifts & Donations" to "VARIABLE_EXPENSE",
+                "Books & Learning" to "VARIABLE_EXPENSE",
+                "Pet Care" to "VARIABLE_EXPENSE",
+                "ATM Withdrawal" to "VARIABLE_EXPENSE",
+                "Offline Merchant" to "VARIABLE_EXPENSE",
                 "Miscellaneous" to "VARIABLE_EXPENSE",
                 "Unknown Expense" to "VARIABLE_EXPENSE",
                 "Uncategorized" to "VARIABLE_EXPENSE",
+                "P2P Transfers" to "VARIABLE_EXPENSE",
+                "Self Transfer" to "VARIABLE_EXPENSE",
+                
+                // Investment
                 "Mutual Funds" to "INVESTMENT",
+                "Stocks" to "INVESTMENT",
+                "Fixed Deposits" to "INVESTMENT",
                 "Recurring Deposits" to "INVESTMENT",
+                "PPF / EPF" to "INVESTMENT",
+                "Gold" to "INVESTMENT",
+                "Chits" to "INVESTMENT",
+                
+                // Vehicle
                 "Fuel" to "VEHICLE",
                 "Service" to "VEHICLE",
-                "P2P Transfers" to "VARIABLE_EXPENSE"
+                "Parking & Tolls" to "VEHICLE",
+                
+                // Ignore
+                "Invalid" to "IGNORE"
             )
             for ((name, type) in categories) {
-                db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled, isDefault) VALUES ('$name', '$type', 1, 1)")
+                db.execSQL("INSERT OR IGNORE INTO categories (name, type, isEnabled, isDefault, icon) VALUES ('$name', '$type', 1, 1, '$name')")
             }
             db.execSQL("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Primary Bank', 'SAVINGS', 0, 1)")
             db.execSQL("INSERT OR IGNORE INTO accounts (name, type, isLiability, isDefault) VALUES ('Credit Card', 'CREDIT_CARD', 1, 0)")
@@ -101,6 +141,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_tracker_db"
                 )
+                // Migrations removed as requested. Using destructive migration fallback.
                 .fallbackToDestructiveMigration()
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
@@ -118,3 +159,5 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
+
+

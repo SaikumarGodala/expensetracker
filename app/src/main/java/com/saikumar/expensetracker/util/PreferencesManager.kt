@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,10 @@ class PreferencesManager(val context: Context) {
         val FIRST_LAUNCH_COMPLETE = booleanPreferencesKey("first_launch_complete")
         val THEME_MODE = intPreferencesKey("theme_mode") // 0=System, 1=Light, 2=Dark
         val COLOR_PALETTE = stringPreferencesKey("color_palette") // DYNAMIC, BLUE, GREEN, ORANGE, PURPLE, SNOW
+        val SMALL_P2P_THRESHOLD_PAISE = longPreferencesKey("small_p2p_threshold_paise") // Default: 50000 (₹500)
+        val SELECTED_ACCOUNTS = stringPreferencesKey("selected_accounts") // JSON array of account last4 digits
+        val SMS_FILTER_ENABLED = booleanPreferencesKey("sms_filter_enabled")
+        val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
     }
 
     val themeMode: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -42,25 +47,43 @@ class PreferencesManager(val context: Context) {
     }
     
     val debugMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[DEBUG_MODE] ?: true  // Default: enabled for debugging
+        preferences[DEBUG_MODE] ?: true
+    }
+    
+    /**
+     * Threshold in paise below which P2P transfers are treated as merchant expenses.
+     * Default: 50000 paise (₹500)
+     */
+    val smallP2pThresholdPaise: Flow<Long> = context.dataStore.data.map { preferences ->
+        preferences[SMALL_P2P_THRESHOLD_PAISE] ?: 50000L
     }
     
     /**
      * User-defined company names for salary detection.
      * Stored as JSON array, returned as Set<String>.
      * These are matched case-insensitively against SMS body.
+     * Includes default company names if user hasn't configured any.
      */
     val salaryCompanyNames: Flow<Set<String>> = context.dataStore.data.map { preferences ->
-        val json = preferences[SALARY_COMPANY_NAMES] ?: "[]"
-        try {
-            val jsonArray = org.json.JSONArray(json)
-            val set = mutableSetOf<String>()
-            for (i in 0 until jsonArray.length()) {
-                set.add(jsonArray.getString(i).uppercase())
+        val json = preferences[SALARY_COMPANY_NAMES]
+        // Default company names for out-of-box salary detection
+        val defaultNames = setOf("ZF IND", "OPEN TEXT", "OPENTEXT", "INFOSYS", "TCS", "WIPRO", "COGNIZANT", "ACCENTURE", "CAPGEMINI", "HCL", "TECH MAHINDRA")
+        
+        if (json == null || json == "[]") {
+            // No user-configured names, return defaults
+            defaultNames
+        } else {
+            try {
+                val jsonArray = org.json.JSONArray(json)
+                val set = mutableSetOf<String>()
+                for (i in 0 until jsonArray.length()) {
+                    set.add(jsonArray.getString(i).uppercase())
+                }
+                // Merge user names with defaults
+                set + defaultNames
+            } catch (e: Exception) {
+                defaultNames
             }
-            set
-        } catch (e: Exception) {
-            emptySet()
         }
     }
 
@@ -78,6 +101,25 @@ class PreferencesManager(val context: Context) {
             emptyMap()
         }
     }
+
+    val smsFilterEnabled: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[SMS_FILTER_ENABLED] ?: false
+        }
+    
+    /**
+     * Whether user has seen the onboarding color legend.
+     */
+    val hasSeenOnboarding: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[HAS_SEEN_ONBOARDING] ?: false
+    }
+    
+    suspend fun setOnboardingComplete() {
+        context.dataStore.edit { preferences ->
+            preferences[HAS_SEEN_ONBOARDING] = true
+        }
+    }
+
 
     suspend fun setSalaryDay(day: Int) {
         context.dataStore.edit { preferences ->
@@ -130,6 +172,16 @@ class PreferencesManager(val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[COLOR_PALETTE] = palette
         }
+    }
+    
+    suspend fun setSmallP2pThresholdPaise(thresholdPaise: Long) {
+        context.dataStore.edit { preferences ->
+            preferences[SMALL_P2P_THRESHOLD_PAISE] = thresholdPaise
+        }
+    }
+    
+    suspend fun getSmallP2pThresholdSync(): Long {
+        return smallP2pThresholdPaise.first()
     }
     
     /**
@@ -196,5 +248,41 @@ class PreferencesManager(val context: Context) {
     suspend fun getSalaryCompanyNamesSync(): Set<String> {
         return salaryCompanyNames.first()
     }
+    
+    /**
+     * Selected accounts for filtering (synced across Dashboard and Overview).
+     * Stored as JSON array, returned as Set<String>.
+     */
+    val selectedAccounts: Flow<Set<String>> = context.dataStore.data.map { preferences ->
+        val json = preferences[SELECTED_ACCOUNTS] ?: "[]"
+        try {
+            val jsonArray = org.json.JSONArray(json)
+            val set = mutableSetOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                set.add(jsonArray.getString(i))
+            }
+            set
+        } catch (e: Exception) {
+            emptySet()
+        }
+    }
+    
+    suspend fun updateSelectedAccounts(accounts: Set<String>) {
+        context.dataStore.edit { preferences ->
+            val jsonArray = org.json.JSONArray()
+            accounts.forEach { jsonArray.put(it) }
+            preferences[SELECTED_ACCOUNTS] = jsonArray.toString()
+        }
+    }
+
+    // Alias for backward compatibility
+    suspend fun setSelectedAccounts(accounts: Set<String>) {
+        updateSelectedAccounts(accounts)
+    }
+    
+    suspend fun getSelectedAccountsSync(): Set<String> {
+        return selectedAccounts.first()
+    }
 }
+
 

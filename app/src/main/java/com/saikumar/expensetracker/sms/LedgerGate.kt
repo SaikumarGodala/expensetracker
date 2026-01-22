@@ -3,7 +3,7 @@ package com.saikumar.expensetracker.sms
 import com.saikumar.expensetracker.data.entity.AccountType
 import com.saikumar.expensetracker.data.entity.TransactionSource
 import com.saikumar.expensetracker.data.entity.Transaction
-import com.saikumar.expensetracker.sms.TransactionExtractor.TransactionType
+import com.saikumar.expensetracker.data.entity.TransactionType // AUDIT: Unified enum
 
 sealed class LedgerDecision {
     data class Insert(
@@ -19,12 +19,12 @@ sealed class LedgerDecision {
 object LedgerGate {
 
     // 1. NON-TRANSACTIONAL EXCLUSIONS (Drop immediately)
+    // NOTE: Credit card statements are NOT excluded - they are processed as STATEMENT type
     private val EXCLUDED_PHRASES = listOf(
         "otp is", "otp for", "mandate", "login", "requested block", 
-        "minimum limit", "min bal", "balance below", "statement",
+        "minimum limit", "min bal", "balance below",
         // Standing Instruction confirmations (not actual transactions)
-        "standing instruction", "successfully processed the payment", 
-        "recurring charges", "manage standing instructions"
+        "standing instruction", "recurring charges", "manage standing instructions"
     )
 
     // 2. FUTURE/REMINDER EXCLUSIONS (Drop immediately)
@@ -48,7 +48,9 @@ object LedgerGate {
         }
 
         // RULE 2: Future/Reminder Filters
-        if (FUTURE_PHRASES.any { lowerBody.contains(it) }) {
+        // EXCEPTION: Allow STATEMENT type (credit card statements) through
+        val isStatement = parsedType == TransactionType.STATEMENT
+        if (!isStatement && FUTURE_PHRASES.any { lowerBody.contains(it) }) {
             return LedgerDecision.Drop("Future/Reminder Event", "FILTER_FUTURE")
         }
 
@@ -60,8 +62,9 @@ object LedgerGate {
         }
 
         // RULE 4: Positive Confirmation Invariant
+        // EXCEPTION: Statements don't need confirmation verbs
         val hasConfirmation = CONFIRMATION_VERBS.any { lowerBody.contains(it) }
-        if (!hasConfirmation) {
+        if (!isStatement && !hasConfirmation) {
             return LedgerDecision.Drop("Missing Confirmation Verb", "FILTER_NO_CONFIRMATION")
         }
 
@@ -105,7 +108,7 @@ object LedgerGate {
             val isEligible = parsedType == TransactionType.EXPENSE
             
             // Map generic account type
-            val accountType = if (parsedType == TransactionType.LIABILITY) AccountType.CREDIT_CARD else AccountType.UNKNOWN
+            val accountType = if (parsedType == TransactionType.LIABILITY_PAYMENT) AccountType.CREDIT_CARD else AccountType.UNKNOWN
 
             return LedgerDecision.Insert(
                 transactionType = parsedType,

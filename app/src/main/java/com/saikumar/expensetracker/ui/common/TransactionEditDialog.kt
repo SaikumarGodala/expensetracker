@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
@@ -43,6 +44,8 @@ fun TransactionEditDialog(
     // Classification auto-derived from category when saving
     val accountType by remember { mutableStateOf(transaction.transaction.accountType) }
     var applyToSimilar by remember { mutableStateOf(false) }
+    // P2P override: allows user to mark P2P as income/expense instead of neutral transfer
+    var p2pOverride by remember { mutableStateOf<String?>(null) } // "INCOME", "EXPENSE", or null (neutral)
     var typeExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
@@ -73,7 +76,28 @@ fun TransactionEditDialog(
                 // Amount display - convert paisa to rupees
                 Text("Amount: ${formatAmount(transaction.transaction.amountPaisa)}", style = MaterialTheme.typography.titleMedium)
                 
-                Text("Transaction Type: ${transaction.transaction.transactionType.name}")
+                Text("Transaction Type: ${transaction.transaction.transactionType.name}", style = MaterialTheme.typography.bodySmall)
+                
+                // AUDIT FIX: Show warning if TransactionType and CategoryType are misaligned
+                val txnType = transaction.transaction.transactionType
+                val isIncomeButExpenseCategory = (txnType == TransactionType.INCOME || txnType == TransactionType.CASHBACK) &&
+                    (selectedType == CategoryType.FIXED_EXPENSE || selectedType == CategoryType.VARIABLE_EXPENSE || selectedType == CategoryType.VEHICLE)
+                val isExpenseButIncomeCategory = (txnType == TransactionType.EXPENSE) && selectedType == CategoryType.INCOME
+                
+                if (isIncomeButExpenseCategory || isExpenseButIncomeCategory) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚠️ Category type doesn't match transaction type. This may cause incorrect totals.",
+                            modifier = Modifier.padding(8.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
                 
                 // Show merchant if available
                 if (merchantKeyword != null) {
@@ -184,10 +208,13 @@ fun TransactionEditDialog(
                             CategoryType.VARIABLE_EXPENSE -> "🛒 Variable Expenses"
                             CategoryType.INVESTMENT -> "📊 Investments"
                             CategoryType.VEHICLE -> "🚗 Vehicle"
+                            CategoryType.IGNORE -> "🚫 Invalid/Ignore"
+                            CategoryType.STATEMENT -> "📄 Statement"
+                            CategoryType.LIABILITY -> "💳 CC Bill Payment"
                         },
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Type") },
+                        label = { Text("Category Type") }, // AUDIT FIX: Renamed from "Type" for clarity
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)
@@ -203,6 +230,9 @@ fun TransactionEditDialog(
                                 CategoryType.VARIABLE_EXPENSE -> "🛒 Variable Expenses"
                                 CategoryType.INVESTMENT -> "📊 Investments"
                                 CategoryType.VEHICLE -> "🚗 Vehicle"
+                                CategoryType.IGNORE -> "🚫 Invalid/Ignore"
+                                CategoryType.STATEMENT -> "📄 Statement"
+                                CategoryType.LIABILITY -> "💳 CC Bill Payment"
                             }
                             DropdownMenuItem(
                                 text = { Text(typeLabel) },
@@ -285,6 +315,69 @@ fun TransactionEditDialog(
                 }
                 
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())
+                
+                // P2P Transaction Type Override
+                // Show when category is P2P Transfers - allows user to mark as income/expense
+                val isP2PCategory = selectedCategory.name.contains("P2P", ignoreCase = true) || 
+                                     selectedCategory.name.contains("Transfer", ignoreCase = true)
+                if (isP2PCategory) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                "🔀 How should this P2P transfer be counted?",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Transfer (Neutral) option
+                                FilterChip(
+                                    selected = p2pOverride == null,
+                                    onClick = { p2pOverride = null },
+                                    label = { Text("Transfer") },
+                                    leadingIcon = if (p2pOverride == null) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp)) }
+                                    } else null
+                                )
+                                // Income option
+                                FilterChip(
+                                    selected = p2pOverride == "INCOME",
+                                    onClick = { p2pOverride = "INCOME" },
+                                    label = { Text("Income") },
+                                    leadingIcon = if (p2pOverride == "INCOME") {
+                                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp)) }
+                                    } else null
+                                )
+                                // Expense option
+                                FilterChip(
+                                    selected = p2pOverride == "EXPENSE",
+                                    onClick = { p2pOverride = "EXPENSE" },
+                                    label = { Text("Expense") },
+                                    leadingIcon = if (p2pOverride == "EXPENSE") {
+                                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp)) }
+                                    } else null
+                                )
+                            }
+                            Text(
+                                when (p2pOverride) {
+                                    "INCOME" -> "Will count towards income totals"
+                                    "EXPENSE" -> "Will count towards expense totals"
+                                    else -> "Won't affect income or expense totals"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
                 
                 // Classification is now auto-derived from category (no manual buttons needed)
                 // The derivedClassification is computed when saving based on selectedCategory
@@ -386,7 +479,8 @@ fun TransactionEditDialog(
         confirmButton = {
             TextButton(onClick = { 
                 // Derive classification from category type and name
-                val derivedClassification = deriveClassificationFromCategory(selectedCategory)
+                // P2P override takes precedence if user explicitly selected income/expense
+                val derivedClassification = p2pOverride ?: deriveClassificationFromCategory(selectedCategory)
                 onConfirm(selectedCategory.id, note, accountType, applyToSimilar, derivedClassification) 
             }) { Text("Save") }
         },
