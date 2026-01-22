@@ -47,6 +47,14 @@ class ExpenseTrackerApplication : Application() {
     
     val preferencesManager by lazy { PreferencesManager(this) }
 
+    val budgetManager by lazy { 
+        com.saikumar.expensetracker.util.BudgetManager(
+            database.transactionDao(),
+            database.budgetBreachDao(),
+            preferencesManager
+        )
+    }
+
     fun forceDatabaseReload() {
         synchronized(this) {
             _database = null

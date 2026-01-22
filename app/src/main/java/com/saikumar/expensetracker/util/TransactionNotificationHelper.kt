@@ -100,4 +100,46 @@ object TransactionNotificationHelper {
             // Permission denied - silently ignore
         }
     }
+    fun showBudgetBreachNotification(
+        context: Context,
+        budgetState: com.saikumar.expensetracker.util.BudgetState
+    ) {
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) 
+                != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+        
+        val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+        val limitStr = formatter.format(budgetState.limit / 100.0)
+        
+        // Intent to open app
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent, 
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("🚨 Budget Limit Breached!")
+            .setContentText("You've crossed your $limitStr limit. Tap to explain.")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("You've crossed your monthly budget of $limitStr. Please open the app to acknowledge."))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+            
+        try {
+            // ID 99999 for Budget Breach (Overwrite previous breach notif is fine?)
+            // Or distinct? Use unique if we want history. But typically just one active alert.
+             NotificationManagerCompat.from(context).notify(99999, notification)
+        } catch (e: SecurityException) {
+            // Ignore
+        }
+    }
 }

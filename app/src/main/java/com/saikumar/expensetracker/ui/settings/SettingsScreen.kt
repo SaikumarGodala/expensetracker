@@ -26,6 +26,9 @@ import kotlinx.coroutines.withContext
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 fun SettingsScreen(
@@ -144,6 +147,154 @@ fun SettingsScreen(
                 subtitle = "Retirement fund tracking",
                 onClick = onNavigateToRetirement
             )
+        }
+        
+        // Breach History Dialog
+        var showBreachHistory by remember { mutableStateOf(false) }
+        val breachHistory by viewModel.breachHistory.collectAsState()
+        
+        if (showBreachHistory) {
+            AlertDialog(
+                onDismissRequest = { showBreachHistory = false },
+                title = { Text("Breach History") },
+                text = {
+                    if (breachHistory.isEmpty()) {
+                        Text("No breaches recorded so far. Good job!")
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                        ) {
+                            items(breachHistory) { breach ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "${breach.month} (Stage ${breach.stage})",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = java.time.format.DateTimeFormatter.ofPattern("dd MMM").format(
+                                                    java.time.Instant.ofEpochMilli(breach.timestamp).atZone(java.time.ZoneId.systemDefault())
+                                                ),
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        val formatter = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("en", "IN"))
+                                        Text(
+                                            "Limit: ${formatter.format(breach.limitAmount/100)} | Spent: ${formatter.format(breach.breachedAmount/100)}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            "Reason: ${breach.reason}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showBreachHistory = false }) { Text("Close") }
+                }
+            )
+        }
+
+        // ============= BUDGET ACCOUNTABILITY =============
+        val budgetLimit by viewModel.budgetLimitPaise.collectAsState()
+        val isAutoBudget by viewModel.isAutoBudgetEnabled.collectAsState()
+        var showManualInput by remember { mutableStateOf(false) }
+        var tempLimit by remember { mutableStateOf("") }
+        
+        if (showManualInput) {
+             AlertDialog(
+                 onDismissRequest = { showManualInput = false },
+                 title = { Text("Set Manual Limit") },
+                 text = {
+                     OutlinedTextField(
+                         value = tempLimit,
+                         onValueChange = { 
+                             if (it.all { c -> c.isDigit() }) tempLimit = it 
+                         },
+                         label = { Text("Budget in ₹") },
+                         singleLine = true
+                     )
+                 },
+                 confirmButton = {
+                     TextButton(onClick = {
+                         tempLimit.toLongOrNull()?.let { 
+                             viewModel.setBudgetLimit(it)
+                             showManualInput = false
+                         }
+                     }) { Text("Save") }
+                 },
+                 dismissButton = {
+                     TextButton(onClick = { showManualInput = false }) { Text("Cancel") }
+                 }
+             )
+        }
+        
+        SettingsSection(title = "Budget Accountability") {
+             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Auto-Calculate Limit",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Set to 50% of last month's salary",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = isAutoBudget,
+                    onCheckedChange = { viewModel.setAutoBudget(it) }
+                )
+            }
+            
+            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+            
+            SettingsItem(
+                icon = Icons.Default.AttachMoney,
+                title = "Monthly Budget Limit",
+                subtitle = "Current: ₹${java.text.NumberFormat.getIntegerInstance().format(budgetLimit / 100)}",
+                onClick = {
+                    if (!isAutoBudget) {
+                        tempLimit = (budgetLimit / 100).toString()
+                        showManualInput = true
+                    } else {
+                         android.widget.Toast.makeText(context, "Disable Auto-Calculate to set manual limit", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+            
+            HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+            SettingsItem(
+                icon = Icons.Default.History,
+                title = "View Breach History",
+                subtitle = "See past acknowledgments",
+                onClick = { showBreachHistory = true }
+             )
         }
 
         // ============= PREFERENCES SECTION =============

@@ -780,6 +780,23 @@ object SmsProcessor {
                 isDebit = parsed.isDebit ?: true
             )
             
+            // Check Budget Breach
+            if (txnType == TransactionType.EXPENSE) {
+                try {
+                    val budgetManager = (context.applicationContext as ExpenseTrackerApplication).budgetManager
+                    val status = budgetManager.checkBudgetStatus()
+                    
+                    if (status.status != com.saikumar.expensetracker.util.BudgetStatus.SAFE) {
+                         com.saikumar.expensetracker.util.TransactionNotificationHelper.showBudgetBreachNotification(
+                             context,
+                             status
+                         )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Budget check failed", e)
+                }
+            }
+            
             ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
                 transactionType = txnType.name,
                 categoryId = categoryId,

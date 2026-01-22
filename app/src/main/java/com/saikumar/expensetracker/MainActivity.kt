@@ -35,6 +35,8 @@ import com.saikumar.expensetracker.ui.settings.SettingsScreen
 import com.saikumar.expensetracker.ui.settings.SettingsViewModel
 import com.saikumar.expensetracker.ui.retirement.RetirementScreen
 import com.saikumar.expensetracker.ui.theme.ExpenseTrackerTheme
+import com.saikumar.expensetracker.ui.components.BudgetBreachDialog
+import com.saikumar.expensetracker.util.BudgetStatus
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +86,44 @@ class MainActivity : ComponentActivity() {
                             Manifest.permission.READ_SMS
                         )
                     )
+                }
+                
+                // Budget Accountability Check
+                val budgetManager = app.budgetManager
+                var budgetState by remember { mutableStateOf<com.saikumar.expensetracker.util.BudgetState?>(null) }
+                var refreshBudgetCheck by remember { mutableIntStateOf(0) }
+                
+                LaunchedEffect(refreshBudgetCheck) {
+                    withContext(Dispatchers.IO) {
+                        budgetManager.recalculateAutoLimit()
+                        val status = budgetManager.checkBudgetStatus()
+                        withContext(Dispatchers.Main) {
+                            budgetState = status
+                        }
+                    }
+                }
+                
+                // Blocking Dialog
+                budgetState?.let { state ->
+                    if (state.status != BudgetStatus.SAFE) {
+                        BudgetBreachDialog(
+                            state = state,
+                            onSubmit = { reason ->
+                                scope.launch(Dispatchers.IO) {
+                                    budgetManager.recordBreach(
+                                        month = state.month,
+                                        stage = if (state.status == BudgetStatus.BREACHED_STAGE_1) 1 else 2,
+                                        limit = state.limit,
+                                        expenses = state.expenses,
+                                        reason = reason
+                                    )
+                                    withContext(Dispatchers.Main) {
+                                        refreshBudgetCheck++
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
 
                 Scaffold(
@@ -169,7 +209,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("settings") {
                             val viewModel: SettingsViewModel = viewModel(
-                                factory = SettingsViewModel.Factory(app.preferencesManager)
+                                factory = SettingsViewModel.Factory(app.preferencesManager, app.database.budgetBreachDao())
                             )
                             SettingsScreen(
                                 viewModel,
@@ -193,7 +233,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("advanced_settings") {
                             val viewModel: SettingsViewModel = viewModel(
-                                factory = SettingsViewModel.Factory(app.preferencesManager)
+                                factory = SettingsViewModel.Factory(app.preferencesManager, app.database.budgetBreachDao())
                             )
                             com.saikumar.expensetracker.ui.settings.AdvancedSettingsScreen(
                                 viewModel = viewModel,

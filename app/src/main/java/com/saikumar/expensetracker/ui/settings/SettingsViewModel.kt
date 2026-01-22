@@ -12,7 +12,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class SettingsViewModel(private val preferencesManager: PreferencesManager) : ViewModel() {
+import com.saikumar.expensetracker.data.dao.BudgetBreachDao
+import com.saikumar.expensetracker.data.entity.BudgetBreach
+
+class SettingsViewModel(
+    private val preferencesManager: PreferencesManager,
+    private val budgetBreachDao: BudgetBreachDao
+) : ViewModel() {
 
     val salaryDay: StateFlow<Int> = preferencesManager.salaryDay
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
@@ -92,6 +98,39 @@ class SettingsViewModel(private val preferencesManager: PreferencesManager) : Vi
             preferencesManager.setSmallP2pThresholdPaise(rupees.toLong() * 100)
         }
     }
+    
+    // Budget
+    val budgetLimitPaise: StateFlow<Long> = preferencesManager.budgetLimitPaise
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+    
+    val isAutoBudgetEnabled: StateFlow<Boolean> = preferencesManager.isAutoBudgetEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+        
+    val isManualBudgetOverride: StateFlow<Boolean> = preferencesManager.isManualBudgetOverride
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setBudgetLimit(limitRupees: Long) {
+        viewModelScope.launch {
+            preferencesManager.setBudgetLimit(limitRupees * 100L, isManual = true)
+        }
+    }
+    
+    fun setAutoBudget(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setIsAutoBudgetEnabled(enabled)
+            // If enabling auto, we might want to clear manual flag effectively on next recalc?
+            // For now, just toggling preference. Logic in Manager handles precedence (Manual > Auto).
+            // If user wants to revert to Auto, they toggle this ON. 
+            // But if ManualOverride is true, Manager uses Manual limit.
+            // So we strictly need to clear Manual flag if they toggle Auto ON.
+            if (enabled) {
+                // Reset manual override flag while keeping current limit temporarily until recalc
+                // We'll use the existing limit but mark it as NOT manual.
+                val current = budgetLimitPaise.value
+                preferencesManager.setBudgetLimit(current, isManual = false)
+            }
+        }
+    }
 
     // Total Interest Earned
     private val _totalInterest = kotlinx.coroutines.flow.MutableStateFlow(0.0)
@@ -114,9 +153,16 @@ class SettingsViewModel(private val preferencesManager: PreferencesManager) : Vi
         }
     }
 
-    class Factory(private val preferencesManager: PreferencesManager) : ViewModelProvider.Factory {
+    // Breach History
+    val breachHistory: StateFlow<List<BudgetBreach>> = budgetBreachDao.getAllBreaches()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    class Factory(
+        private val preferencesManager: PreferencesManager,
+        private val budgetBreachDao: BudgetBreachDao
+    ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SettingsViewModel(preferencesManager) as T
+            return SettingsViewModel(preferencesManager, budgetBreachDao) as T
         }
     }
 }

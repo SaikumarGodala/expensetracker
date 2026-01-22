@@ -9,6 +9,7 @@ import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.saikumar.expensetracker.data.entity.*
 import com.saikumar.expensetracker.data.dao.RetirementDao
+import com.saikumar.expensetracker.data.dao.BudgetBreachDao
 import kotlinx.coroutines.CoroutineScope
 
 @Database(
@@ -29,9 +30,10 @@ import kotlinx.coroutines.CoroutineScope
         MerchantAlias::class,
         NeftSource::class,
         TransferCircleMember::class,
-        TransferCircleAlias::class
+        TransferCircleAlias::class,
+        BudgetBreach::class
     ],
-    version = 39, // Added smsBody/sender to RetirementBalance
+    version = 40, // Added BudgetBreach
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -52,6 +54,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun merchantAliasDao(): com.saikumar.expensetracker.data.dao.MerchantAliasDao
     abstract fun neftSourceDao(): NeftSourceDao
     abstract fun transferCircleDao(): com.saikumar.expensetracker.data.dao.TransferCircleDao
+    abstract fun budgetBreachDao(): BudgetBreachDao
 
     companion object {
         @Volatile

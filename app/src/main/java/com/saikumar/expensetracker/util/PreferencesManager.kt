@@ -28,6 +28,12 @@ class PreferencesManager(val context: Context) {
         val SELECTED_ACCOUNTS = stringPreferencesKey("selected_accounts") // JSON array of account last4 digits
         val SMS_FILTER_ENABLED = booleanPreferencesKey("sms_filter_enabled")
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
+        
+        // Budget Settings
+        val BUDGET_LIMIT_PAISE = longPreferencesKey("budget_limit_paise")
+        val IS_AUTO_BUDGET_ENABLED = booleanPreferencesKey("is_auto_budget_enabled")
+        val MANUAL_BUDGET_OVERRIDE = booleanPreferencesKey("manual_budget_override")
+        val LAST_SALARY_MONTH = stringPreferencesKey("last_salary_month") // e.g. "2024-01" to track when we last updated limit
     }
 
     val themeMode: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -282,6 +288,24 @@ class PreferencesManager(val context: Context) {
     
     suspend fun getSelectedAccountsSync(): Set<String> {
         return selectedAccounts.first()
+    }
+
+    // Budget Accessors
+    val budgetLimitPaise: Flow<Long> = context.dataStore.data.map { it[BUDGET_LIMIT_PAISE] ?: 0L }
+    val isAutoBudgetEnabled: Flow<Boolean> = context.dataStore.data.map { it[IS_AUTO_BUDGET_ENABLED] ?: true }
+    val isManualBudgetOverride: Flow<Boolean> = context.dataStore.data.map { it[MANUAL_BUDGET_OVERRIDE] ?: false }
+
+    suspend fun setBudgetLimit(limit: Long, isManual: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[BUDGET_LIMIT_PAISE] = limit
+            prefs[MANUAL_BUDGET_OVERRIDE] = isManual
+        }
+    }
+
+    suspend fun setIsAutoBudgetEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[IS_AUTO_BUDGET_ENABLED] = enabled
+        }
     }
 }
 
