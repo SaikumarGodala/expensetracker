@@ -36,74 +36,48 @@ object RawSmsLogger {
     private val timestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
     
     /**
-     * Scan all existing SMS messages from phone inbox and log them to a SINGLE file.
+     * Scan valid transactions from the DB and log their raw bodies to a SINGLE file.
+     * This creates a clean "Golden Set" candidate file.
      * 
      * @param context Application context
      * @return Number of messages logged
      */
-    suspend fun scanAndLogAllSms(context: Context): Int = withContext(Dispatchers.IO) {
-        Log.i(TAG, "🔍 SCANNING SMS INBOX - Starting...")
+    suspend fun scanAndLogAllSms(context: Context): Int {
+        Log.i(TAG, "🔍 EXPORTING GOLDEN SET CANDIDATES - Starting...")
         var count = 0
         
         try {
-            // Collect ALL messages into a single list
-            val allMessages = mutableListOf<JSONObject>()
+            val app = context.applicationContext as ExpenseTrackerApplication
+            val db = app.database
             
-            val cursor = context.contentResolver.query(
-                android.provider.Telephony.Sms.CONTENT_URI,
-                arrayOf(
-                    android.provider.Telephony.Sms._ID,
-                    android.provider.Telephony.Sms.ADDRESS,
-                    android.provider.Telephony.Sms.BODY,
-                    android.provider.Telephony.Sms.DATE,
-                    android.provider.Telephony.Sms.TYPE
-                ),
-                null,
-                null,
-                "${android.provider.Telephony.Sms.DATE} DESC"  // Newest first
-            )
+            // Fetch ALL transactions from the DB (already filtered for validity during processing)
+            val transactions = db.transactionDao().getAllForMlExportWithSender()
             
-            cursor?.use {
-                val totalMessages = it.count
-                Log.i(TAG, "   Found $totalMessages total SMS messages")
-                Log.i(TAG, "   📦 Collecting all messages...")
-                
-                while (it.moveToNext()) {
-                    val sender = it.getString(it.getColumnIndexOrThrow(android.provider.Telephony.Sms.ADDRESS))
-                    val body = it.getString(it.getColumnIndexOrThrow(android.provider.Telephony.Sms.BODY))
-                    val timestamp = it.getLong(it.getColumnIndexOrThrow(android.provider.Telephony.Sms.DATE))
-                    
-                    val logEntry = JSONObject().apply {
-                        put("sender", sender ?: "UNKNOWN")
-                        put("body", body ?: "")
-                        // Optional: Add timestamp to JSON since we aren't using date in filename anymore
-                        put("timestamp", timestamp)
-                        put("date", timestampFormat.format(Date(timestamp)))
-                    }
-                    
-                    allMessages.add(logEntry)
-                    count++
-                    
-                    if (count % 500 == 0) {
-                        Log.i(TAG, "   Progress: $count/$totalMessages collected...")
-                    }
+            val validMessages = transactions.mapNotNull { it.fullSmsBody }
+                .filter { it.length > 10 } // Basic noise filter
+                .distinct() // Deduplicate exact matches
+            
+            count = validMessages.size
+            Log.i(TAG, "   ✅ Found $count valid transaction texts. Writing to file...")
+            
+            // Create a simple object with just the body for manual labeling
+            val exportObjects = validMessages.map { body ->
+                JSONObject().apply {
+                    put("sms_body", body)
+                    put("source", "GOLDEN_SET_CANDIDATE")
                 }
             }
             
-            Log.i(TAG, "   ✅ Collected $count messages. Writing to SINGLE file...")
-            
-            // Write ALL messages to one file
-            writeBatchToFile(context, SCAN_LOG_FILE, allMessages)
-            Log.i(TAG, "   ✅ Wrote to $SCAN_LOG_FILE")
-            
-            Log.i(TAG, "✅ INBOX SCAN COMPLETE: Logged $count messages to $SCAN_LOG_FILE")
+            // Write to file
+            writeBatchToFile(context, "golden_set_candidates.jsonl", exportObjects)
+            Log.i(TAG, "✅ EXPORT COMPLETE: Logged $count messages to golden_set_candidates.jsonl")
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to scan SMS inbox", e)
+            Log.e(TAG, "❌ Failed to export", e)
             e.printStackTrace()
         }
         
-        return@withContext count
+        return count
     }
     
     /**

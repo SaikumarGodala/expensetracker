@@ -36,7 +36,8 @@ fun TransactionEditDialog(
     onDismiss: () -> Unit, 
     onConfirm: (Long, String, AccountType, Boolean, String?) -> Unit,
     onDelete: (Transaction) -> Unit,
-    onAddCategory: ((String, CategoryType) -> Unit)? = null
+    onAddCategory: ((String, CategoryType) -> Unit)? = null,
+    onFindSimilar: (suspend () -> com.saikumar.expensetracker.sms.SimilarityResult)? = null
 ) {
     var selectedCategory by remember { mutableStateOf(transaction.category) }
     var selectedType by remember { mutableStateOf(transaction.category.type) }
@@ -44,6 +45,14 @@ fun TransactionEditDialog(
     // Classification auto-derived from category when saving
     val accountType by remember { mutableStateOf(transaction.transaction.accountType) }
     var applyToSimilar by remember { mutableStateOf(false) }
+    
+    // Explicit Transfer toggle (Checkbox)
+    // Initialize based on current transaction type or category type
+    var isTransferChecked by remember { mutableStateOf(
+        transaction.transaction.transactionType == TransactionType.TRANSFER || 
+        transaction.category.type == CategoryType.TRANSFER
+    ) }
+
     // P2P override: allows user to mark P2P as income/expense instead of neutral transfer
     var p2pOverride by remember { mutableStateOf<String?>(null) } // "INCOME", "EXPENSE", or null (neutral)
     var typeExpanded by remember { mutableStateOf(false) }
@@ -78,7 +87,7 @@ fun TransactionEditDialog(
                 
                 Text("Transaction Type: ${transaction.transaction.transactionType.name}", style = MaterialTheme.typography.bodySmall)
                 
-                // AUDIT FIX: Show warning if TransactionType and CategoryType are misaligned
+                // Warning if TransactionType and CategoryType are misaligned
                 val txnType = transaction.transaction.transactionType
                 val isIncomeButExpenseCategory = (txnType == TransactionType.INCOME || txnType == TransactionType.CASHBACK) &&
                     (selectedType == CategoryType.FIXED_EXPENSE || selectedType == CategoryType.VARIABLE_EXPENSE || selectedType == CategoryType.VEHICLE)
@@ -208,13 +217,14 @@ fun TransactionEditDialog(
                             CategoryType.VARIABLE_EXPENSE -> "🛒 Variable Expenses"
                             CategoryType.INVESTMENT -> "📊 Investments"
                             CategoryType.VEHICLE -> "🚗 Vehicle"
-                            CategoryType.IGNORE -> "🚫 Invalid/Ignore"
                             CategoryType.STATEMENT -> "📄 Statement"
                             CategoryType.LIABILITY -> "💳 CC Bill Payment"
+                            CategoryType.TRANSFER -> "↔️ Transfer"
+                            CategoryType.IGNORE -> "🚫 Invalid/Ignore"
                         },
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Category Type") }, // AUDIT FIX: Renamed from "Type" for clarity
+                        label = { Text("Category Type") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)
@@ -230,9 +240,10 @@ fun TransactionEditDialog(
                                 CategoryType.VARIABLE_EXPENSE -> "🛒 Variable Expenses"
                                 CategoryType.INVESTMENT -> "📊 Investments"
                                 CategoryType.VEHICLE -> "🚗 Vehicle"
-                                CategoryType.IGNORE -> "🚫 Invalid/Ignore"
                                 CategoryType.STATEMENT -> "📄 Statement"
                                 CategoryType.LIABILITY -> "💳 CC Bill Payment"
+                                CategoryType.TRANSFER -> "↔️ Transfer"
+                                CategoryType.IGNORE -> "🚫 Invalid/Ignore"
                             }
                             DropdownMenuItem(
                                 text = { Text(typeLabel) },
@@ -315,6 +326,37 @@ fun TransactionEditDialog(
                 }
                 
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())
+
+                // Mark as Transfer Checkbox
+                Surface(
+                    color = if (isTransferChecked) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f) else Color.Transparent,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().clickable { isTransferChecked = !isTransferChecked }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = isTransferChecked,
+                            onCheckedChange = { isTransferChecked = it }
+                        )
+                        Column {
+                            Text(
+                                "Mark as Transfer",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (isTransferChecked) {
+                                Text(
+                                    "Will be excluded from Income/Expense totals (Neutral)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
                 
                 // P2P Transaction Type Override
                 // Show when category is P2P Transfers - allows user to mark as income/expense
@@ -411,6 +453,27 @@ fun TransactionEditDialog(
                 if (selectedCategory.id != transaction.category.id) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
+                    var similarTransactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
+                    var isSearching by remember { mutableStateOf(false) }
+                    
+                    // Fetch similar transactions when checked
+                    LaunchedEffect(applyToSimilar) {
+                        if (applyToSimilar && onFindSimilar != null) {
+                            isSearching = true
+                            try {
+                                val result = onFindSimilar()
+                                // Filter out the current transaction
+                                similarTransactions = result.matchedTransactions.filter { it.id != transaction.transaction.id }
+                            } catch (e: Exception) {
+                                // Ignore error
+                            } finally {
+                                isSearching = false
+                            }
+                        } else {
+                            similarTransactions = emptyList()
+                        }
+                    }
+                    
                     Surface(
                         color = if (applyToSimilar) 
                             MaterialTheme.colorScheme.primaryContainer 
@@ -444,28 +507,85 @@ fun TransactionEditDialog(
                             
                             if (applyToSimilar) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shape = MaterialTheme.shapes.extraSmall,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Info,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
+                                
+                                if (isSearching) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "All matching transactions will be updated to \"${selectedCategory.name}\"",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Text("Searching...", style = MaterialTheme.typography.bodySmall)
                                     }
+                                } else if (similarTransactions.isNotEmpty()) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = MaterialTheme.shapes.extraSmall,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(8.dp)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(bottom = 4.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Info,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    "Found ${similarTransactions.size} other transactions:",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            
+                                            // Show up to 5 transactions
+                                            similarTransactions.take(5).forEach { similar ->
+                                                 Row(
+                                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = java.time.Instant.ofEpochMilli(similar.timestamp)
+                                                            .atZone(java.time.ZoneId.systemDefault())
+                                                            .format(java.time.format.DateTimeFormatter.ofPattern("dd MMM")),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    Text(
+                                                        text = formatAmount(similar.amountPaisa),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                            }
+                                            
+                                            if (similarTransactions.size > 5) {
+                                                Text(
+                                                    "...and ${similarTransactions.size - 5} more",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    modifier = Modifier.padding(top = 2.dp),
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                "All will be changed to \"${selectedCategory.name}\"",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                            )
+                                        }
+                                    }
+                                } else {
+                                     Text(
+                                        "No other similar transactions found.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
                                 }
                             }
                         }
@@ -480,7 +600,13 @@ fun TransactionEditDialog(
             TextButton(onClick = { 
                 // Derive classification from category type and name
                 // P2P override takes precedence if user explicitly selected income/expense
-                val derivedClassification = p2pOverride ?: deriveClassificationFromCategory(selectedCategory)
+                // Checkbox "Mark as Transfer" takes highest precedence
+                val derivedClassification = if (isTransferChecked) {
+                    "TRANSFER" // Force TRANSFER type
+                } else {
+                    p2pOverride ?: deriveClassificationFromCategory(selectedCategory)
+                }
+                
                 onConfirm(selectedCategory.id, note, accountType, applyToSimilar, derivedClassification) 
             }) { Text("Save") }
         },
@@ -497,10 +623,10 @@ fun TransactionEditDialog(
     )
 }
 
-// Local helper for formatting amount
+// Local helper for formatting amount - consistent format with decimals
 private fun formatAmount(paisa: Long): String {
     val rupees = paisa / 100.0
-    return "₹${String.format(Locale.getDefault(), "%,.0f", rupees)}"
+    return "₹${String.format(Locale.getDefault(), "%,.2f", rupees)}"
 }
 
 /**
@@ -512,8 +638,8 @@ private fun deriveClassificationFromCategory(category: Category): String {
     
     // Special category names override type
     return when {
-        // Transfer categories
-        categoryName.contains("TRANSFER") || categoryName.contains("P2P") -> "NEUTRAL"
+        // Transfer categories - use TRANSFER type which is recognized by RuleEngine
+        categoryName.contains("TRANSFER") || categoryName.contains("P2P") -> "TRANSFER"
         
         // Liability payment
         categoryName.contains("CREDIT") && categoryName.contains("BILL") -> "LIABILITY_PAYMENT"
@@ -528,8 +654,8 @@ private fun deriveClassificationFromCategory(category: Category): String {
         // Pending categories
         categoryName.contains("PENDING") || categoryName.contains("UPCOMING") || categoryName.contains("SCHEDULED") -> "PENDING"
         
-        // Investment based on type
-        category.type == CategoryType.INVESTMENT -> "INVESTMENT"
+        // Investment based on type - use actual enum value
+        category.type == CategoryType.INVESTMENT -> "INVESTMENT_OUTFLOW"
         
         // Income based on type
         category.type == CategoryType.INCOME -> "INCOME"
@@ -538,6 +664,9 @@ private fun deriveClassificationFromCategory(category: Category): String {
         category.type == CategoryType.FIXED_EXPENSE || 
         category.type == CategoryType.VARIABLE_EXPENSE || 
         category.type == CategoryType.VEHICLE -> "EXPENSE"
+        
+        // Transfer type - use TRANSFER which is recognized by RuleEngine
+        category.type == CategoryType.TRANSFER -> "TRANSFER"
         
         // Default
         else -> "EXPENSE"

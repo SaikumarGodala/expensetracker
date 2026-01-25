@@ -2,8 +2,9 @@ package com.saikumar.expensetracker.data.repository
 
 import com.saikumar.expensetracker.data.db.*
 import com.saikumar.expensetracker.data.entity.*
-import com.saikumar.expensetracker.data.domain.DuplicateDetector
-import com.saikumar.expensetracker.data.domain.MerchantManager
+import com.saikumar.expensetracker.domain.DuplicateDetector
+import com.saikumar.expensetracker.domain.MerchantManager
+import com.saikumar.expensetracker.data.db.TransactionSummary
 import kotlinx.coroutines.flow.Flow
 
 class ExpenseRepository(
@@ -30,6 +31,18 @@ class ExpenseRepository(
      */
     fun getTransactionsInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionWithCategory>> {
         return transactionDao.getTransactionsInPeriod(startTimestamp, endTimestamp)
+    }
+
+    fun getTransactionsPaged(startTimestamp: Long, endTimestamp: Long, limit: Int, offset: Int): Flow<List<TransactionWithCategory>> {
+        return transactionDao.getTransactionsPaged(startTimestamp, endTimestamp, limit, offset)
+    }
+
+    fun getTransactionSummary(startTimestamp: Long, endTimestamp: Long): Flow<TransactionSummary> {
+        return transactionDao.getTransactionSummary(startTimestamp, endTimestamp)
+    }
+
+    fun searchTransactions(query: String): Flow<List<TransactionWithCategory>> {
+        return transactionDao.searchTransactions(query)
     }
 
     /**
@@ -97,10 +110,10 @@ class ExpenseRepository(
         amountPaisa: Long,
         timestamp: Long,
         merchantName: String? = null,
-        accountId: Long? = null
+        accountNumberLast4: String? = null
     ): DuplicateCheckResult {
         val result = duplicateDetector.check(
-            smsHash, referenceNo, amountPaisa, timestamp, merchantName, accountId
+            smsHash, referenceNo, amountPaisa, timestamp, merchantName, accountNumberLast4
         )
         // Map domain result to repository result to preserve API compatibility
         return DuplicateCheckResult(
@@ -213,6 +226,26 @@ class ExpenseRepository(
         return transactionDao.getTransactionsBySnippetPattern(pattern)
     }
 
+    /**
+     * Find transactions similar to the given transaction for batch categorization.
+     * Centralized logic to avoid duplication in ViewModels.
+     */
+    suspend fun findSimilarTransactions(transaction: Transaction): com.saikumar.expensetracker.sms.SimilarityResult {
+        val merchantName = transaction.merchantName
+        val matches = if (!merchantName.isNullOrBlank()) {
+             transactionDao.getTransactionsByMerchant(merchantName)
+                 .filter { it.id != transaction.id }
+        } else {
+             emptyList()
+        }
+        
+        return com.saikumar.expensetracker.sms.SimilarityResult(
+            matchedTransactions = matches,
+            matchType = "MERCHANT_NAME",
+            confidence = 0.8f
+        )
+    }
+
     // ========== PENDING TRANSACTION OPERATIONS (CRITICAL FIX 3) ==========
     
     val allPendingTransactions: Flow<List<PendingTransaction>> = pendingTransactionDao.getAllPending()
@@ -249,5 +282,31 @@ class ExpenseRepository(
                 com.saikumar.expensetracker.data.entity.TransactionType.TRANSFER
             )
         }
+    }
+
+    // ========== ANALYTICS OPERATIONS ==========
+
+    suspend fun getCategorySpending(start: Long, end: Long): List<CategorySpending> {
+        return transactionDao.getCategorySpending(start, end)
+    }
+
+    suspend fun getMonthlySpending(start: Long, end: Long): List<MonthlySpending> {
+        return transactionDao.getMonthlySpending(start, end)
+    }
+
+    suspend fun getMonthlySpendingForCategory(categoryId: Long, start: Long, end: Long): List<MonthlySpending> {
+        return transactionDao.getMonthlySpendingForCategory(categoryId, start, end)
+    }
+
+    suspend fun getYearlySpending(): List<YearlySpending> {
+        return transactionDao.getYearlySpending()
+    }
+
+    suspend fun getYearlySpendingForCategory(categoryId: Long): List<YearlySpending> {
+        return transactionDao.getYearlySpendingForCategory(categoryId)
+    }
+
+    suspend fun seedCategories() {
+        CategorySeeder.seedDefaultsIfNeeded(categoryDao)
     }
 }

@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class ExpenseTrackerApplication : Application() {
+    companion object {
+        lateinit var instance: ExpenseTrackerApplication
+            private set
+    }
+
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var _database: AppDatabase? = null
@@ -64,12 +69,10 @@ class ExpenseTrackerApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         
         // Initialize notification channel
         com.saikumar.expensetracker.util.TransactionNotificationHelper.createNotificationChannel(this)
-        
-        // Initialize ML Classifier
-        com.saikumar.expensetracker.ml.NaiveBayesClassifier.load(this)
         
         // Pre-initialize database on a background thread
         applicationScope.launch(Dispatchers.IO) {

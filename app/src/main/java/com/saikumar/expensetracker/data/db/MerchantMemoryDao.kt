@@ -107,4 +107,9 @@ interface MerchantMemoryDao {
      */
     @Query("SELECT COUNT(*) FROM merchant_memory WHERE isLocked = 1")
     suspend fun getLockedCount(): Int
+    /**
+     * Get all confirmed/locked memories for batch processing
+     */
+    @Query("SELECT * FROM merchant_memory WHERE isLocked = 1 OR userConfirmed = 1")
+    suspend fun getAllConfirmedMemories(): List<MerchantMemory>
 }

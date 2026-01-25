@@ -54,4 +54,17 @@ interface TransferCircleDao {
     
     @Query("SELECT COUNT(*) FROM transfer_circle_members")
     suspend fun getCount(): Int
+    
+    /**
+     * Get all trusted names (primary + aliases) for bulk duplicate checking.
+     * Returns lowercase names for case-insensitive matching.
+     */
+    @Query("""
+        SELECT LOWER(recipientName) FROM transfer_circle_members WHERE isIgnored = 0
+        UNION
+        SELECT LOWER(aliasName) FROM transfer_circle_aliases 
+        INNER JOIN transfer_circle_members ON transfer_circle_aliases.memberId = transfer_circle_members.id
+        WHERE transfer_circle_members.isIgnored = 0
+    """)
+    suspend fun getAllTrustedNamesSync(): List<String>
 }

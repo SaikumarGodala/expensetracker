@@ -5,13 +5,12 @@ import java.util.regex.Pattern
 
 object TransactionExtractor {
 
-    // AUDIT: Removed duplicate enum - now using data.entity.TransactionType directly
     // Type aliases for mapping compatibility (old names → new names)
     // LIABILITY → LIABILITY_PAYMENT
     // INVESTMENT → INVESTMENT_CONTRIBUTION
 
     data class ExtractedTransaction(
-        val amount: Double?,
+        val amountPaisa: Long?,
         val type: TransactionType,
         val isDebit: Boolean?,
         val accountHint: String? = null
@@ -46,7 +45,8 @@ object TransactionExtractor {
 
     // Credit card payment indicators
     private val CC_PAYMENT_KEYWORDS = listOf(
-        "card ending", "credit card", "cardmember", "payment received towards"
+        "card ending", "credit card", "cardmember", "payment received towards", 
+        "cred club", "cred app"
     )
     
     // Statement indicators
@@ -74,7 +74,15 @@ object TransactionExtractor {
     )
 
     fun extract(body: String, senderType: SenderClassifier.SenderType): ExtractedTransaction {
-        val amount = extractAmount(body)
+        val amountPaisa = extractAmountPaisa(body)
+        
+        // OPTIMIZATION: If no amount, it's garbage. 
+        // User confirmed: Even "Statements" without amount are irrelevant.
+        if (amountPaisa == null || amountPaisa == 0L) {
+             return ExtractedTransaction(null, TransactionType.UNKNOWN, null)
+        }
+        
+        // Full extraction only if amount exists
         val isDebit = detectDebit(body)
         
         val type = when (senderType) {
@@ -86,18 +94,24 @@ object TransactionExtractor {
             else -> TransactionType.UNKNOWN
         }
 
-        return ExtractedTransaction(amount, type, isDebit)
+        return ExtractedTransaction(amountPaisa, type, isDebit)
     }
 
-    private fun extractAmount(body: String): Double? {
-        // if (body == null) return null // Removed redundant check
+    private fun extractAmountPaisa(body: String): Long? {
         for (pattern in AMOUNT_PATTERNS) {
             val matcher = pattern.matcher(body)
             if (matcher.find()) {
                 val matchedGroup = matcher.group(1)
                 if (matchedGroup != null) {
-                    val amountStr = matchedGroup.replace(",", "")
-                    return amountStr.toDoubleOrNull()
+                    try {
+                        val amountStr = matchedGroup.replace(",", "")
+                        // Use BigDecimal for safe currency math: String -> BigDecimal -> multiply 100 -> Long
+                        return java.math.BigDecimal(amountStr)
+                            .multiply(java.math.BigDecimal(100))
+                            .longValueExact()
+                    } catch (e: Exception) {
+                        continue
+                    }
                 }
             }
         }
@@ -105,9 +119,14 @@ object TransactionExtractor {
     }
 
     private fun detectDebit(body: String): Boolean? {
-        val lower = body.lowercase()
+        var lower = body.lowercase()
         
-        // FIX #3: Card spending is ALWAYS a debit, regardless of other keywords
+        // Fix for "Credited to CRED" or "Credited to Card" being misclassified as INCOME
+        if (lower.contains("credited to cred") || lower.contains("credited to card")) {
+            lower = lower.replace("credited", "paid")
+        }
+        
+        // Card spending is always a debit
         // Pattern: "On HDFC Bank Card XXX At <merchant>" or "Spent Rs.XXX On Card"
         if ((lower.contains("on") && lower.contains("bank card") && lower.contains("at")) ||
             (lower.contains("spent") && lower.contains("card"))) {
@@ -121,7 +140,7 @@ object TransactionExtractor {
             hasDebit && !hasCredit -> true
             hasCredit && !hasDebit -> false
             hasDebit && hasCredit -> {
-                // FIX #4: First-keyword-wins rule
+                // First-keyword-wins rule
                 // Find position of first debit and first credit keyword
                 val firstDebitPos = DEBIT_KEYWORDS.mapNotNull { 
                     val idx = lower.indexOf(it)

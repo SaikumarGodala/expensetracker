@@ -142,4 +142,46 @@ object TransactionNotificationHelper {
             // Ignore
         }
     }
+    
+    /**
+     * Show error notification for processing failures.
+     * Used when SMS scanning or processing fails.
+     */
+    fun showErrorNotification(
+        context: Context,
+        title: String,
+        message: String,
+        retryAction: PendingIntent? = null
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) 
+                != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+        
+        val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+        
+        // Add retry action if provided
+        if (retryAction != null) {
+            notificationBuilder.addAction(
+                R.drawable.ic_launcher_foreground,
+                "Retry",
+                retryAction
+            )
+        }
+        
+        try {
+            // ID 99998 for error notifications
+            NotificationManagerCompat.from(context).notify(99998, notificationBuilder.build())
+        } catch (e: SecurityException) {
+            // Ignore
+        }
+    }
 }

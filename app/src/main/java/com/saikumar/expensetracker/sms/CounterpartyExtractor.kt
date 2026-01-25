@@ -1,6 +1,6 @@
 package com.saikumar.expensetracker.sms
 
-import com.saikumar.expensetracker.data.entity.TransactionType // AUDIT: Unified enum
+import com.saikumar.expensetracker.data.entity.TransactionType
 import java.util.regex.Pattern
 
 /**
@@ -16,14 +16,15 @@ object CounterpartyExtractor {
         val name: String?,
         val upiId: String?,
         val type: CounterpartyType,
-        val trace: List<String> = emptyList()
+        val trace: List<String> = emptyList(),
+        val confidence: Float = 1.0f
     )
 
     enum class CounterpartyType {
         MERCHANT, PERSON, BANK_ACCOUNT, UNKNOWN
     }
     
-    // FIX #2: Cashback/Reward VPA patterns - these are MERCHANT/SYSTEM, not PERSON
+    // Cashback/Reward VPA patterns - these are MERCHANT/SYSTEM, not PERSON
     private val CASHBACK_VPA_PATTERNS = listOf(
         "cashback", "reward", "promo", "refund", "bhimcashback",
         "googlepay", "gpay", "phoneperefund", 
@@ -31,6 +32,19 @@ object CounterpartyExtractor {
         "razorpay", "payu", "cashfree", "billdesk", "ccavenue", "paytmqr",
         "swiggy", "zomato", "uber", "ola", "licious", "instamart", "blinkit", "zepto"
     )
+
+    // --- OPTIMIZED COMPILED REGEXES ---
+    private val REGEX_VPA_TRAILING_DIGITS = Regex("\\d+$")
+    private val REGEX_VPA_SEPARATORS = Regex("[._-]")
+    private val REGEX_SPACES = Regex("\\s{2,}")
+    private val REGEX_EMPLOYER_NOISE = Regex("(?i)(PRIVATE\\s+LIMITED|PVT\\s+LTD|LIMITED|CORPORATION|CLEARING|INDIA)")
+    private val REGEX_PREPOSITION_PREFIX = Regex("(?i)^(At|To|From)\\s+")
+    private val REGEX_TRAILING_DOTS_DIGITS_CHECK = Regex(".*[.\\d]+$")
+    private val REGEX_TRAILING_DOTS_DIGITS = Regex("[.\\d]+$")
+    private val REGEX_ALPHA_NUM_DIGITS_CHECK = Regex("^[a-zA-Z]+\\d+$")
+    private val REGEX_NEWLINE_REST = Regex("[\\r\\n]+.*")
+    private val REGEX_TRAILING_LOCATION_NOISE = Regex("(?i)^(Gur|new|On)\\s.*")
+    private val REGEX_DIGITS_ONLY_SHORT = Regex("^\\d{2,4}$")
 
     // --- TEMPLATE PATTERNS ---
     
@@ -99,6 +113,12 @@ object CounterpartyExtractor {
     // FT/Clearing deposit: "FT- XXXX - <ENTITY> -"
     private val FT_DEPOSIT_PATTERN = Pattern.compile(
         "for\\s+FT-\\s*[\\dX-]+\\s*-\\s*([A-Z][A-Za-z\\s]+(?:CORPORATION|LIMITED|CLEARING)?[^-]*?)\\s*-",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // ATM Withdrawal: "Rs.XXXX withdrawn at <ATM_ID/LOCATION> from A/c"
+    private val WITHDRAWN_AT_PATTERN = Pattern.compile(
+        "withdrawn\\s+at\\s+([A-Z0-9\\s]+?)\\s+(?:from|on)",
         Pattern.CASE_INSENSITIVE
     )
     
@@ -193,7 +213,7 @@ object CounterpartyExtractor {
                 trace.add("Matched Template: ICICI_DEBITED_CREDITED")
                 val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
-                    // FIX: Force PERSON type - this pattern is always P2P, not merchant
+                    // This pattern is always P2P transfer between people
                     return Counterparty(name, extractUpiId(body), CounterpartyType.PERSON, trace)
                 } else trace.add("Invalid name rejected: $name")
             }
@@ -232,6 +252,19 @@ object CounterpartyExtractor {
                 val name = cleanEmployerName(rawName)
                 if (name.isNotBlank() && name.length >= 3) {
                     trace.add("Cleaned Entity Name")
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                }
+            }
+        }
+
+        // 8.5 ATM "withdrawn at" pattern
+        WITHDRAWN_AT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: WITHDRAWN_AT")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    // ATM withdrawals are effectively Merchant transactions (Cash)
                     return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
                 }
             }
@@ -301,7 +334,7 @@ object CounterpartyExtractor {
             .replace("-", " ")
             .trim()
         
-        return if (cleaned.length >= 3 && (cleaned.any { it.isLetter() } || cleaned == "paytmqr")) {
+        return if (cleaned.length >= 3 && (cleaned.any { it.isLetter() || it.isDigit() } || cleaned == "paytmqr")) {
             cleaned
         } else null
     }
@@ -353,8 +386,8 @@ object CounterpartyExtractor {
         
         // Clean up generic VPA prefixes
         val cleaned = vpaPrefix
-            .replace(Regex("\\d+$"), "")  // Remove trailing numbers (SWIGGY8 -> SWIGGY)
-            .replace(Regex("[._-]"), " ")  // Replace separators
+            .replace(REGEX_VPA_TRAILING_DIGITS, "")  // Remove trailing numbers (SWIGGY8 -> SWIGGY)
+            .replace(REGEX_VPA_SEPARATORS, " ")  // Replace separators
             .trim()
         
         return if (cleaned.length >= 3 && cleaned.any { it.isLetter() }) {
@@ -370,13 +403,8 @@ object CounterpartyExtractor {
      */
     private fun cleanEmployerName(rawName: String): String {
         return rawName
-            .replace(Regex("\\s{2,}"), " ")
-            .replace(Regex("PRIVATE\\s+LIMITED", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("PVT\\s+LTD", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("LIMITED", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("CORPORATION", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("CLEARING", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("INDIA", RegexOption.IGNORE_CASE), "")
+            .replace(REGEX_SPACES, " ")
+            .replace(REGEX_EMPLOYER_NOISE, "")
             .trim()
             .split(" ")
             .filter { it.isNotBlank() }
@@ -390,7 +418,7 @@ object CounterpartyExtractor {
         
         // Remove common patterns
         val preReplace = cleaned
-        cleaned = cleaned.replace(Regex("(?i)^(At|To|From)\\s+"), "")
+        cleaned = cleaned.replace(REGEX_PREPOSITION_PREFIX, "")
         if (preReplace != cleaned) trace?.add("Removed Preposition prefix")
         
         // Fix Axis/Payment Gateway prefixes
@@ -420,24 +448,24 @@ object CounterpartyExtractor {
         }
         
         // Clean trailing dots and digits (e.g. "MANDIKING.6603" -> "MANDIKING")
-        if (cleaned.matches(Regex(".*[.\\d]+$"))) {
+        if (cleaned.matches(REGEX_TRAILING_DOTS_DIGITS_CHECK)) {
              val pre = cleaned
-             cleaned = cleaned.replace(Regex("[.\\d]+$"), "")
+             cleaned = cleaned.replace(REGEX_TRAILING_DOTS_DIGITS, "")
              if (pre != cleaned) trace?.add("Stripped trailing dots/digits")
         }
         
         // Clean UP digits in the middle (SWIGGY8@ybl -> SWIGGY)
         // If it's a VPA-like string or just has digits at end purely
-        if (cleaned.matches(Regex("^[a-zA-Z]+\\d+$"))) {
+        if (cleaned.matches(REGEX_ALPHA_NUM_DIGITS_CHECK)) {
              val pre = cleaned
-             cleaned = cleaned.replace(Regex("\\d+$"), "")
+             cleaned = cleaned.replace(REGEX_VPA_TRAILING_DIGITS, "")
              if (pre != cleaned) trace?.add("Stripped end-digits from alpha-numeric name")
         }
 
         cleaned = cleaned
-            .replace(Regex("\\s{2,}"), " ")  // Collapse multiple spaces
-            .replace(Regex("[\\r\\n]+.*"), "")  // Remove everything after newline
-            .replace(Regex("^(Gur|new|On)\\s.*", RegexOption.IGNORE_CASE), "")  // Remove trailing noise
+            .replace(REGEX_SPACES, " ")  // Collapse multiple spaces
+            .replace(REGEX_NEWLINE_REST, "")  // Remove everything after newline
+            .replace(REGEX_TRAILING_LOCATION_NOISE, "")  // Remove trailing noise
             .trim()
             
         if (cleaned != original && trace?.isEmpty() == true) {
@@ -461,7 +489,7 @@ object CounterpartyExtractor {
         if (blocked.any { lower.startsWith(it) || lower == it }) return false
         if (name.length < 3) return false
         if (name.all { it.isDigit() || it.isWhitespace() }) return false
-        if (lower.matches(Regex("^\\d{2,4}$"))) return false  // Just numbers like "100"
+        if (lower.matches(REGEX_DIGITS_ONLY_SHORT)) return false  // Just numbers like "100"
         
         return true
     }
@@ -484,7 +512,12 @@ object CounterpartyExtractor {
         upper.contains("TECHNOLOGIES") || 
         upper.contains("PRIVATE") || 
         upper.contains("LIMITED") ||
-        upper.contains("BROKING")) {
+        upper.contains("BROKING") ||
+        upper.contains("CRED CLUB") ||
+        upper.contains("CRED APP") ||
+        upper.contains("AMEX") ||
+        upper.contains("ONE CARD") ||
+        upper.contains("SBI CARD")) {
         return CounterpartyType.MERCHANT
     }
     

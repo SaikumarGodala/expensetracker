@@ -43,12 +43,41 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    
+    // Observe snackbar messages
+    val snackbarMessages by viewModel.snackbarController.messages.collectAsState()
+    
+    LaunchedEffect(snackbarMessages) {
+        snackbarMessages.firstOrNull()?.let { message ->
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = message.message,
+                    actionLabel = message.actionLabel,
+                    duration = when (message.duration) {
+                        com.saikumar.expensetracker.util.SnackbarDuration.Short -> SnackbarDuration.Short
+                        com.saikumar.expensetracker.util.SnackbarDuration.Long -> SnackbarDuration.Long
+                        com.saikumar.expensetracker.util.SnackbarDuration.Indefinite -> SnackbarDuration.Indefinite
+                    }
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    message.onAction?.invoke()
+                }
+                viewModel.snackbarController.dismiss(message.id)
+            }
+        }
+    }
 
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(scrollState)
+            .padding(paddingValues)
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -302,7 +331,7 @@ fun SettingsScreen(
             SettingsItem(
                 icon = Icons.Default.Tune,
                 title = "Advanced Settings",
-                subtitle = "Themes, debug mode, thresholds",
+                subtitle = "Themes, Debug, ML Data",
                 onClick = onNavigateToAdvanced
             )
         }
@@ -333,66 +362,8 @@ fun SettingsScreen(
                             Log.d("SettingsScreen", "Database files deleted")
                             
                             val newDb = app.database
-                            val categoriesToSeed = listOf(
-                                // Income
-                                Category(name = "Salary", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Freelance / Other", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Refund", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Cashback", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Interest", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Dividend", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Rental Income", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Bonus", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Other Income", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Investment Redemption", type = CategoryType.INCOME, isDefault = true),
-                                Category(name = "Unverified Income", type = CategoryType.INCOME, isDefault = true),
-                                // Fixed Expenses
-                                Category(name = "Rent", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Housing", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Utilities", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Insurance", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Subscriptions", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Mobile + WiFi", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Loan EMI", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                Category(name = "Education / Fees", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                                // Liability
-                                Category(name = "Credit Bill Payments", type = CategoryType.LIABILITY, isDefault = true),
-                                // Variable Expenses
-                                Category(name = "Groceries", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Dining Out", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Food Delivery", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Entertainment", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Transportation", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Medical", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Shopping", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Clothing", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Furniture", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Electronics", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Personal Care", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Gym & Fitness", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Gifts & Donations", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Books & Learning", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Pet Care", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "ATM Withdrawal", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Offline Merchant", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Miscellaneous", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Unknown Expense", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Uncategorized", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "P2P Transfers", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                Category(name = "Self Transfer", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                                // Investment
-                                Category(name = "Mutual Funds", type = CategoryType.INVESTMENT, isDefault = true),
-                                Category(name = "Stocks", type = CategoryType.INVESTMENT, isDefault = true),
-                                Category(name = "Fixed Deposits", type = CategoryType.INVESTMENT, isDefault = true),
-                                Category(name = "Recurring Deposits", type = CategoryType.INVESTMENT, isDefault = true),
-                                Category(name = "PPF / EPF", type = CategoryType.INVESTMENT, isDefault = true),
-                                Category(name = "Gold", type = CategoryType.INVESTMENT, isDefault = true),
-                                Category(name = "Chits", type = CategoryType.INVESTMENT, isDefault = true),
-                                // Vehicle
-                                Category(name = "Fuel", type = CategoryType.VEHICLE, isDefault = true),
-                                Category(name = "Service", type = CategoryType.VEHICLE, isDefault = true),
-                                Category(name = "Parking & Tolls", type = CategoryType.VEHICLE, isDefault = true)
-                            )
+                            // Seeding happens automatically in AppDatabase.onCreate via DefaultCategories
+                            // We don't need to manually insert here.
                             
                             // DON'T manually insert - onCreate callback already seeds categories!
                             // newDb.categoryDao().insertCategories(categoriesToSeed)
@@ -415,6 +386,7 @@ fun SettingsScreen(
         }
         
         Spacer(modifier = Modifier.height(24.dp))
+    }
     }
 }
 

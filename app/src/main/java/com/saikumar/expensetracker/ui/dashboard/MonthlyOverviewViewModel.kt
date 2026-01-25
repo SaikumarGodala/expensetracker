@@ -10,18 +10,21 @@ import com.saikumar.expensetracker.data.entity.TransactionType
 import com.saikumar.expensetracker.data.entity.TransactionStatus
 import com.saikumar.expensetracker.data.entity.AccountType
 import com.saikumar.expensetracker.data.entity.Transaction
-import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import com.saikumar.expensetracker.data.entity.UserAccount
+import com.saikumar.expensetracker.data.repository.ExpenseRepository
+
 import com.saikumar.expensetracker.util.CycleRange
 import com.saikumar.expensetracker.util.CycleUtils
+import com.saikumar.expensetracker.domain.TransactionRuleEngine
+import com.saikumar.expensetracker.sms.SmsConstants
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import java.time.LocalDate
 import java.time.ZoneId
 import com.saikumar.expensetracker.sms.SmsProcessor
-import com.saikumar.expensetracker.util.TransactionTypeResolver
+
 import com.saikumar.expensetracker.util.PreferencesManager
-import com.saikumar.expensetracker.domain.TransactionValidator
+
 import kotlinx.coroutines.launch
 
 data class CategorySummary(
@@ -82,6 +85,13 @@ class MonthlyOverviewViewModel(
         }
     }
 
+    /**
+     * Find transactions similar to the given transaction for batch categorization
+     */
+    suspend fun findSimilarTransactions(transaction: Transaction): com.saikumar.expensetracker.sms.SimilarityResult {
+        return repository.findSimilarTransactions(transaction)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<MonthlyOverviewUiState> = combine(
         _referenceDate, 
@@ -118,7 +128,7 @@ class MonthlyOverviewViewModel(
             // Calculate totals using TransactionType
             val income = activeTransactions
                 .filter { it.transaction.transactionType == TransactionType.INCOME }
-                .sumOf { it.transaction.amountPaisa / 100.0 }
+                .sumOf { it.transaction.amountPaisa } / 100.0
             
             // Expenses = EXPENSE type + P2P transfers to other people
             val expenseTransactions = activeTransactions.filter { 
@@ -133,11 +143,11 @@ class MonthlyOverviewViewModel(
                     it.category.type == CategoryType.VARIABLE_EXPENSE ||
                     it.category.type == CategoryType.VEHICLE
                 }
-                .sumOf { it.transaction.amountPaisa / 100.0 }
+                .sumOf { it.transaction.amountPaisa } / 100.0
             
             val investments = expenseTransactions
                 .filter { it.category.type == CategoryType.INVESTMENT }
-                .sumOf { it.transaction.amountPaisa / 100.0 }
+                .sumOf { it.transaction.amountPaisa } / 100.0
             
             // Group by category and calculate per-category totals
             val breakdown = activeTransactions
@@ -145,7 +155,7 @@ class MonthlyOverviewViewModel(
                 .map { (category, txns) ->
                     CategorySummary(
                         category = category,
-                        total = txns.sumOf { it.transaction.amountPaisa / 100.0 },
+                        total = txns.sumOf { it.transaction.amountPaisa } / 100.0,
                         transactions = txns.sortedByDescending { it.transaction.timestamp }
                     )
                 }
@@ -204,19 +214,22 @@ class MonthlyOverviewViewModel(
         val categories = repository.allEnabledCategories.first()
         val newCategory = categories.find { it.id == newCategoryId }
         
-        // Resolve type using standard resolver
-        val resolvedType = TransactionTypeResolver.determineTransactionType(
+        // Resolve type using centralized Rule Engine
+        val resolvedType = TransactionRuleEngine.resolveTransactionType(
             transaction = transaction,
             manualClassification = manualClassification,
-            isSelfTransfer = false, // Not available in this context
-            newCategory = newCategory
-        )    
-            
+            isSelfTransfer = false,
+            category = newCategory
+        )
+
         // P3 QUALITY FIX: Validate against allowed types for this category
-        // This prevents "Salary" category being saved as "EXPENSE" type
         val finalTransactionType = if (newCategory != null) {
-             val allowedTypes = TransactionValidator.getAllowedTypes(newCategory)
-             if (resolvedType in allowedTypes) resolvedType else allowedTypes.first()
+             val validation = TransactionRuleEngine.validateCategoryType(resolvedType, newCategory)
+             if (validation is TransactionRuleEngine.ValidationResult.Valid) {
+                 resolvedType
+             } else {
+                 TransactionRuleEngine.getAllowedTypes(newCategory).first()
+             }
         } else {
              resolvedType
         }
@@ -231,15 +244,23 @@ class MonthlyOverviewViewModel(
             
             // ===== MERCHANT MEMORY: User Confirmation =====
             // When user manually categorizes a transaction, learn this mapping permanently
-            if (transaction.merchantName != null && newCategory != null) {
+            val trainingKey = if (!transaction.merchantName.isNullOrBlank()) {
+                transaction.merchantName
+            } else if (!transaction.fullSmsBody.isNullOrBlank()) {
+                SmsConstants.cleanMessageBody(transaction.fullSmsBody)
+            } else {
+                null
+            }
+
+            if (trainingKey != null && newCategory != null) {
                 try {
                     repository.userConfirmMerchantMapping(
-                        merchantName = transaction.merchantName,
+                        merchantName = trainingKey,
                         categoryId = newCategoryId,
                         transactionType = finalTransactionType.name,
                         timestamp = System.currentTimeMillis()
                     )
-                    android.util.Log.d("MonthlyOverviewViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")
+                    android.util.Log.d("MonthlyOverviewViewModel", "MERCHANT_MEMORY: User confirmed mapping '$trainingKey' → '${newCategory.name}'")
                 } catch (e: Exception) {
                     android.util.Log.w("MonthlyOverviewViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")
                 }

@@ -5,11 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.saikumar.expensetracker.data.entity.*
 import com.saikumar.expensetracker.data.repository.ExpenseRepository
+
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import com.saikumar.expensetracker.domain.TransactionValidator
 import kotlinx.coroutines.launch
+import com.saikumar.expensetracker.domain.TransactionRuleEngine
 
 class AddTransactionViewModel(private val repository: ExpenseRepository) : ViewModel() {
 
@@ -33,28 +34,18 @@ class AddTransactionViewModel(private val repository: ExpenseRepository) : ViewM
             
             if (category == null) return@launch // Safety check
 
-            // Use TransactionTypeResolver for consistent type determination
-            val transactionType = TransactionValidator.getAllowedTypes(category).let { allowedTypes ->
-                val resolvedType = when (manualClassification) {
-                    "INCOME" -> TransactionType.INCOME
-                    "EXPENSE" -> TransactionType.EXPENSE
-                    "NEUTRAL" -> TransactionType.TRANSFER
-                    "LIABILITY_PAYMENT" -> TransactionType.LIABILITY_PAYMENT
-                    "REFUND" -> TransactionType.REFUND
-                    "INVESTMENT" -> TransactionType.INVESTMENT_OUTFLOW
-                    "CASHBACK" -> TransactionType.CASHBACK
-                    "IGNORE" -> TransactionType.IGNORE
-                    else -> {
-                        // Heuristic based on category
-                        when {
-                            category.name.contains("Credit Bill", ignoreCase = true) -> TransactionType.LIABILITY_PAYMENT
-                            category.type == CategoryType.INCOME -> TransactionType.INCOME
-                            else -> allowedTypes.first()
-                        }
-                    }
-                }
-                // Validation: Ensure the resolved type is allowed. If not, fallback to first allowed.
-                if (resolvedType in allowedTypes) resolvedType else allowedTypes.first()
+            // Use centralized TransactionRuleEngine
+            val resolvedType = TransactionRuleEngine.resolveTransactionType(
+                manualClassification = manualClassification,
+                isSelfTransfer = false,
+                category = category
+            )
+            
+            // Validate: Ensure type is compatible with category
+            val finalType = if (TransactionRuleEngine.validateCategoryType(resolvedType, category) is TransactionRuleEngine.ValidationResult.Valid) {
+                resolvedType
+            } else {
+                TransactionRuleEngine.getAllowedTypes(category).first()
             }
             
             val transaction = Transaction(
@@ -63,8 +54,12 @@ class AddTransactionViewModel(private val repository: ExpenseRepository) : ViewM
                 timestamp = timestamp,
                 note = note.ifBlank { null },
                 source = TransactionSource.MANUAL,
-                transactionType = transactionType,
-                manualClassification = manualClassification
+                transactionType = finalType,
+                manualClassification = manualClassification,
+                // Manual transactions have 100% confidence (user explicitly chose)
+                confidenceScore = 100,
+                // Only EXPENSE type is expense eligible
+                isExpenseEligible = (finalType == TransactionType.EXPENSE)
             )
             repository.insertTransaction(transaction)
         }

@@ -16,9 +16,11 @@ import com.saikumar.expensetracker.util.PreferencesManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.time.*
 import java.time.format.DateTimeFormatter
-import com.saikumar.expensetracker.util.TransactionTypeResolver
+
+import com.saikumar.expensetracker.util.SnackbarController
 
 // Helper to store link details
 data class LinkDetail(
@@ -41,7 +43,8 @@ data class DashboardUiState(
     val transactionLinks: Map<Long, LinkDetail> = emptyMap(),
     // Account filter
     val detectedAccounts: List<UserAccount> = emptyList(),
-    val selectedAccounts: Set<String> = emptySet()
+    val selectedAccounts: Set<String> = emptySet(),
+
 )
 
 data class Quadruple<A, B, C, D>(
@@ -57,6 +60,14 @@ class DashboardViewModel(
     private val cycleOverrideDao: CycleOverrideDao,
     private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            repository.seedCategories()
+        }
+    }
+
+    val snackbarController = SnackbarController()
 
     private data class FilterParams(
         val range: CycleRange,
@@ -111,7 +122,7 @@ class DashboardViewModel(
             Quadruple(refDate, categories, query, salaryDay)
         },
         selectedAccounts,
-        detectedAccounts
+        detectedAccounts,
     ) { quad, selectedAccts, accounts ->
         FilterParams(
             CycleUtils.getCurrentCycleRange(quad.first),
@@ -138,8 +149,15 @@ class DashboardViewModel(
         val startTimestamp = params.range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endTimestamp = params.range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         
+        // Conditional Source: Search vs Period
+        val transactionsFlow = if (params.query.isNotBlank()) {
+            repository.searchTransactions(params.query)
+        } else {
+            repository.getTransactionsInPeriod(startTimestamp, endTimestamp)
+        }
+        
         combine(
-            repository.getTransactionsInPeriod(startTimestamp, endTimestamp),
+            transactionsFlow,
             repository.allTransactionLinks
         ) { transactions, links ->
                 val sortedTransactions = transactions.sortedByDescending { it.transaction.timestamp }
@@ -157,7 +175,7 @@ class DashboardViewModel(
                     it.transaction.transactionType == TransactionType.STATEMENT 
                 }
                 
-                // ACCOUNT FILTER: Filter by selected accounts
+                // Filter by selected accounts
                 val accountFilteredTransactions = if (params.selectedAccounts.isEmpty()) {
                     otherTransactions
                 } else {
@@ -167,74 +185,60 @@ class DashboardViewModel(
                     }
                 }
 
-                // ACCOUNTING RULE: Use TransactionType for filtering
-                // P0 FIX: Only count COMPLETED transactions to prevent pending/future transactions from inflating totals
+                // Filter for active/completed transactions only
                 val activeTransactions = accountFilteredTransactions.filter { 
-                    it.transaction.status == TransactionStatus.COMPLETED &&  // CRITICAL: Only completed transactions
+                    it.transaction.status == TransactionStatus.COMPLETED &&
                     it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT &&
-                    it.transaction.transactionType != TransactionType.TRANSFER &&  // Self-transfers excluded
-                    it.transaction.transactionType != TransactionType.PENDING &&   // Future debits
-                    it.transaction.transactionType != TransactionType.IGNORE &&      // Excluded transactions
-                    it.transaction.transactionType != TransactionType.STATEMENT      // Statements are excluded
+                    it.transaction.transactionType != TransactionType.TRANSFER &&
+                    it.transaction.transactionType != TransactionType.PENDING &&
+                    it.transaction.transactionType != TransactionType.IGNORE &&
+                    it.transaction.transactionType != TransactionType.STATEMENT
                 }
                 
-                // ACCOUNTING RULE: Income = TransactionType.INCOME + CASHBACK (positive adjustments)
-                // EXCLUDE P2P Transfers from income - they are visible but don't count
+                // Calculate Total Income (Excluding P2P Transfers)
                 val income = activeTransactions
                     .filter { 
                         (it.transaction.transactionType == TransactionType.INCOME && 
                          it.category.name != "P2P Transfers") ||
-                        it.transaction.transactionType == TransactionType.CASHBACK  // Cashback is positive
+                        it.transaction.transactionType == TransactionType.CASHBACK
                     }
-                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
                 
-                // FINANCE-FIRST: Calculate refund amount separately for netting
+                // Calculate refund amount for netting
                 val refundAmount = activeTransactions
                     .filter { it.transaction.transactionType == TransactionType.REFUND }
-                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
                 
-                // ACCOUNTING RULE: Expenses = TransactionType.EXPENSE OR INVESTMENT_OUTFLOW
-                // Fix: Include INVESTMENT_CONTRIBUTION (SIPs) in spending charts if configured as Expense?
-                // User wants Investments Blue. 
-                // Usually Investment Contribution IS an outflow/expense for budget.
+                // Calculate categorized expenses
                 val expenseTransactions = activeTransactions.filter { 
                     it.transaction.transactionType == TransactionType.EXPENSE ||
                     it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
-                    it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION // SIPs should be tracked
+                    it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION
                 }
                 
                 val fixed = expenseTransactions
                     .filter { it.category.type == CategoryType.FIXED_EXPENSE }
-                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
                     
                 val variable = expenseTransactions
                     .filter { it.category.type == CategoryType.VARIABLE_EXPENSE }
-                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
                     
-                // Fix Issue 3: Investment includes both CategoryType.INVESTMENT with EXPENSE or INVESTMENT_OUTFLOW
                 val investment = expenseTransactions
                     .filter { it.category.type == CategoryType.INVESTMENT }
-                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
                     
                 val vehicle = expenseTransactions
                     .filter { it.category.type == CategoryType.VEHICLE }
-                    .sumOf { it.transaction.amountPaisa / 100.0 }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
                 
-                // FINANCE-FIRST: Net refunds against expenses (Issue 5)
+                // Net refunds against expenses
                 val totalExpenses = (fixed + variable) - refundAmount
 
-                val filteredTransactions = if (params.query.isBlank()) {
-                    accountFilteredTransactions
-                } else {
-                    accountFilteredTransactions.filter {
-                        it.category.name.contains(params.query, ignoreCase = true) ||
-                        (it.transaction.note?.contains(params.query, ignoreCase = true) == true) ||
-                        (it.transaction.merchantName?.contains(params.query, ignoreCase = true) == true)
-                    }
-                }
+                val filteredTransactions = accountFilteredTransactions
                 
                 DashboardUiState(
-                    cycleRange = params.range,
+                    cycleRange = if (params.query.isNotBlank()) null else params.range,
                     categories = params.categories,
                     totalIncome = income,
                     totalFixedExpenses = fixed,
@@ -250,7 +254,7 @@ class DashboardViewModel(
                     selectedAccounts = params.selectedAccounts
                 )
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
 
     fun previousCycle() {
         _referenceDate.value = _referenceDate.value.minusMonths(1)
@@ -283,11 +287,12 @@ class DashboardViewModel(
         val categories = repository.allEnabledCategories.first()
         val newCategory = categories.find { it.id == newCategoryId }
         
-        val newTransactionType = TransactionTypeResolver.determineTransactionType(
+        // Use centralized Rule Engine
+        val newTransactionType = com.saikumar.expensetracker.domain.TransactionRuleEngine.resolveTransactionType(
             transaction = transaction,
             manualClassification = manualClassification,
-            isSelfTransfer = false, // Not available in this context
-            newCategory = newCategory
+            isSelfTransfer = false,
+            category = newCategory
         )
             
         repository.updateTransaction(transaction.copy(
@@ -300,15 +305,34 @@ class DashboardViewModel(
         
         // ===== MERCHANT MEMORY: User Confirmation =====
         // When user manually categorizes a transaction, learn this mapping permanently
-        if (transaction.merchantName != null && newCategory != null) {
+        val trainingKey = if (!transaction.merchantName.isNullOrBlank()) {
+            transaction.merchantName
+        } else if (!transaction.fullSmsBody.isNullOrBlank()) {
+            com.saikumar.expensetracker.sms.SmsConstants.cleanMessageBody(transaction.fullSmsBody)
+        } else {
+            null
+        }
+
+        if (trainingKey != null && newCategory != null) {
             try {
                 repository.userConfirmMerchantMapping(
-                    merchantName = transaction.merchantName,
+                    merchantName = trainingKey,
                     categoryId = newCategoryId,
                     transactionType = newTransactionType.name,
                     timestamp = System.currentTimeMillis()
                 )
-                android.util.Log.d("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '${transaction.merchantName}' → '${newCategory.name}'")
+                android.util.Log.d("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '$trainingKey' → '${newCategory.name}'")
+                
+                // --- ML TRAINING LOGGING (GOLD LABEL) ---
+                if (!transaction.fullSmsBody.isNullOrBlank()) {
+                    com.saikumar.expensetracker.util.TrainingDataLogger.logSample(
+                        context = preferencesManager.context, // Use context from PrefManager
+                        smsBody = transaction.fullSmsBody,
+                        merchantName = transaction.merchantName, 
+                        confidence = 1.0f, // GOLD Label (User confirmed)
+                        isUserCorrection = true
+                    )
+                }
             } catch (e: Exception) {
                 android.util.Log.w("DashboardViewModel", "MERCHANT_MEMORY: Failed to record user confirmation: ${e.message}")
             }
@@ -331,13 +355,33 @@ class DashboardViewModel(
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            repository.deleteTransaction(transaction)
+            try {
+                repository.deleteTransaction(transaction)
+                snackbarController.showSuccess("Transaction deleted")
+            } catch (e: Exception) {
+                android.util.Log.e("DashboardViewModel", "Delete failed", e)
+                snackbarController.showError(
+                    "Failed to delete transaction",
+                    actionLabel = "Retry",
+                    onAction = { deleteTransaction(transaction) }
+                )
+            }
         }
     }
 
     fun reclassifyAll(context: Context) {
         viewModelScope.launch {
-            SmsProcessor.reclassifyTransactions(context)
+            try {
+                SmsProcessor.reclassifyTransactions(context)
+                snackbarController.showSuccess("Reclassification complete")
+            } catch (e: Exception) {
+                android.util.Log.e("DashboardViewModel", "Reclassify failed", e)
+                snackbarController.showError(
+                    "Failed to reclassify transactions: ${e.message}",
+                    actionLabel = "Retry",
+                    onAction = { reclassifyAll(context) }
+                )
+            }
         }
     }
 
@@ -347,25 +391,25 @@ class DashboardViewModel(
      * Find transactions similar to the given transaction for batch categorization
      */
     suspend fun findSimilarTransactions(transaction: Transaction): SimilarityResult {
-        // Optimized: Only fetch relevant candidates from DB instead of all transactions
-        val candidates = if (!transaction.merchantName.isNullOrBlank()) {
-             repository.getTransactionsByMerchant(transaction.merchantName)
-        } else {
-             // Fallback: Fetch last 6 months (covers most relevant history without loading entire DB)
-             val sixMonthsAgo = System.currentTimeMillis() - (180L * 24 * 60 * 60 * 1000)
-             repository.getTransactionsInPeriod(sixMonthsAgo, Long.MAX_VALUE).first()
-                 .map { it.transaction }
-        }
-        
-        return SmsProcessor.findSimilarTransactions(transaction, candidates)
+        return repository.findSimilarTransactions(transaction)
     }
 
     fun addCategory(name: String, type: CategoryType) {
         viewModelScope.launch {
-            val category = Category(name = name, type = type, isEnabled = true, isDefault = false, icon = name)
-            repository.insertCategory(category)
+            try {
+                val category = Category(name = name, type = type, isEnabled = true, isDefault = false, icon = name)
+                repository.insertCategory(category)
+                snackbarController.showSuccess("Category added")
+            } catch (e: android.database.sqlite.SQLiteConstraintException) {
+                snackbarController.showError("A category with this name already exists")
+            } catch (e: Exception) {
+                android.util.Log.e("DashboardViewModel", "Category add failed", e)
+                snackbarController.showError("Failed to add category")
+            }
         }
     }
+
+
 
     class Factory(
         private val repository: ExpenseRepository, 

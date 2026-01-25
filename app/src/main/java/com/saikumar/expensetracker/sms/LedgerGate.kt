@@ -3,7 +3,7 @@ package com.saikumar.expensetracker.sms
 import com.saikumar.expensetracker.data.entity.AccountType
 import com.saikumar.expensetracker.data.entity.TransactionSource
 import com.saikumar.expensetracker.data.entity.Transaction
-import com.saikumar.expensetracker.data.entity.TransactionType // AUDIT: Unified enum
+import com.saikumar.expensetracker.data.entity.TransactionType
 
 sealed class LedgerDecision {
     data class Insert(
@@ -24,7 +24,9 @@ object LedgerGate {
         "otp is", "otp for", "mandate", "login", "requested block", 
         "minimum limit", "min bal", "balance below",
         // Standing Instruction confirmations (not actual transactions)
-        "standing instruction", "recurring charges", "manage standing instructions"
+        "standing instruction", "recurring charges", "manage standing instructions",
+        // Marketing / Spam
+        "presenting", "avail", "credit line", "congratulations", "pre-approved"
     )
 
     // 2. FUTURE/REMINDER EXCLUSIONS (Drop immediately)
@@ -39,47 +41,76 @@ object LedgerGate {
         "processed", "spent", "withdrawn", "deposited", "txn"
     )
 
-    fun evaluate(body: String, parsedType: TransactionType?, rawSender: String): LedgerDecision {
+    /**
+     * STAGE 1 CHECKS: Fast, body-only filters.
+     * Run this BEFORE extraction to save CPU on spam regex.
+     */
+    fun quickFilter(body: String): LedgerDecision.Drop? {
         val lowerBody = body.lowercase()
 
-        // RULE 1: Exclusion Filters
+        // RULE 1: Exclusion Filters (OTP, Login, etc.)
         if (EXCLUDED_PHRASES.any { lowerBody.contains(it) }) {
             return LedgerDecision.Drop("Informational/OTP Message", "FILTER_INFO")
         }
 
-        // RULE 2: Future/Reminder Filters
-        // EXCEPTION: Allow STATEMENT type (credit card statements) through
-        val isStatement = parsedType == TransactionType.STATEMENT
-        if (!isStatement && FUTURE_PHRASES.any { lowerBody.contains(it) }) {
-            return LedgerDecision.Drop("Future/Reminder Event", "FILTER_FUTURE")
-        }
-
-        // RULE 3: "Avl Bal" only check
+        // RULE 3: "Avl Bal" only check (Balance Enquiry)
         if ((lowerBody.contains("available bal") || lowerBody.contains("avl bal")) && 
             CONFIRMATION_VERBS.none { lowerBody.contains(it) } && 
             !lowerBody.contains("payment")) {
             return LedgerDecision.Drop("Balance Info Only", "FILTER_AVL_BAL")
         }
 
+        // RULE 3.5: Loan Spam Filter
+        if (lowerBody.contains("loan")) {
+            val hasStrongLoanVerb = listOf("debited", "credited", "disbursed", "paid", "repayment", "emi").any { lowerBody.contains(it) }
+            if (!hasStrongLoanVerb) {
+                 return LedgerDecision.Drop("Loan Marketing/Info", "FILTER_LOAN_SPAM")
+            }
+        }
+        
+        return null
+    }
+
+    /**
+     * STAGE 2 CHECKS: Deep validation requiring Transaction Type.
+     */
+    /**
+     * STAGE 2 CHECKS: Deep validation requiring Transaction Type.
+     */
+
+    fun evaluate(body: String, parsedType: TransactionType?, amountPaisa: Long?, rawSender: String): LedgerDecision {
+        val lowerBody = body.lowercase()
+        
+        // Sanity Check: If quick filters weren't run, run them now? 
+        quickFilter(body)?.let { return it }
+
+        // RULE 0: Hard Requirement - Money must be involved
+        if (amountPaisa == null || amountPaisa <= 0) {
+            return LedgerDecision.Drop("No Amount Detected", "FILTER_NO_AMOUNT")
+        }
+
+        // RULE 2: Future/Reminder Filters (Depends on Type)
+        // EXCEPTION: Allow STATEMENT type (credit card statements) through
+        val isStatement = parsedType == TransactionType.STATEMENT
+        if (!isStatement && FUTURE_PHRASES.any { lowerBody.contains(it) }) {
+            return LedgerDecision.Drop("Future/Reminder Event", "FILTER_FUTURE")
+        }
+
         // RULE 4: Positive Confirmation Invariant
-        // EXCEPTION: Statements don't need confirmation verbs
         val hasConfirmation = CONFIRMATION_VERBS.any { lowerBody.contains(it) }
         if (!isStatement && !hasConfirmation) {
             return LedgerDecision.Drop("Missing Confirmation Verb", "FILTER_NO_CONFIRMATION")
         }
 
         // RULE 5: Economic Reality Check (Infer Type and Eligibility)
-        // If we got this far, it IS a valid ledger entry. Now determine its nature.
         
-        // 5a. Card Spend Invariant (Expanded)
-        // Matches: "Txn ... On ... Card", "Spent ... on Credit Card", "Sent ... using Card"
-        // User Rule: On <Bank> Card + Txn/Spent/Sent -> FORCE EXPENSE
+        // 5a. Card Spend Invariant
         if (lowerBody.contains("card") && 
            (lowerBody.contains("spent") || lowerBody.contains("txn") || lowerBody.contains("transaction") || lowerBody.contains("sent") || lowerBody.contains("used")) &&
            !lowerBody.contains("payment received") && !lowerBody.contains("credited")) {
             
             val isCredit = lowerBody.contains("credit card")
-            val accType = if (isCredit) AccountType.CREDIT_CARD else AccountType.UNKNOWN // Could be Debit, but safe to default unknown if not explicit
+            val accType = if (isCredit) AccountType.CREDIT_CARD else AccountType.UNKNOWN
             
             return LedgerDecision.Insert(
                 transactionType = TransactionType.EXPENSE,
@@ -90,7 +121,6 @@ object LedgerGate {
         }
 
         // 5b. P2P Transfer Invariant
-        // User Rule: "Credit from friend" / "Debit to friend" is TRANSFER (Neutral)
         if (lowerBody.contains("friend") || lowerBody.contains("family")) {
              return LedgerDecision.Insert(
                 transactionType = TransactionType.TRANSFER,
@@ -100,14 +130,9 @@ object LedgerGate {
             )
         }
         
-        // 5c. Default based on Parsed Type (if available)
+        // 5c. Default based on Parsed Type
         if (parsedType != null) {
-            // Determine Expense Eligibility based on Type
-            // EXPENSE -> True
-            // INCOME, TRANSFER, LIABILITY, PENSION -> False
             val isEligible = parsedType == TransactionType.EXPENSE
-            
-            // Map generic account type
             val accountType = if (parsedType == TransactionType.LIABILITY_PAYMENT) AccountType.CREDIT_CARD else AccountType.UNKNOWN
 
             return LedgerDecision.Insert(
@@ -118,7 +143,6 @@ object LedgerGate {
             )
         }
 
-        // Fallback (shouldn't happen if parser works, but if parser fails but passed confirmation?)
         return LedgerDecision.Drop("Parser yielded null type", "FILTER_PARSER_NULL")
     }
 }

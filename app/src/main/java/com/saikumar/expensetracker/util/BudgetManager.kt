@@ -59,9 +59,11 @@ class BudgetManager(
     suspend fun checkBudgetStatus(): BudgetState {
         val now = LocalDate.now()
         val currentMonthStr = YearMonth.now().toString()
-        
-        val startTs = YearMonth.now().atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endTs = YearMonth.now().atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        // Use billing cycle instead of calendar month for consistency with Dashboard
+        val cycleRange = CycleUtils.getCurrentCycleRange(now)
+        val startTs = cycleRange.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endTs = cycleRange.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         // 1. Get Current Expenses (Fixed + Variable)
         val expenses = transactionDao.getTotalExpenseForPeriod(startTs, endTs) ?: 0L
@@ -74,26 +76,25 @@ class BudgetManager(
             recalculateAutoLimit()
             limit = preferencesManager.budgetLimitPaise.first()
             if (limit == 0L) {
-                // Determine a safe fallback or infinite?
-                // If limit is 0, we shouldn't block user.
                 return BudgetState(BudgetStatus.SAFE, 0, expenses, currentMonthStr)
             }
         }
 
         // 3. Check Breaches
         if (expenses > limit) {
+            android.util.Log.d("BudgetManager", "Limit exceeded. Checking for existing breaches. Month: $currentMonthStr")
             // Check if Stage 1 already recorded
             val stage1 = budgetBreachDao.getBreachForMonth(currentMonthStr, 1)
             
             if (stage1 == null) {
+                android.util.Log.d("BudgetManager", "Stage 1 breach NOT found. Returning BREACHED_STAGE_1")
                 return BudgetState(BudgetStatus.BREACHED_STAGE_1, limit, expenses, currentMonthStr)
+            } else {
+                android.util.Log.d("BudgetManager", "Stage 1 breach found with ID: ${stage1.id}")
             }
             
             // Check Stage 2
-            // Condition: Expenses > 110% Limit AND (Day >= 25 OR Month Changed if logic supports)
-            // AND Stage 2 not recorded
             if (expenses > (limit * STAGE_2_THRESHOLD_PERCENT).toLong()) {
-                // Only check if Late in month
                 if (now.dayOfMonth >= STAGE_2_CHECK_DAY) {
                     val stage2 = budgetBreachDao.getBreachForMonth(currentMonthStr, 2)
                     if (stage2 == null) {
@@ -107,6 +108,7 @@ class BudgetManager(
     }
 
     suspend fun recordBreach(month: String, stage: Int, limit: Long, expenses: Long, reason: String) {
+        android.util.Log.d("BudgetManager", "Recording breach. Month: $month, Stage: $stage, Reason: $reason")
         val breach = BudgetBreach(
             month = month,
             stage = stage,
@@ -116,5 +118,6 @@ class BudgetManager(
             timestamp = System.currentTimeMillis()
         )
         budgetBreachDao.insert(breach)
+        android.util.Log.d("BudgetManager", "Breach inserted.")
     }
 }

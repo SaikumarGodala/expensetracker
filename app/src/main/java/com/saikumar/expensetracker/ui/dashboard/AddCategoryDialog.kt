@@ -45,6 +45,7 @@ fun AddCategoryDialog(
                             CategoryType.IGNORE -> "Invalid/Ignore"
                             CategoryType.STATEMENT -> "Statement"
                             CategoryType.LIABILITY -> "CC Bill Payment"
+                            CategoryType.TRANSFER -> "Transfer"
                         },
                         onValueChange = {},
                         readOnly = true,
@@ -69,6 +70,7 @@ fun AddCategoryDialog(
                                         CategoryType.IGNORE -> "Invalid/Ignore"
                                         CategoryType.STATEMENT -> "Statement"
                                         CategoryType.LIABILITY -> "CC Bill Payment"
+                                        CategoryType.TRANSFER -> "Transfer"
                                     })
                                 },
                                 onClick = {

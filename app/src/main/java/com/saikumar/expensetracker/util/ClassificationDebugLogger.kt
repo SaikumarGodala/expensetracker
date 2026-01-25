@@ -18,6 +18,9 @@ import java.util.UUID
 object ClassificationDebugLogger {
     private const val TAG = "ClassificationDebugLogger"
     
+    // Global toggle for performance
+    var isDebugEnabled = true
+    
     // In-memory logs being built (keyed by logId)
     private val activeLog = java.util.concurrent.ConcurrentHashMap<String, LogBuilder>()
     
@@ -137,6 +140,7 @@ object ClassificationDebugLogger {
      * Start a new debug log. Returns a unique logId.
      */
     fun startLog(rawInput: RawInputCapture): String {
+        if (!isDebugEnabled) return ""
         val logId = UUID.randomUUID().toString()
         val builder = LogBuilder()
         builder.rawInput = rawInput
@@ -172,6 +176,7 @@ object ClassificationDebugLogger {
      * Log execution of a classification rule
      */
     fun logRuleExecution(logId: String, rule: RuleExecution) {
+        if (logId.isEmpty()) return
         // Only store MATCHED and PASSED rules in the trace (reduces JSON size by ~80%)
         val shouldStore = rule.result == "MATCHED" || rule.result == "PASSED"
         if (shouldStore) {
@@ -414,5 +419,119 @@ object ClassificationDebugLogger {
             reason = reason
             // Removed executionTimestamp
         )
+    }
+
+    /**
+     * Log a specific case where merchant extraction failed completely.
+     * Appends to a dedicated file extraction_failures.jsonl for easy analysis.
+     */
+    suspend fun logExtractionFailure(
+        context: Context,
+        smsBody: String,
+        sender: String,
+        timestamp: Long
+    ) {
+        val entry = mapOf(
+            "timestamp" to timestamp,
+            "sender" to sender,
+            "body" to smsBody,
+            "reason" to "NO_MERCHANT_EXTRACTED"
+        )
+        val json = jsonlGson.toJson(entry) + "\n"
+        
+        try {
+            val path = appendToDownloadsFile(context, "extraction_failures.jsonl", json)
+            
+            if (path != null) {
+                Log.e(TAG, "EXTRACTION FAILURE LOGGED to: $path")
+                // Show toast on Main thread to alert user
+                withContext(Dispatchers.Main) {
+                    try {
+                         android.widget.Toast.makeText(context, "Logged to Downloads:\nextraction_failures.jsonl", android.widget.Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) { }
+                }
+            } else {
+                Log.e(TAG, "Failed to append to log file in Downloads")
+            }
+             
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to log extraction failure", e)
+        }
+    }
+
+    /**
+     * Robustly append to a file in the public Downloads folder.
+     * Handles Android 10+ MediaStore complexities (Read-Modify-Write if needed).
+     */
+    private suspend fun appendToDownloadsFile(context: Context, fileName: String, content: String): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val resolver = context.contentResolver
+                    val contentCollection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                    
+                    // 1. Check if file exists
+                    val query = resolver.query(
+                        contentCollection,
+                        arrayOf(android.provider.MediaStore.Downloads._ID),
+                        "${android.provider.MediaStore.Downloads.DISPLAY_NAME} = ?",
+                        arrayOf(fileName),
+                        null
+                    )
+                    
+                    query?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            // File exists - Append
+                            val id = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Downloads._ID))
+                            val uri = android.content.ContentUris.withAppendedId(contentCollection, id)
+                            
+                            try {
+                                // Try "wa" (Write Append) mode first
+                                resolver.openOutputStream(uri, "wa")?.use { it.write(content.toByteArray()) }
+                                return@withContext "Downloads/$fileName (Appended)"
+                            } catch (e: Exception) {
+                                // Fallback: Read full, limit size if needed, then overwrite
+                                // Warning: This is heavy for large logs, but acceptable for debug text logs
+                                Log.w(TAG, "Append mode failed, trying read-rewrite", e)
+                                
+                                val existingContent = try {
+                                    resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                                } catch (readErr: Exception) { "" }
+                                
+                                val newContent = existingContent + content
+                                resolver.openOutputStream(uri, "wt")?.use { it.write(newContent.toByteArray()) }
+                                return@withContext "Downloads/$fileName (Rewritten)"
+                            }
+                        }
+                    }
+                    
+                    // File does not exist - Create new
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json") // or text/plain
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/ExpenseTrackerLogs")
+                    }
+                    
+                    val uri = resolver.insert(contentCollection, contentValues)
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+                        return@withContext "Downloads/ExpenseTrackerLogs/$fileName (Created)"
+                    }
+                    return@withContext null
+                    
+                } else {
+                    // Legacy Storage (Android 9 and below)
+                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    val logDir = java.io.File(downloadsDir, "ExpenseTrackerLogs")
+                    if (!logDir.exists()) logDir.mkdirs()
+                    val file = java.io.File(logDir, fileName)
+                    file.appendText(content)
+                    return@withContext file.absolutePath
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error appending to Downloads file", e)
+                return@withContext null
+            }
+        }
     }
 }

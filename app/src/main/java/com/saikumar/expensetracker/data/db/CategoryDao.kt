@@ -12,6 +12,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories")
     fun getAllCategories(): Flow<List<Category>>
 
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategoriesSync(): List<Category>
+
     @Query("SELECT * FROM categories WHERE name = :name LIMIT 1")
     suspend fun getCategoryByName(name: String): Category?
 
@@ -20,6 +23,9 @@ interface CategoryDao {
 
     @Update
     suspend fun updateCategory(category: Category)
+
+    @Update
+    suspend fun updateCategories(categories: List<Category>)
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun getCount(): Int

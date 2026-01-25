@@ -56,8 +56,10 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.biometric)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -96,4 +98,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     
     detektPlugins(libs.detekt.formatting)
+
+    // TensorFlow Lite
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 }

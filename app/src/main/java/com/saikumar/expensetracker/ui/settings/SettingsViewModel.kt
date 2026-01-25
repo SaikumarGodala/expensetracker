@@ -14,11 +14,14 @@ import kotlinx.coroutines.launch
 
 import com.saikumar.expensetracker.data.dao.BudgetBreachDao
 import com.saikumar.expensetracker.data.entity.BudgetBreach
+import com.saikumar.expensetracker.util.SnackbarController
 
 class SettingsViewModel(
     private val preferencesManager: PreferencesManager,
     private val budgetBreachDao: BudgetBreachDao
 ) : ViewModel() {
+
+    val snackbarController = SnackbarController()
 
     val salaryDay: StateFlow<Int> = preferencesManager.salaryDay
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
@@ -46,6 +49,15 @@ class SettingsViewModel(
             preferencesManager.setDebugMode(enabled)
         }
     }
+    
+    val mlEnabled: StateFlow<Boolean> = preferencesManager.mlEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setMlEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setMlEnabled(enabled)
+        }
+    }
 
     fun setSmsAutoRead(enabled: Boolean) {
         viewModelScope.launch {
@@ -67,7 +79,21 @@ class SettingsViewModel(
 
     fun scanInbox(context: Context) {
         viewModelScope.launch {
-            SmsProcessor.scanInbox(context)
+            try {
+                SmsProcessor.scanInbox(context)
+                snackbarController.showSuccess("Inbox scan completed")
+            } catch (e: SecurityException) {
+                snackbarController.showError(
+                    "Permission denied. Please grant SMS access",
+                    actionLabel = "Settings"
+                )
+            } catch (e: Exception) {
+                snackbarController.showError(
+                    "Failed to scan inbox: ${e.message}",
+                    actionLabel = "Retry",
+                    onAction = { scanInbox(context) }
+                )
+            }
         }
     }
     
@@ -75,17 +101,29 @@ class SettingsViewModel(
     val salaryCompanyNames: StateFlow<Set<String>> = preferencesManager.salaryCompanyNames
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
     
-    fun addSalaryCompanyName(name: String): Boolean {
-        var result = false
+    fun addSalaryCompanyName(name: String) {
         viewModelScope.launch {
-            result = preferencesManager.addSalaryCompanyName(name)
+            try {
+                val success = preferencesManager.addSalaryCompanyName(name)
+                if (success) {
+                    snackbarController.showSuccess("Company name added")
+                } else {
+                    snackbarController.showError("Name must be at least 3 characters")
+                }
+            } catch (e: Exception) {
+                snackbarController.showError("Failed to add company name")
+            }
         }
-        return result
     }
     
     fun removeSalaryCompanyName(name: String) {
         viewModelScope.launch {
-            preferencesManager.removeSalaryCompanyName(name)
+            try {
+                preferencesManager.removeSalaryCompanyName(name)
+                snackbarController.showSuccess("Company name removed")
+            } catch (e: Exception) {
+                snackbarController.showError("Failed to remove company name")
+            }
         }
     }
     

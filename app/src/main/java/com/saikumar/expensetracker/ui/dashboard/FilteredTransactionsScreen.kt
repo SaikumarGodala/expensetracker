@@ -1,19 +1,24 @@
 package com.saikumar.expensetracker.ui.dashboard
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import com.saikumar.expensetracker.data.entity.CategoryType
 import com.saikumar.expensetracker.ui.common.TransactionEditDialog
+import com.saikumar.expensetracker.ui.components.SortOption
+import com.saikumar.expensetracker.ui.components.TransactionSortSelector
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FilteredTransactionsScreen(
     viewModel: FilteredTransactionsViewModel,
@@ -30,6 +35,21 @@ fun FilteredTransactionsScreen(
     val transactions by viewModel.transactions.collectAsState()
     val categories by viewModel.categories.collectAsState()
     var editingTransaction by remember { mutableStateOf<TransactionWithCategory?>(null) }
+    
+    // Sort state
+    var sortOption by remember { mutableStateOf(SortOption.DATE_DESC) }
+    
+    // Apply sorting
+    val sortedTransactions = remember(transactions, sortOption) {
+        when (sortOption) {
+            SortOption.DATE_DESC -> transactions.sortedByDescending { it.transaction.timestamp }
+            SortOption.DATE_ASC -> transactions.sortedBy { it.transaction.timestamp }
+            SortOption.AMOUNT_DESC -> transactions.sortedByDescending { it.transaction.amountPaisa }
+            SortOption.AMOUNT_ASC -> transactions.sortedBy { it.transaction.amountPaisa }
+        }
+    }
+    
+    val listState = rememberLazyListState()
 
     if (editingTransaction != null) {
         TransactionEditDialog(
@@ -42,6 +62,7 @@ fun FilteredTransactionsScreen(
                     categoryId,
                     note,
                     accountType,
+                    updateSimilar,
                     manualClassification
                 )
                 editingTransaction = null
@@ -52,7 +73,8 @@ fun FilteredTransactionsScreen(
             onDelete = { txn ->
                 viewModel.deleteTransaction(txn)
                 editingTransaction = null
-            }
+            },
+            onFindSimilar = { viewModel.findSimilarTransactions(editingTransaction!!.transaction) }
         )
     }
 
@@ -72,6 +94,7 @@ fun FilteredTransactionsScreen(
                             CategoryType.IGNORE -> "Invalid/Ignore"
                             CategoryType.STATEMENT -> "Statements"
                             CategoryType.LIABILITY -> "CC Bill Payments"
+                            CategoryType.TRANSFER -> "Transfers"
                         }
                     })
                 },
@@ -84,17 +107,50 @@ fun FilteredTransactionsScreen(
         }
     ) { padding ->
         if (transactions.isEmpty()) {
-            Box(modifier = Modifier.padding(padding).fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            Box(modifier = Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No transactions in this category")
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(transactions, key = { it.transaction.id }) { transaction ->
-                    TransactionItem(transaction, onClick = { editingTransaction = transaction })
+            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                // Sort selector row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${sortedTransactions.size} transactions",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TransactionSortSelector(
+                        currentSort = sortOption,
+                        onSortChange = { sortOption = it }
+                    )
+                }
+                
+                // Transaction list with scrollbar
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 24.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            sortedTransactions, 
+                            key = { it.transaction.id }
+                        ) { transaction ->
+                            TransactionItem(
+                                transaction, 
+                                onClick = { editingTransaction = transaction },
+                                modifier = Modifier.animateItemPlacement()
+                            )
+                        }
+                    }
+                    
                 }
             }
         }

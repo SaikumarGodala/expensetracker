@@ -89,168 +89,176 @@ fun MonthlyOverviewScreen(
             onDelete = { txn ->
                 viewModel.deleteTransaction(txn)
                 editingTransaction = null
-            }
+            },
+            onFindSimilar = { viewModel.findSimilarTransactions(editingTransaction!!.transaction) }
         )
     }
 
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
     Scaffold(
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Cycle date range with navigation
-            item {
-                uiState.cycleRange?.let { range ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { viewModel.previousCycle() }) {
-                            Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Previous")
-                        }
-                        
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { showDateRangePicker = true }
-                                .padding(8.dp)
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Cycle date range with navigation
+                item {
+                    uiState.cycleRange?.let { range ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                "${range.startDate.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${range.endDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                            Text("Tap to change date range", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        }
-                        
-                        IconButton(onClick = { viewModel.nextCycle() }) {
-                            Icon(Icons.Default.KeyboardArrowRight, contentDescription = "Next")
-                        }
-                    }
-                }
-                
-                // Account Filter Dropdown
-                AccountFilterDropdown(
-                    accounts = uiState.detectedAccounts,
-                    selectedAccounts = uiState.selectedAccounts,
-                    onToggle = { viewModel.toggleAccountFilter(it) },
-                    onClearAll = { viewModel.clearAccountFilter() }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // Summary cards - clickable to show transactions
-            item {
-                val startMillis = uiState.cycleRange?.startDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L
-                val endMillis = uiState.cycleRange?.endDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SummaryCard(
-                        title = "Income",
-                        amount = uiState.income,
-                        color = Color(0xFF4CAF50),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onCategoryClick(CategoryType.INCOME, startMillis, endMillis) }
-                    )
-                    SummaryCard(
-                        title = "Expenses",
-                        amount = uiState.expenses,
-                        color = Color(0xFFF44336),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onCategoryClick(CategoryType.VARIABLE_EXPENSE, startMillis, endMillis) }
-                    )
-                    SummaryCard(
-                        title = "Invest",
-                        amount = uiState.investments,
-                        color = Color(0xFF2196F3),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onCategoryClick(CategoryType.INVESTMENT, startMillis, endMillis) }
-                    )
-                }
-            }
-
-            // Pie chart - Top Categories
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Categories", style = MaterialTheme.typography.titleSmall)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Calculate data for chart and list - show ALL categories
-                        val allCategories = uiState.categoryBreakdown.values.flatten()
-                            .filter { it.category.type != CategoryType.INCOME }
-                            .sortedByDescending { it.total }
+                            IconButton(onClick = { viewModel.previousCycle() }) {
+                                Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Previous")
+                            }
                             
-                        // Define stable colors to match between chart and list
-                        val chartColors = ColorTemplate.MATERIAL_COLORS.toList()
-                        
-                        AndroidView(
-                            factory = { context -> 
-                                PieChart(context).apply {
-                                    description.isEnabled = false
-                                    
-                                    // Disable all internal labels to clean up the UI
-                                    legend.isEnabled = false
-                                    setDrawEntryLabels(false)
-                                    setUsePercentValues(true)
-                                    
-                                    // Styling
-                                    holeRadius = 55f
-                                    transparentCircleRadius = 60f
-                                    setHoleColor(android.graphics.Color.TRANSPARENT)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(220.dp), // Reduced height slightly as labels are gone
-                            update = { chart ->
-                                if (allCategories.isNotEmpty()) {
-                                    val entries = allCategories.map { summary ->
-                                        PieEntry(summary.total.toFloat(), summary.category.name)
-                                    }
-                                    
-                                    val dataSet = PieDataSet(entries, "").apply {
-                                        colors = chartColors
-                                        setDrawValues(false) // Hide values on slices
-                                        sliceSpace = 2f
-                                    }
-                                    
-                                    chart.data = PieData(dataSet)
-                                    chart.invalidate()
-                                }
-                            }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Custom Detailed Legend List
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            allCategories.forEachIndexed { index, summary ->
-                                val colorInt = chartColors[index % chartColors.size]
-                                val composeColor = Color(colorInt)
-                                
-                                InteractiveCategoryLegendItem(
-                                    summary = summary,
-                                    color = composeColor,
-                                    onTransactionClick = { editingTransaction = it }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showDateRangePicker = true }
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    "${range.startDate.format(DateTimeFormatter.ofPattern("dd MMM"))} - ${range.endDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
+                                Text("Tap to change date range", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                            
+                            IconButton(onClick = { viewModel.nextCycle() }) {
+                                Icon(Icons.Default.KeyboardArrowRight, contentDescription = "Next")
+                            }
+                        }
+                    }
+                    
+                    // Account Filter Dropdown
+                    AccountFilterDropdown(
+                        accounts = uiState.detectedAccounts,
+                        selectedAccounts = uiState.selectedAccounts,
+                        onToggle = { viewModel.toggleAccountFilter(it) },
+                        onClearAll = { viewModel.clearAccountFilter() }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // Summary cards - clickable to show transactions
+                item {
+                    val startMillis = uiState.cycleRange?.startDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L
+                    val endMillis = uiState.cycleRange?.endDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SummaryCard(
+                            title = "Income",
+                            amount = uiState.income,
+                            color = Color(0xFF4CAF50),
+                            modifier = Modifier.weight(1f),
+                            onClick = { onCategoryClick(CategoryType.INCOME, startMillis, endMillis) }
+                        )
+                        SummaryCard(
+                            title = "Expenses",
+                            amount = uiState.expenses,
+                            color = Color(0xFFF44336),
+                            modifier = Modifier.weight(1f),
+                            onClick = { onCategoryClick(CategoryType.VARIABLE_EXPENSE, startMillis, endMillis) }
+                        )
+                        SummaryCard(
+                            title = "Invest",
+                            amount = uiState.investments,
+                            color = Color(0xFF2196F3),
+                            modifier = Modifier.weight(1f),
+                            onClick = { onCategoryClick(CategoryType.INVESTMENT, startMillis, endMillis) }
+                        )
+                    }
+                }
+
+                // Pie chart - Top Categories
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Categories", style = MaterialTheme.typography.titleSmall)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // Calculate data for chart and list - show ALL categories
+                            val allCategories = uiState.categoryBreakdown.values.flatten()
+                                .filter { it.category.type != CategoryType.INCOME }
+                                .sortedByDescending { it.total }
+                                
+                            // Define stable colors to match between chart and list
+                            val chartColors = ColorTemplate.MATERIAL_COLORS.toList()
+                            
+                            AndroidView(
+                                factory = { context -> 
+                                    PieChart(context).apply {
+                                        description.isEnabled = false
+                                        
+                                        // Disable all internal labels to clean up the UI
+                                        legend.isEnabled = false
+                                        setDrawEntryLabels(false)
+                                        setUsePercentValues(true)
+                                        
+                                        // Styling
+                                        holeRadius = 55f
+                                        transparentCircleRadius = 60f
+                                        setHoleColor(android.graphics.Color.TRANSPARENT)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(220.dp), // Reduced height slightly as labels are gone
+                                update = { chart ->
+                                    if (allCategories.isNotEmpty()) {
+                                        val entries = allCategories.map { summary ->
+                                            PieEntry(summary.total.toFloat(), summary.category.name)
+                                        }
+                                        
+                                        val dataSet = PieDataSet(entries, "").apply {
+                                            colors = chartColors
+                                            setDrawValues(false) // Hide values on slices
+                                            sliceSpace = 2f
+                                        }
+                                        
+                                        chart.data = PieData(dataSet)
+                                        chart.invalidate()
+                                    }
+                                }
+                            )
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            // Custom Detailed Legend List
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                allCategories.forEachIndexed { index, summary ->
+                                    val colorInt = chartColors[index % chartColors.size]
+                                    val composeColor = Color(colorInt)
+                                    
+                                    InteractiveCategoryLegendItem(
+                                        summary = summary,
+                                        color = composeColor,
+                                        onTransactionClick = { editingTransaction = it }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
+            
+
         }
     }
 }

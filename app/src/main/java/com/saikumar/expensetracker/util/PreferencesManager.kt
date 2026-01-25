@@ -34,6 +34,7 @@ class PreferencesManager(val context: Context) {
         val IS_AUTO_BUDGET_ENABLED = booleanPreferencesKey("is_auto_budget_enabled")
         val MANUAL_BUDGET_OVERRIDE = booleanPreferencesKey("manual_budget_override")
         val LAST_SALARY_MONTH = stringPreferencesKey("last_salary_month") // e.g. "2024-01" to track when we last updated limit
+        val ML_ENABLED = booleanPreferencesKey("ml_enabled") // Master toggle for ML Inference
     }
 
     val themeMode: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -166,6 +167,20 @@ class PreferencesManager(val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[DEBUG_MODE] = enabled
         }
+    }
+    
+    val mlEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[ML_ENABLED] ?: false // Default OFF for bootstrapping
+    }
+    
+    suspend fun setMlEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ML_ENABLED] = enabled
+        }
+    }
+    
+    suspend fun getMlEnabledSync(): Boolean {
+        return mlEnabled.first()
     }
     
     suspend fun setThemeMode(mode: Int) {

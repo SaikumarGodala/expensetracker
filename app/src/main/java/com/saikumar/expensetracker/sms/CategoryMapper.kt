@@ -1,6 +1,7 @@
 package com.saikumar.expensetracker.sms
 
 import com.saikumar.expensetracker.data.entity.*
+import com.saikumar.expensetracker.core.AppConstants
 
 /**
  * Result of category classification including confidence score.
@@ -27,290 +28,369 @@ object CategoryMapper {
     }
 
     private val MERCHANT_CATEGORIES = mapOf(
-        // Food Delivery
-        "SWIGGY" to "Food Delivery",
-        "ZOMATO" to "Food Delivery",
-        "LICIOUS" to "Food Delivery",
-        "DOMINOS" to "Food Delivery",
-        "PIZZA HUT" to "Food Delivery",
-        "KFC" to "Food Delivery",
-        "SUBWAY" to "Food Delivery",
+
+        // ATM / Cash
+        "ATM" to "Cash Withdrawal",
+        "SBI ATM" to "Cash Withdrawal",
+        "CASH" to "Cash Withdrawal",
+        "NFS" to "Cash Withdrawal",
+        "CASH WDL" to "Cash Withdrawal",
+        "WDL" to "Cash Withdrawal",
+        "CASH WITHDRAWAL" to "Cash Withdrawal",
+
+        // Cashback
+        "BHIMCASHBACK" to "Cashback",
+
+        // Clothing
+        "AJIO" to "Clothing",
+        "H&M" to "Clothing",
+        "LEVIS" to "Clothing",
+        "LIFESTYLE" to "Clothing",
+        "MAX FASHION" to "Clothing",
+        "MYNTRA" to "Clothing",
+        "PANTALOONS" to "Clothing",
+        "UNIQLO" to "Clothing",
+        "WESTSIDE" to "Clothing",
+        "ZARA" to "Clothing",
+        "ZUDIO" to "Clothing",
+        "JOCKEY" to "Clothing",
+
+
+        // Credit Bill Payments
+        "AMEX" to "Credit Bill Payments",
+        "AXISCARD" to "Credit Bill Payments",
+        "BILLDESK" to "Credit Bill Payments",
+        "CCPAY" to "Credit Bill Payments",
+        "CITIBANK" to "Credit Bill Payments",
+        "CRED" to "Credit Bill Payments",
+        "CRED CLUB" to "Credit Bill Payments",
+        "HDFCCARD" to "Credit Bill Payments",
+        "ONECARD" to "Credit Bill Payments",
+        "SBICARD" to "Credit Bill Payments",
+        "STATEMENT" to "Credit Card Statement",
 
         // Dining Out
-        "CREAM STONE" to "Dining Out",
-        "NAIDU GARI" to "Dining Out",
-        "KRITUNGA" to "Dining Out",
-        "THE NAWAABS" to "Dining Out",
-        "PISTA HOUSE" to "Dining Out",
-        "BAKE CENTRAL" to "Dining Out",
-        "MANDIKING" to "Dining Out",
-        "MAHARAJA CHAT" to "Dining Out",
-        "DINEOUT" to "Dining Out",
         "ARABIAN REST" to "Dining Out",
+        "ARUN ICE CREAMS" to "Dining Out",
+        "BAKE CENTRAL" to "Dining Out",
+        "CREAM STONE" to "Dining Out",
+        "DINEOUT" to "Dining Out",
+        "ELIOR FOOD LLP" to "Dining Out",
+        "ELIORINDIAFOODS" to "Dining Out",
+        "GOKHANA" to "Dining Out",
+        "HOUSE OF SPIRITS" to "Dining Out",
+        "KINGS FAMILY" to "Dining Out",
+        "KRITUNGA" to "Dining Out",
+        "LASTHOUSECOFFEE" to "Dining Out",
+        "MAHARAJA CHAT" to "Dining Out",
+        "MAHARAJA CHAT AND FOODS" to "Dining Out",
         "MANDI KING" to "Dining Out",
         "MANDIKING" to "Dining Out",
+        "MANDIKINGARABIANREST" to "Dining Out",
+        "NAIDU GARI" to "Dining Out",
+        "NALBHEEMA KITCH" to "Dining Out",
+        "PARAMPARA MITHAI SHOP BHEL MIG" to "Dining Out",
+        "PISTA HOUSE" to "Dining Out",
+        "SPUDATOFOODS" to "Dining Out",
+        "STONE SPOT" to "Dining Out",
+        "THE GREAT WALL" to "Dining Out",
+        "THE NAWAABS" to "Dining Out",
+        "THE NAWAABS RESTAURANT" to "Dining Out",
+        "YUM RESTAURANT" to "Dining Out",
+        "YUM YUM TREE ARABIAN FOOD COURT" to "Dining Out",
+        "ZAIKA RESTAURANT" to "Dining Out",
+        "SWIGGYDINEIN" to "Dining Out",
 
-        // Groceries
-        "DMART" to "Groceries",
-        "RATNADEEP" to "Groceries",
-        "VIJETHA" to "Groceries",
-        "BHARAT BAZAR" to "Groceries",
-        "SMPOORNA" to "Groceries",
-        "AVENUE SUPERMAR" to "Groceries",
-        "ZEPTO" to "Groceries",
-        "BLINKIT" to "Groceries",
+        // Education
+        "UDEMY" to "Education",
 
-        // Shopping
-        "AMAZON" to "Shopping",
-        "FLIPKART" to "Shopping",
-        "RELIANCE" to "Shopping",
-        "JOCKEY" to "Shopping",
-        "ZUDIO" to "Shopping",
-        "MYNTRA" to "Clothing",
-        "AJIO" to "Clothing",
-        "ZARA" to "Clothing",
-        "H&M" to "Clothing",
-        "UNIQLO" to "Clothing",
-        "LEVIS" to "Clothing",
-        "WESTSIDE" to "Clothing",
-        "PANTALOONS" to "Clothing",
-        "MAX FASHION" to "Clothing",
-        "LIFESTYLE" to "Clothing",
-        
-        // Furniture
-        "IKEA" to "Furniture",
-        "PEPPERFRY" to "Furniture",
-        "URBAN LADDER" to "Furniture",
-        "GODREJ INTERIO" to "Furniture",
-        "NILKAMAL" to "Furniture",
-        "HOMETOWN" to "Furniture",
-        
+        // Education / Fees
+        "BYJU" to "Education / Fees",
+        "COACHING" to "Education / Fees",
+        "COLLEGE" to "Education / Fees",
+        "SCHOOL" to "Education / Fees",
+        "UNACADEMY" to "Education / Fees",
+        "UNIVERSITY" to "Education / Fees",
+        "VEDANTU" to "Education / Fees",
+
         // Electronics
-        "CROMA" to "Electronics",
-        "VIJAY SALES" to "Electronics",
-        "SAMSUNG" to "Electronics",
         "APPLE" to "Electronics",
-        "ONEPLUS" to "Electronics",
-        "MI STORE" to "Electronics",
+        "CROMA" to "Electronics",
         "DELL" to "Electronics",
         "HP STORE" to "Electronics",
         "LENOVO" to "Electronics",
+        "MI STORE" to "Electronics",
+        "ONEPLUS" to "Electronics",
+        "SAMSUNG" to "Electronics",
+        "VIJAY SALES" to "Electronics",
+        "SHOPSAMS" to "Electronics",
 
-        // Transportation (merged Travel + Cab & Taxi)
-        "TSRTC" to "Transportation",
-        "IRCTC" to "Transportation",
-        "REDBUS" to "Transportation",
-        "RAPIDO" to "Transportation",
-        "OLA" to "Transportation",
-        "UBER" to "Transportation",
-        "APSRTC" to "Transportation",
-        "METRO" to "Transportation",
-        "YULU" to "Transportation",
-        "NAMMA YATRI" to "Transportation",
+        // Entertainment
+        "AMOEBA" to "Entertainment",
+        "BOOKMYSHOW" to "Entertainment",
+        "DISTRICT MOVIES" to "Entertainment",
+        "DREAM11" to "Entertainment",
+        "GAMEON" to "Entertainment",
+        "GAMES" to "Entertainment",
+        "GOOGLEPLAY" to "Entertainment",
+        "NINTENDO" to "Entertainment",
+        "PLAYSTATION" to "Entertainment",
+        "PRASADS" to "Entertainment",
+        "PRIVEPLEX" to "Entertainment",
+        "RUMMY" to "Entertainment",
+        "SCRATCHBOARDS" to "Entertainment",
+        "SPOTIFY" to "Entertainment",
+        "STEAM" to "Entertainment",
+        "SVMBOWLING" to "Entertainment",
+        "XBOX" to "Entertainment",
+
+        // Fixed Deposits
+        "SHIVALIK SMALL FINANCE BANK" to "Fixed Deposits",
+        "SURYODAY SMALL FINANCE BANK" to "Fixed Deposits",
+
+        // Food Delivery
+        "CASSWIGGY" to "Food Delivery",
+        "DOMINOS" to "Food Delivery",
+        "KFC" to "Food Delivery",
+        "LICIOUS" to "Food Delivery",
+        "PIZZA HUT" to "Food Delivery",
+        "PPSL SWIGGY" to "Food Delivery",
+        "SUBWAY" to "Food Delivery",
+        "SWIGGY" to "Food Delivery",
+        "SWIGGY STORES" to "Food Delivery",
+        "SWIGGYSTORES" to "Food Delivery",
+        "ZOMATO" to "Food Delivery",
 
         // Fuel
-        "FUEL" to "Fuel",
-        "PETROL" to "Fuel",
-        "HP" to "Fuel",
         "BPCL" to "Fuel",
+        "FUEL" to "Fuel",
+        "HINDUSTAN PETRO" to "Fuel",
+        "HP" to "Fuel",
         "IOCL" to "Fuel",
+        "PETROL" to "Fuel",
+        "VR FUELS" to "Fuel",
 
-        // Utilities
-        "ELECTRICITY" to "Utilities",
-        "BESCOM" to "Utilities",
-        "GAS" to "Utilities",
-        "WATER" to "Utilities",
+        // Furniture
+        "GODREJ INTERIO" to "Furniture",
+        "HOMETOWN" to "Furniture",
+        "IKEA" to "Furniture",
+        "NILKAMAL" to "Furniture",
+        "NILKAMALFURNITU" to "Furniture",
+        "PEPPERFRY" to "Furniture",
+        "URBAN LADDER" to "Furniture",
 
-        // Telecom (Mobile + WiFi)
-        "AIRTEL" to "Mobile + WiFi",
-        "JIO" to "Mobile + WiFi",
-        "VI " to "Mobile + WiFi",
-        "BSNL" to "Mobile + WiFi",
-        "ACT FIBERNET" to "Mobile + WiFi",
-        "HATHWAY" to "Mobile + WiFi",
+        // Gold
+        "AUGMONT" to "Gold",
+        "GOLD" to "Gold",
+        "SAFEGOLD" to "Gold",
 
-        // Quick Commerce additions
-        "INSTAMART" to "Groceries",
-        "DUNZO" to "Groceries",
+        // Groceries
+        "AVENUE SUPERMAR" to "Groceries",
+        "BHARAT BAZAR" to "Groceries",
         "BIGBASKET" to "Groceries",
-        // Entertainment
-        "YOUTUBE" to "Entertainment",
-        "NETFLIX" to "Entertainment",
-        "SPOTIFY" to "Entertainment",
-        "GAMEON" to "Entertainment",
-        "PRIVEPLEX" to "Entertainment",
-        "STEAM" to "Entertainment",
-        "PLAYSTATION" to "Entertainment",
-        "XBOX" to "Entertainment",
-        "NINTENDO" to "Entertainment",
-        "DREAM11" to "Entertainment",
-        "RUMMY" to "Entertainment",
-        "GAMES" to "Entertainment",
+        "BLINKIT" to "Groceries",
+        "BLINKITJKB" to "Groceries",
+        "BUNDL TECHN" to "Groceries",
+        "CP ZEPTO" to "Groceries",
+        "CREDPAYZEPTO" to "Groceries",
+        "DMART" to "Groceries",
+        "DUNZO" to "Groceries",
+        "GROFERS PAYTM" to "Groceries",
+        "INSTAM" to "Groceries",
+        "INSTAMART" to "Groceries",
+        "KPN FF KOT" to "Groceries",
+        "RATNADEEP" to "Groceries",
+        "SMPOORNA" to "Groceries",
+        "SWIGGY INSTAMART" to "Groceries",
+        "VIJETHA" to "Groceries",
+        "ZEPTO" to "Groceries",
+        "ZEPTO MARKETPLA" to "Groceries",
+        "ZEPTONOW ESBZ" to "Groceries",
+        "ZEPTOONLINE" to "Groceries",
 
-        // Education / Self Development
-        "UDEMY" to "Education",
-
-        // Investment (Map to Mutual Funds as proxy)
-        "ZERODHA" to "Mutual Funds",
-        "GROWW" to "Mutual Funds",
-        "INDIAN CLEARING" to "Mutual Funds",
-        "ICCL" to "Mutual Funds",
+        // Gym & Fitness
+        "CROSSFIT" to "Gym & Fitness",
+        "CULT" to "Gym & Fitness",
+        "DECATHLON" to "Gym & Fitness",
+        "FITNESS" to "Gym & Fitness",
+        "GYM" to "Gym & Fitness",
 
         // Insurance
         "ICICI PRU" to "Insurance",
-        "POLICYBAZAAR" to "Insurance",
         "LIC" to "Insurance",
-        
-        // Personal Care / Service
-        "SIVAM AUTO" to "Service",
-        
-        // Misc
-        "PAYTMQR" to "Offline Merchant",
-        "VYAPAR" to "Miscellaneous",
-        "GPAY" to "Miscellaneous",
+        "POLICYBAZAAR" to "Insurance",
+        "WWW POLICYBAZAAR" to "Insurance",
 
-        // Financial Services / Credit Card
-        "CRED" to "Credit Bill Payments",
-        "STATEMENT" to "Credit Bill Payments",
-        "SBICARD" to "Credit Bill Payments",
-        "HDFCCARD" to "Credit Bill Payments",
-        "AXISCARD" to "Credit Bill Payments",
-        "AMEX" to "Credit Bill Payments",
-        "CITIBANK" to "Credit Bill Payments",
-        "ONECARD" to "Credit Bill Payments",
-        "BILLDESK" to "Credit Bill Payments",
-        "CCPAY" to "Credit Bill Payments",
-
-        // Interest Income
+        // Interest
         "IDFC FIRST BANK" to "Interest",
-        "INTEREST" to "Interest",
         "INT CREDIT" to "Interest",
+        "INTEREST" to "Interest",
 
-        // Education
-        "SCHOOL" to "Education / Fees",
-        "COLLEGE" to "Education / Fees",
-        "UNIVERSITY" to "Education / Fees",
-        "COACHING" to "Education / Fees",
-        "BYJU" to "Education / Fees",
-        "UNACADEMY" to "Education / Fees",
-        "VEDANTU" to "Education / Fees",
-        
-        // Personal Care
-        "SALON" to "Personal Care",
-        "PARLOUR" to "Personal Care",
-        "SPA" to "Personal Care",
-        "BEAUTY" to "Personal Care",
-        "BARBER" to "Personal Care",
-        
-        // Gym & Fitness
-        "GYM" to "Gym & Fitness",
-        "FITNESS" to "Gym & Fitness",
-        "CULT" to "Gym & Fitness",
-        "CROSSFIT" to "Gym & Fitness",
-        
-        // Stocks & Trading
-        "ANGEL" to "Stocks",
-        "UPSTOX" to "Stocks",
-        "KITE" to "Stocks",
-        "5PAISA" to "Stocks",
-        "ICICIDIRECT" to "Stocks",
-        "KOTAK SEC" to "Stocks",
-        
-        // Gold
-        "GOLD" to "Gold",
-        "AUGMONT" to "Gold",
-        "SAFEGOLD" to "Gold",
-        
-        // Tolls & Parking
+        // Medical
+        "ALEKHYA DIAGNOS" to "Medical",
+        "MEDIBUDDY PHASO" to "Medical",
+
+        // Miscellaneous
+        "EASEBUZZ" to "Miscellaneous",
+        "GPAY" to "Miscellaneous",
+        "RAZORPAY" to "Miscellaneous",
+        "VYAPAR" to "Miscellaneous",
+
+        // Mobile + WiFi
+        "ACT FIBERNET" to "Mobile + WiFi",
+        "AIRTEL" to "Mobile + WiFi",
+        "BSNL" to "Mobile + WiFi",
+        "HATHWAY" to "Mobile + WiFi",
+        "JIO" to "Mobile + WiFi",
+        "PHONEPEBSNLSOUTH" to "Mobile + WiFi",
+
+        // Mutual Funds
+        "GROWW" to "Mutual Funds",
+        "ICCL" to "Mutual Funds",
+        "ICCL ZERODHA" to "Mutual Funds",
+        "INDIAN CLEARING" to "Mutual Funds",
+        "INDIAN CLEARING CORPORATION" to "Mutual Funds",
+        "ZERODHA" to "Mutual Funds",
+        "ZERODHA BROKING" to "Mutual Funds",
+
+        // Offline Merchant
+        "PAYTM" to "Offline Merchant",
+        "PAYTMQR" to "Offline Merchant",
+
+        // Parking & Tolls
         "FASTAG" to "Parking & Tolls",
-        "TOLL" to "Parking & Tolls",
-        "PARKING" to "Parking & Tolls",
         "NETC" to "Parking & Tolls",
-        
-        // Additional merchants from log analysis
-        // Dining Out
-        "HOUSE OF SPIRITS" to "Dining Out",
-        "KINGS FAMILY" to "Dining Out",
-        "STONE SPOT" to "Dining Out",
-        
+        "PARKING" to "Parking & Tolls",
+        "RTO" to "Parking & Tolls",
+        "TELANGANA STATE" to "Parking & Tolls",
+        "TELANGANA STATE ROAD TRANSPORT" to "Parking & Tolls",
+        "TOLL" to "Parking & Tolls",
+
+        // Personal Care
+        "BARBER" to "Personal Care",
+        "BEAUTY" to "Personal Care",
+        "GREENTRENDS" to "Personal Care",
+        "PARLOUR" to "Personal Care",
+        "SALON" to "Personal Care",
+        "SPA" to "Personal Care",
+
+        // Salary
+        "NEFT DEUTH IND" to AppConstants.Categories.SALARY,
+        "OPEN TEXT" to AppConstants.Categories.SALARY,
+        "OPEN TEXT TECHNOLOGIES" to AppConstants.Categories.SALARY,
+
+        // Service
+        "SIVAM AUTO" to "Service",
+        "SRI MOTORS" to "Service",
+
         // Shopping
-        "FLIPKART PAYMENTS" to "Shopping",
+        "AMAZON" to "Shopping",
+        "AMAZON CY" to "Shopping",
         "AVENUE E" to "Shopping",
         "DIVERSE RETAIL" to "Shopping",
-        
-        // Transport / Tolls
-        "TELANGANA STATE" to "Parking & Tolls",
-        "RTO" to "Parking & Tolls",
-        
-        // Payment Gateways
-        "EASEBUZZ" to "Miscellaneous",
-        "RAZORPAY" to "Miscellaneous",
+        "FLIPKART" to "Shopping",
+        "FLIPKART PAYMENTS" to "Shopping",
+        "IND" to "Shopping",
+        "INFINITI LIMITEMUM" to "Shopping",
+        "RELIANCE" to "Shopping",
+        "SOUTH JEW" to "Shopping",
 
-        // LEARNED FROM APP LOGS (High Confidence)
-        "OPEN TEXT TECHNOLOGIES" to "Salary",
-        "VR FUELS" to "Fuel",
-        "ZERODHA BROKING" to "Mutual Funds",
-        "INDIAN CLEARING CORPORATION" to "Mutual Funds",
-        "SWIGGY INSTAMART" to "Groceries",
-        "ZEPTO MARKETPLA" to "Groceries",
-        "BAKE CENTRAL" to "Dining Out",
-        "THE GREAT WALL" to "Dining Out",
-        "MANDIKINGARABIANREST" to "Dining Out"
+        // Stocks
+        "5PAISA" to "Stocks",
+        "ANGEL" to "Stocks",
+        "ICICIDIRECT" to "Stocks",
+        "KITE" to "Stocks",
+        "KOTAK SEC" to "Stocks",
+        "UPSTOX" to "Stocks",
+
+        // Subscriptions
+        "ADOBE PREMIERE" to "Subscriptions",
+        "ADOBE SYSTEMS" to "Subscriptions",
+        "EENADU TELEVISI" to "Subscriptions",
+        "GOOGLE PLAY" to "Subscriptions",
+        "GOOGLE PLAY APP" to "Subscriptions",
+        "UDEMY SUBSCRIPT" to "Subscriptions",
+        "YOUTUBE CYBS" to "Subscriptions",
+        "NETFLIX" to "Subscriptions",
+        "YOUTUBE" to "Subscriptions",
+        "YOUTUBEGOOGLE" to "Subscriptions",
+        "ZEEENTERTAINMEN" to "Subscriptions",
+
+
+        // Transportation
+        "ABHIBUS" to "Transportation",
+        "APSRTC" to "Transportation",
+        "HYDMETROINAPP" to "Transportation",
+        "IRCTC" to "Transportation",
+        "IRCTCPGONLINE" to "Transportation",
+        "METRO" to "Transportation",
+        "NAMMA YATRI" to "Transportation",
+        "OLA" to "Transportation",
+        "RAPIDO" to "Transportation",
+        "REDBUS" to "Transportation",
+        "TSRTC" to "Transportation",
+        "TTDCLBOATHOUSE" to "Transportation",
+        "UBER" to "Transportation",
+        "YULU" to "Transportation",
+
+        // Utilities
+        "BESCOM" to "Utilities",
+        "ELECTRICITY" to "Utilities",
+        "GAS" to "Utilities",
+        "WATER" to "Utilities",
     )
 
     // AUDIT: Using unified TransactionType from data.entity
     private val TYPE_DEFAULT_CATEGORIES = mapOf(
-        TransactionType.PENSION to "Mutual Funds", // Proxy for Pension
-        TransactionType.INVESTMENT_CONTRIBUTION to "Mutual Funds",
-        TransactionType.LIABILITY_PAYMENT to "Credit Bill Payments",
-        TransactionType.TRANSFER to "P2P Transfers",
-        TransactionType.INCOME to "Other Income", // Changed from Salary
-        TransactionType.STATEMENT to "Credit Bill Payments" // Show under Credit Bills
+        TransactionType.PENSION to AppConstants.Categories.MUTUAL_FUNDS, // Proxy for Pension
+        TransactionType.INVESTMENT_CONTRIBUTION to AppConstants.Categories.MUTUAL_FUNDS,
+        TransactionType.LIABILITY_PAYMENT to AppConstants.Categories.CREDIT_BILL_PAYMENTS,
+        TransactionType.TRANSFER to AppConstants.Categories.P2P_TRANSFERS,
+        TransactionType.INCOME to AppConstants.Categories.OTHER_INCOME, 
+        TransactionType.STATEMENT to "Credit Card Statement" // Separate category for Statements
     )
 
     fun categorize(
         counterparty: CounterpartyExtractor.Counterparty,
-        transactionType: TransactionType, // AUDIT: Unified enum
+        transactionType: TransactionType,
         rules: List<CategorizationRule> = emptyList(),
         categoryMap: Map<Long, String> = emptyMap(),
         userAccounts: List<UserAccount> = emptyList(),
-        messageBody: String = "", // Optional: raw SMS body for advanced detection
-        salarySources: Set<Pair<String, String>> = emptySet(), // Known salary sources (IFSC, sender)
-        salaryCompanyNames: Set<String> = emptySet(), // User-configured company names for salary detection
-        trace: MutableList<String>? = null  // Debug trace for decision tree
+        messageBody: String = "", 
+        salarySources: Set<Pair<String, String>> = emptySet(),
+        salaryCompanyNames: Set<String> = emptySet(),
+        merchantMemories: Map<String, Long> = emptyMap(), // ADAPTIVE CATEGORIZATION
+        trace: MutableList<String>? = null
     ): String {
-        // 0. CHECK NEFT SELF-TRANSFER (sender == receiver)
-        // This catches deposits from your own account at another bank
+        // NEFT Self-Transfer Check
         if (messageBody.contains("NEFT", ignoreCase = true)) {
             if (CounterpartyExtractor.isNeftSelfTransfer(messageBody)) {
                 trace?.add("Matched: NEFT Self Transfer pattern")
-                return "Self Transfer"
+                return AppConstants.Categories.SELF_TRANSFER
             }
             
-            // 0.5. CHECK IF NEFT SOURCE IS A KNOWN SALARY SOURCE
+            // Known Salary Source Check
             if (salarySources.isNotEmpty()) {
                 val neftSource = CounterpartyExtractor.extractNeftSource(messageBody)
                 if (neftSource != null && salarySources.contains(neftSource)) {
                     trace?.add("Matched: Known Salary Source (NEFT)")
-                    return "Salary"
+                    return AppConstants.Categories.SALARY
                 }
             }
         }
         
-        // 0.55. CHECK SALARY COMPANY NAMES (User-configured)
-        // Match company names in the message body for income transactions
+        // Salary Company Name Check (User-configured)
         if (transactionType == TransactionType.INCOME && salaryCompanyNames.isNotEmpty()) {
             val upperBody = messageBody.uppercase()
             for (companyName in salaryCompanyNames) {
                 if (upperBody.contains(companyName.uppercase())) {
                     trace?.add("Matched: Salary Company Name '$companyName'")
-                    return "Salary"
+                    return AppConstants.Categories.SALARY
                 }
             }
         }
 
-        // 0.6. CHECK FOR INTEREST (Body-based)
-        // Many banks just say "Interest credited", with no specific merchant name
+        // Interest Income Check (Body-based)
         if (transactionType == TransactionType.INCOME) {
              val lowerBody = messageBody.lowercase()
              if (lowerBody.contains("interest") || 
@@ -323,9 +403,7 @@ object CategoryMapper {
              }
         }
         
-        // 1. Check DB Rules (Highest Priority)
-        // Sort rules by PatternType (UPI_ID > MERCHANT_NAME, etc - based on enum ordinal)
-        // Ideally rules should be pre-sorted, but for safety:
+        // Priority 1: User Rules
         val sortedRules = rules.sortedBy { it.patternType.ordinal } 
         
         for (rule in sortedRules) {
@@ -333,61 +411,22 @@ object CategoryMapper {
                 PatternType.UPI_ID -> counterparty.upiId?.equals(rule.pattern, ignoreCase = true) == true
                 PatternType.MERCHANT_NAME -> counterparty.name?.contains(rule.pattern, ignoreCase = true) == true
                 PatternType.PAYEE_NAME -> counterparty.name?.contains(rule.pattern, ignoreCase = true) == true
-                // Add other types if needed
                 else -> false
             }
             
             if (isMatch) {
                 trace?.add("Matched User Rule: ${rule.id} (${rule.pattern}) -> Category ID ${rule.categoryId}")
-                return categoryMap[rule.categoryId] ?: "Uncategorized"
+                return categoryMap[rule.categoryId] ?: AppConstants.Categories.UNCATEGORIZED
             }
         }
         if (rules.isNotEmpty()) trace?.add("No User Rules matched (${rules.size} checked)")
 
-        // 1.5. CHECK SELF-TRANSFER / BILL PAYMENT (Discovered Accounts)
-        // If the counterparty name mentions one of our accounts (e.g. "Account XX2725" or "Card 1234")
-        if (counterparty.name != null) {
-            val matchedAccount = userAccounts.find { myAccount ->
-                counterparty.name.contains(myAccount.accountNumberLast4, ignoreCase = true)
-            }
-            if (matchedAccount != null) {
-                trace?.add("Matched: Discovered Account ${matchedAccount.accountNumberLast4}")
-                return if (matchedAccount.accountType == AccountType.CREDIT_CARD) {
-                    "Credit Bill Payments" // Payment to my own Credit Card
-                } else {
-                    "Self Transfer" // Transfer to my own Bank Account
-                }
-            }
-            
-            // 1.6. CHECK IF RECIPIENT NAME MATCHES USER'S OWN NAME (Self-Transfer)
-            // This catches transfers to yourself at different banks
-            if (isUserOwnName(counterparty.name, userAccounts)) {
-                trace?.add("Matched: User Own Name detected (Self Transfer)")
-                return "Self Transfer"
-            }
-        }
-
-        // 0.1. CHECK FOR CASHBACK
-        // "Cashback of INR ..." -> Category: Cashback
-        if (messageBody.contains("cashback", ignoreCase = true) || 
-            messageBody.contains("reward", ignoreCase = true) ||
-            (counterparty.name?.contains("cashback", ignoreCase = true) == true)) {
-            
-            trace?.add("Matched: Cashback/Reward keyword")
-            return "Cashback"
-        }
-        
-        // Check UPI ID for self-transfer pattern (even if name is null)
-        if (!counterparty.upiId.isNullOrBlank() && isUserOwnName(counterparty.upiId, userAccounts)) {
-             trace?.add("Matched: User Own UPI detected (Self Transfer)")
-             return "Self Transfer"
-        }
-        
-        // 2. Try merchant name match (Hardcoded Map)
+        // Priority 2: Hardcoded Merchant Map
+        // MOVED UP: System Truth should override Adaptive Memory (which might contain bad learnings)
         counterparty.name?.let { name ->
             val upper = name.uppercase()
             
-            // Special case for Chits (Dynamic)
+            // Special case: Chits
             if (upper.contains("CHIT") || upper.contains("SHRIRAM")) {
                  if (transactionType == TransactionType.INCOME) {
                      trace?.add("Matched: Chit/Shriram -> Investment Redemption")
@@ -398,78 +437,193 @@ object CategoryMapper {
                  }
             }
 
+            // Scan for the LONGEST matching merchant key to ensure specificity
+            // e.g. Match "SWIGGY INSTAMART" (length 16) over "SWIGGY" (length 6)
+            var bestMatchCategory: String? = null
+            var maxMatchLength = 0
+            var bestMatchKey = ""
+
             for ((key, defaultCategory) in MERCHANT_CATEGORIES) {
                 if (upper.contains(key)) {
-                    // FIX: Prevent "CRED" matching "CREDITED"
+                    // Prevent "CRED" matching "CREDITED"
                     if (key == "CRED" && upper.contains("CREDITED") && 
                         !upper.contains("CRED APP") && !upper.contains("CRED CLUB")) {
                         continue
                     }
                     
-                    // If money is coming IN from an Investment entity, it's Redemption
-                    if (transactionType == TransactionType.INCOME) {
-                        if (defaultCategory == "Mutual Funds" || 
-                            key == "ICCL" || 
-                            key == "INDIAN CLEARING") {
-                            trace?.add("Matched: $key -> Investment Redemption (Income)")
-                            return "Investment Redemption"
+                    if (key.length > maxMatchLength) {
+                        // Investment Redemption check
+                        if (transactionType == TransactionType.INCOME) {
+                            if (defaultCategory == "Mutual Funds" || 
+                                key == "ICCL" || 
+                                key == "INDIAN CLEARING") {
+                                // Special handling return immediately or treat strings differently?
+                                // Let's just track it as the category
+                                bestMatchCategory = "Investment Redemption"
+                            } else {
+                                bestMatchCategory = defaultCategory
+                            }
+                        } else {
+                            bestMatchCategory = defaultCategory
                         }
+                        
+                        // Override for known redemption entities
+                        if (upper.contains("INDIAN CLEARING") || upper.contains("ICCL")) {
+                             if (transactionType == TransactionType.INCOME) bestMatchCategory = "Investment Redemption"
+                        }
+                        
+                        maxMatchLength = key.length
+                        bestMatchKey = key
                     }
-                    trace?.add("Matched Hardcoded Merchant: $key -> $defaultCategory")
-                    return defaultCategory
                 }
             }
             
-            // 2b. Investment Redemption Patterns
-            // "INDIAN CLEARING CORPORATION" -> Mutual Funds (Redemption)
-            if (upper.contains("INDIAN CLEARING") || upper.contains("ICCL")) {
-                if (transactionType == TransactionType.INCOME) {
-                    trace?.add("Matched: ICCL/Clearing -> Investment Redemption")
-                    return "Investment Redemption"
-                } else {
-                    trace?.add("Matched: ICCL/Clearing -> Mutual Funds")
-                    return "Mutual Funds"
-                }
+            if (bestMatchCategory != null) {
+                trace?.add("Matched Hardcoded Merchant: $bestMatchKey -> $bestMatchCategory")
+                return enforceCategoryTypeCompatibility(bestMatchCategory, transactionType, trace)
             }
         }
         
-        // 2c. Try ML Classifier
-        // If we have a clean merchant name, try the Naive Bayes model
-        // This handles known merchants that aren't in the hardcoded map yet
-        counterparty.name?.let { name -> 
-             val mlResult = com.saikumar.expensetracker.ml.NaiveBayesClassifier.classify(name)
+        // Priority 2.5: Account Discovery matches (Self-Transfer / CC Bill)
+        // Check this BEFORE Memory but AFTER Hardcoded Map (to allow explicit CC names to map to Credit Bills)
+        if (counterparty.name != null) {
+            val matchedAccount = userAccounts.find { myAccount ->
+                counterparty.name.contains(myAccount.accountNumberLast4, ignoreCase = true)
+            }
+            if (matchedAccount != null) {
+                trace?.add("Matched: Discovered Account ${matchedAccount.accountNumberLast4}")
+                return if (matchedAccount.accountType == AccountType.CREDIT_CARD) {
+                    AppConstants.Categories.CREDIT_BILL_PAYMENTS // Payment to my own Credit Card
+                } else {
+                    AppConstants.Categories.SELF_TRANSFER // Transfer to my own Bank Account
+                }
+            }
+            
+            if (isUserOwnName(counterparty.name, userAccounts)) {
+                trace?.add("Matched: User Own Name detected (Self Transfer)")
+                return AppConstants.Categories.SELF_TRANSFER
+            }
+        }
+
+        // Recurring Deposit Check
+        val lowerBody = messageBody.lowercase()
+        if (SmsConstants.RD_PATTERNS.any { lowerBody.contains(it) }) {
+             trace?.add("Matched: Recurring Deposit pattern")
+             return AppConstants.Categories.RECURRING_DEPOSITS
+        }
+
+        // Cashback Check
+        if (transactionType != TransactionType.EXPENSE && 
+            (messageBody.contains("cashback", ignoreCase = true) || 
+             messageBody.contains("reward", ignoreCase = true) ||
+             (counterparty.name?.contains("cashback", ignoreCase = true) == true))) {
+            
+            trace?.add("Matched: Cashback/Reward keyword (Non-Expense)")
+            return AppConstants.Categories.CASHBACK
+        }
+        
+        // UPI Self-Transfer Check
+        if (!counterparty.upiId.isNullOrBlank() && isUserOwnName(counterparty.upiId, userAccounts)) {
+             trace?.add("Matched: User Own UPI detected (Self Transfer)")
+             return "Self Transfer"
+        }
+        
+        // Priority 3: ADAPTIVE MEMORY (Learned from User Corrections)
+        if (!counterparty.name.isNullOrBlank()) {
+            val normalized = counterparty.name.uppercase().trim()
+            var memoryCategoryId = merchantMemories[normalized]
+            
+            // Try fuzzy match if exact match fails
+            if (memoryCategoryId == null) {
+                 // Simple containment check for memories
+                 val match = merchantMemories.keys.find { normalized.contains(it) || it.contains(normalized) }
+                 if (match != null) memoryCategoryId = merchantMemories[match]
+            }
+            
+            if (memoryCategoryId != null) {
+                val learnedCategory = categoryMap[memoryCategoryId]
+                if (learnedCategory != null) {
+                    trace?.add("Matched: Learned Memory for '${counterparty.name}' -> $learnedCategory")
+                    return enforceCategoryTypeCompatibility(learnedCategory, transactionType, trace)
+                }
+            }
+        }
+
+        // Priority 5: ML Classifier (Name > Body)
+        // DISABLED TEMPORARILY AS PER USER REQUEST
+        var mlCategory: String? = null
+        var mlConfidence = 0
+        
+        /*
+        // Strategy A: Classify Name
+        if (!counterparty.name.isNullOrBlank()) {
+             val mlResult = com.saikumar.expensetracker.ml.NaiveBayesClassifier.classify(counterparty.name)
              if (mlResult != null) {
-                 trace?.add("Matched: ML Classifier -> ${mlResult.category} (Conf: ${mlResult.confidence})")
-                 return mlResult.category
+                 mlCategory = mlResult.category
+                 mlConfidence = mlResult.confidence
+                 trace?.add("Matched: ML Classifier (Name) -> $mlCategory (Conf: $mlConfidence)")
              }
         }
         
-        // 4. Fall back to type-based default
-        // 4. Fall back to type-based default
-        val defaultCategory = TYPE_DEFAULT_CATEGORIES[transactionType] ?: "Uncategorized"
+        // Strategy B: Classify Body (Fallback)
+        if (mlCategory == null && messageBody.isNotBlank()) {
+            val cleanedBody = SmsConstants.cleanMessageBody(messageBody)
+            
+            if (cleanedBody.length > 3) {
+                val mlResult = com.saikumar.expensetracker.ml.NaiveBayesClassifier.classify(cleanedBody)
+                // Enforce higher threshold and specific guardrails
+                if (mlResult != null && mlResult.confidence >= 70) {
+                     val candidate = mlResult.category
+                     
+                     // GUARDRAIL: "Dining Out" is often a false positive in ML (overfitted).
+                     // Only accept it from Body ML if we see specific food keywords.
+                     if (candidate == "Dining Out") {
+                         val foodKeywords = setOf("food", "restaurant", "swiggy", "zomato", "hotel", "kitchen", "biryani", "pizza", "burger", "cafe", "coffee", "tea", "bakery", "cake", "sweet", "bar", "pub", "brewery", "diner", "mess")
+                         val hasFoodKeyword = foodKeywords.any { cleanedBody.contains(it, ignoreCase = true) }
+                         
+                         if (hasFoodKeyword) {
+                             mlCategory = candidate
+                             mlConfidence = mlResult.confidence
+                             trace?.add("Matched: ML Classifier (Body) -> $candidate (Validated with Food Keyword)")
+                         } else {
+                             trace?.add("Ignored: ML predicted 'Dining Out' but no food keywords found in body.")
+                         }
+                     } else {
+                         // Accept other categories normally
+                         mlCategory = candidate
+                         mlConfidence = mlResult.confidence
+                         trace?.add("Matched: ML Classifier (Body) -> $candidate (Conf: $mlConfidence)")
+                     }
+                }
+            }
+        }
+        */
+        
+        if (mlCategory != null) {
+            return enforceCategoryTypeCompatibility(mlCategory, transactionType, trace)
+        }
+        
+        // Priority 5: Type-based Fallback
+        val defaultCategory = TYPE_DEFAULT_CATEGORIES[transactionType] ?: AppConstants.Categories.UNCATEGORIZED
 
         // 5. Handling Generic/Offline Merchants
         // a) Q-Code / Card-Machine UPI (Generic Offline)
         if (counterparty.upiId?.matches(Regex("(?i)^q\\d+.*")) == true) {
              trace?.add("Matched: Q-Code VPA -> Offline Merchant")
-             return "Offline Merchant"
+             return enforceCategoryTypeCompatibility("Offline Merchant", transactionType, trace)
         }
 
         // b) Generic Fallback
-        // FIX: If we know it's a MERCHANT but haven't found a specific category,
-        // map to 'Miscellaneous' instead of 'Uncategorized' to reduce noise.
         if (defaultCategory == "Uncategorized" && 
             (counterparty.type == CounterpartyExtractor.CounterpartyType.MERCHANT || 
              (transactionType == TransactionType.EXPENSE && !counterparty.name.isNullOrBlank()))) {
             trace?.add("Fallback: Generic Merchant/Expense with Name -> Miscellaneous")
-            return "Miscellaneous"
+            return enforceCategoryTypeCompatibility("Miscellaneous", transactionType, trace)
         }
         
-        // AUDIT FIX: Flag large unverified income credits for review
-        // If income >₹10,000 with no specific category match, it could be a self-transfer
-        if (defaultCategory == "Other Income" && transactionType == TransactionType.INCOME) {
+        // Flag large unverified income
+        if (defaultCategory == AppConstants.Categories.OTHER_INCOME && transactionType == TransactionType.INCOME) {
             val lowerBody = messageBody.lowercase()
-            // Check if there's no identifiable source pattern
             val hasNoIdentifiedSource = !lowerBody.contains("neft") && 
                                         !lowerBody.contains("imps") && 
                                         !lowerBody.contains("upi") && 
@@ -486,6 +640,41 @@ object CategoryMapper {
     }
     
     /**
+     * Enforce compatibility between Category and Transaction Type.
+     * Prevents ML/Keyword logic from assigning "Dining Out" (Expense) to an INCOME transaction.
+     */
+    private fun enforceCategoryTypeCompatibility(
+        category: String,
+        type: TransactionType,
+        trace: MutableList<String>?
+    ): String {
+        // REFUND and CASHBACK types can be assigned to any category (returning money for purchases)
+        if (type == TransactionType.REFUND || type == TransactionType.CASHBACK) return category
+
+        // If it's NOT Income, we generally trust the category (Expenses can be anything)
+        if (type != TransactionType.INCOME) return category
+
+        // List of categories that are strictly expenses and should NEVER be Income
+        // P2P Transfers and Self Transfer are excluded as they can be valid for incoming P2P returns
+        val strictExpenseCategories = setOf(
+            "Dining Out", "Groceries", "Fuel", "Utilities", "Shopping",
+            "Entertainment", "Travel", "Cab & Taxi", "Food Delivery",
+            "Medical", "Education", "Personal Care", "Furniture",
+            "Electronics", "Mobile + WiFi", "Insurance", "Service",
+            "Credit Bill Payments", "Miscellaneous", "Offline Merchant",
+            "Gym & Fitness", "Stocks", "Gold", "Parking & Tolls"
+            // Note: P2P Transfers and Self Transfer removed - valid for incoming transfers
+        )
+
+        if (category in strictExpenseCategories) {
+            trace?.add("Incompatibility detected: INCOME type cannot be '$category' -> Reverting to 'Other Income'")
+            return AppConstants.Categories.OTHER_INCOME
+        }
+
+        return category
+    }
+    
+    /**
      * Check if the counterparty name matches the user's own name.
      * This helps detect self-transfers when money moves between user's accounts at different banks.
      * 
@@ -493,80 +682,45 @@ object CategoryMapper {
      */
     private fun isUserOwnName(name: String, userAccounts: List<UserAccount>): Boolean {
         val lower = name.lowercase()
-        
-        // Get all discovered account holder names
         val holderNames = userAccounts.mapNotNull { it.accountHolderName }.distinct()
         
-        if (holderNames.isEmpty()) {
-            return false // No holder names discovered yet
-        }
+        if (holderNames.isEmpty()) return false
         
-        // 3. Check if counterparty name contains any of the discovered holder names
         for (holderName in holderNames) {
             val holderLower = holderName.lowercase()
             
-            // Check if name contains the holder name
-            if (lower.contains(holderLower)) {
-                return true
-            }
+            if (lower.contains(holderLower)) return true
             
-            // Also check inverted formats (first words)
-            // E.g., "GODALA SAIKUMAR REDDY" should match "Saikumar Reddy Godala"
+            // Check inverted formats (e.g. "Last First" matches "First Last")
             val holderParts = holderLower.split(" ").filter { it.length >= 3 }
             if (holderParts.size >= 2) {
-                // Check if two significant name parts match
                 val matchCount = holderParts.count { part -> lower.contains(part) }
-                if (matchCount >= 2) {
-                    return true
-                }
+                if (matchCount >= 2) return true
             }
         }
-        
         return false
     }
     
-    /**
-     * Calculate confidence score based on category name and match type.
-     * This is a heuristic based on which classification path was likely taken.
-     */
     fun calculateConfidence(category: String, wasUserRule: Boolean = false): Int {
         if (wasUserRule) return Confidence.USER_RULE
         
         return when (category) {
-            // High confidence - specific matches
-            "Self Transfer" -> Confidence.SELF_TRANSFER
-            "Salary" -> Confidence.SALARY_PATTERN
+            AppConstants.Categories.SELF_TRANSFER -> Confidence.SELF_TRANSFER
+            AppConstants.Categories.SALARY -> Confidence.SALARY_PATTERN
             "Interest" -> Confidence.PATTERN_MATCH
             "Investment Redemption" -> Confidence.PATTERN_MATCH
             
-            // ML Prediction
-            // We don't have a specific category name check for ML (it can return anything)
-            // But if 'wasUserRule' is false and we land here, we might want to check if it matches the ML result?
-            // Actually, this function is called AFTER categorization to assign a score.
-            // If the category came from ML, it should get ML_PREDICTION score?
-            // The problem is we lose the "source" information by the time we call this.
-            // However, we can use the 'wasUserRule' flag or similar context. 
-            // For now, we'll leave it as Pattern Match (80) or similar.
-            // Actually, let's keep it simple. If it's a known category but NOT exact merchant match, 
-            // it falls to 'else', which is PATTERN_MATCH (80).
-            // ML_PREDICTION is 75. 
-            // If we want to be strict, we'd need to pass 'source' to this function.
-            // But 80 (Pattern Match) is close enough to 75.
-
-            
-            // High confidence - exact merchant matches
             in MERCHANT_CATEGORIES.values -> Confidence.MERCHANT_EXACT
             
-            // Medium confidence - type-based defaults
-            "Mutual Funds", "Credit Bill Payments", "P2P Transfers", "Other Income" -> Confidence.TYPE_DEFAULT
+            AppConstants.Categories.MUTUAL_FUNDS, 
+            AppConstants.Categories.CREDIT_BILL_PAYMENTS, 
+            AppConstants.Categories.P2P_TRANSFERS, 
+            AppConstants.Categories.OTHER_INCOME -> Confidence.TYPE_DEFAULT
             
-            // Low confidence - fallbacks
-            "Miscellaneous" -> Confidence.FALLBACK
-            "Unknown Expense" -> Confidence.UNCATEGORIZED
-            "Uncategorized" -> Confidence.UNCATEGORIZED
+            AppConstants.Categories.MISCELLANEOUS -> Confidence.FALLBACK
+            AppConstants.Categories.UNCATEGORIZED, "Unknown Expense" -> Confidence.UNCATEGORIZED
             "Unverified Income" -> Confidence.UNVERIFIED
             
-            // Default for known categories
             else -> Confidence.PATTERN_MATCH
         }
     }

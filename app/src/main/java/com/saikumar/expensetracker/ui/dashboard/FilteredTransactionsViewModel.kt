@@ -9,7 +9,7 @@ import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import com.saikumar.expensetracker.util.TransactionTypeResolver
+
 
 class FilteredTransactionsViewModel(
     private val repository: ExpenseRepository
@@ -44,7 +44,6 @@ class FilteredTransactionsViewModel(
                     }
                 }
                 CategoryType.INVESTMENT -> {
-                    // Investment filter: include all investment-related types
                     list.filter { 
                         it.transaction.status == TransactionStatus.COMPLETED &&
                         it.category.type == CategoryType.INVESTMENT &&
@@ -54,7 +53,6 @@ class FilteredTransactionsViewModel(
                     }
                 }
                 else -> {
-                    // Other expense types (FIXED_EXPENSE, VARIABLE_EXPENSE, VEHICLE)
                     list.filter { 
                         it.transaction.status == TransactionStatus.COMPLETED &&
                         it.category.type == type && 
@@ -64,7 +62,6 @@ class FilteredTransactionsViewModel(
                 }
             }
             
-            // Apply Category Name filter if present
             if (categoryName != null) {
                  baseFiltered.filter { it.category.name == categoryName }
                      .sortedByDescending { it.transaction.timestamp }
@@ -78,22 +75,28 @@ class FilteredTransactionsViewModel(
         _filterParams.value = FilterState(type, start, end, categoryName)
     }
 
+    suspend fun findSimilarTransactions(transaction: Transaction): com.saikumar.expensetracker.sms.SimilarityResult {
+        return repository.findSimilarTransactions(transaction)
+    }
+
     fun updateTransactionDetails(
         transaction: Transaction, 
         newCategoryId: Long, 
         newNote: String, 
         accountType: AccountType, 
+        updateSimilar: Boolean,
         manualClassification: String? = null
     ) {
         viewModelScope.launch {
             val categories = repository.allEnabledCategories.first()
             val newCategory = categories.find { it.id == newCategoryId }
             
-            val newTransactionType = TransactionTypeResolver.determineTransactionType(
+            // Use centralized Rule Engine
+            val newTransactionType = com.saikumar.expensetracker.domain.TransactionRuleEngine.resolveTransactionType(
                 transaction = transaction,
                 manualClassification = manualClassification,
-                isSelfTransfer = false, // Not available in this context
-                newCategory = newCategory
+                isSelfTransfer = false,
+                category = newCategory
             )
             
             repository.updateTransaction(transaction.copy(
@@ -103,6 +106,59 @@ class FilteredTransactionsViewModel(
                 manualClassification = manualClassification,
                 transactionType = newTransactionType
             ))
+
+            // Record user confirmation for ML training
+            val trainingText = if (!transaction.merchantName.isNullOrBlank()) {
+                transaction.merchantName
+            } else if (!transaction.fullSmsBody.isNullOrBlank()) {
+                com.saikumar.expensetracker.sms.SmsConstants.cleanMessageBody(transaction.fullSmsBody)
+            } else {
+                null
+            }
+
+            if (!trainingText.isNullOrBlank()) {
+                repository.userConfirmMerchantMapping(
+                    merchantName = trainingText,
+                    categoryId = newCategoryId,
+                    transactionType = newTransactionType.name,
+                    timestamp = System.currentTimeMillis()
+                )
+            }
+            
+            // Log override for debug analysis
+            val overrideLogId = com.saikumar.expensetracker.util.ClassificationDebugLogger.startLog(
+                com.saikumar.expensetracker.data.entity.RawInputCapture(
+                    fullMessageText = transaction.fullSmsBody ?: "Manual/Unknown",
+                    source = "USER_EDIT",
+                    receivedTimestamp = transaction.timestamp,
+                    sender = "USER",
+                    amount = transaction.amountPaisa
+                )
+            )
+            com.saikumar.expensetracker.util.ClassificationDebugLogger.logUserOverride(
+                overrideLogId,
+                com.saikumar.expensetracker.data.entity.UserOverride(
+                    originalType = transaction.transactionType.name,
+                    originalCategoryId = transaction.categoryId,
+                    userSelectedType = newTransactionType.name,
+                    userSelectedCategoryId = newCategoryId,
+                    overrideTimestamp = System.currentTimeMillis()
+                )
+            )
+            com.saikumar.expensetracker.util.ClassificationDebugLogger.persistLog(
+                 com.saikumar.expensetracker.ExpenseTrackerApplication.instance, 
+                 overrideLogId
+            )
+
+            if (updateSimilar) {
+                com.saikumar.expensetracker.sms.SmsProcessor.assignCategoryToTransaction(
+                    context = com.saikumar.expensetracker.ExpenseTrackerApplication.instance,
+                    transactionId = transaction.id,
+                    categoryId = newCategoryId,
+                    applyToSimilar = true,
+                    transactionType = newTransactionType
+                )
+            }
         }
     }
 

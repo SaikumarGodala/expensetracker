@@ -181,59 +181,42 @@ fun AdvancedSettingsScreen(
                 }
             }
 
-            // ML Training Data Export Card
+
+
+            // ML Mode Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("ML Training Data", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Export merchant→category mappings for ML classifier training",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    OutlinedButton(
-                        onClick = {
-                            val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
-                            app.applicationScope.launch(Dispatchers.IO) {
-                                withContext(Dispatchers.Main) {
-                                    android.widget.Toast.makeText(context, "📊 Exporting training data...", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                                try {
-                                    val (file, stats) = com.saikumar.expensetracker.ml.TrainingDataExporter.export(context)
-                                    withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(
-                                            context, 
-                                            "✅ Exported ${stats.totalSamples} samples (${stats.categories} categories) to ${file.name}", 
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                    Log.d("AdvancedSettings", com.saikumar.expensetracker.ml.TrainingDataExporter.generateReport(stats))
-                                } catch (e: Exception) {
-                                    Log.e("AdvancedSettings", "ML export failed", e)
-                                    withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "❌ Export failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Export Training Data")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("ML Inference", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Use Machine Learning for merchant extraction",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        Switch(
+                            checked = viewModel.mlEnabled.collectAsState().value,
+                            onCheckedChange = { viewModel.setMlEnabled(it) }
+                        )
                     }
-                    Text(
-                        "JSON file saved to app's external files directory",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+                    if (!viewModel.mlEnabled.collectAsState().value) {
+                         Text(
+                            "Currently using Regex (Rule-based) logic. Use this mode to gather training data.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                 }
             }
-
-
 
             // Salary Company Names Card
             Card(

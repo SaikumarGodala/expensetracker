@@ -1,19 +1,21 @@
 package com.saikumar.expensetracker.sms
 
 import android.content.Context
-import android.net.Uri
-import androidx.core.net.toUri
 import android.util.Log
 import com.saikumar.expensetracker.ExpenseTrackerApplication
 import com.saikumar.expensetracker.data.entity.*
+import com.saikumar.expensetracker.core.AppConstants
+import com.saikumar.expensetracker.data.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.security.MessageDigest
 import com.saikumar.expensetracker.util.ClassificationDebugLogger
-import com.saikumar.expensetracker.util.MerchantNormalizer
 import com.saikumar.expensetracker.data.entity.MerchantAlias
+import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import com.saikumar.expensetracker.data.db.TransactionPairCandidate
+import com.saikumar.expensetracker.sms.InboxScanner
+import com.saikumar.expensetracker.sms.DuplicateChecker
+import com.saikumar.expensetracker.data.repository.CategorySeeder
 
 data class ParsedTransaction(
     val sender: String,
@@ -21,7 +23,7 @@ data class ParsedTransaction(
     val timestamp: Long,
     val senderType: SenderClassifier.SenderType,
     val transactionType: TransactionType,
-    val amount: Double?,
+    val amountPaisa: Long?,
     val counterparty: CounterpartyExtractor.Counterparty,
     val category: String,
     val isDebit: Boolean?,
@@ -35,72 +37,281 @@ data class SimilarityResult(
     val confidence: Float
 )
 
+sealed class ProcessingResult {
+    data class Success(val transaction: ParsedTransaction, val gateDecision: LedgerDecision.Insert) : ProcessingResult()
+    data class Dropped(val decision: LedgerDecision.Drop) : ProcessingResult()
+    object Ignored : ProcessingResult()
+}
+
 object SmsProcessor {
     private const val TAG = "SmsProcessor"
 
+    private val OPTIONS = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    private val BALANCE_REGEX = Regex("(?:balance|bal).*?Rs\\.?\\s*([\\d,]+(?:\\.\\d+)?)", OPTIONS)
+    private val CONTRIBUTION_REGEX = Regex("(?:contribution|credit).*?Rs\\.?\\s*([\\d,]+(?:\\.\\d+)?)", OPTIONS)
+    private val MONTH_REGEX = Regex("(?:for|month).*?(\\w{3})['-]?(\\d{2,4})", OPTIONS)
+    
+    // ========================================
+    // HELPER DATA CLASS FOR DEDUPLICATION
+    // ========================================
+    
+    /**
+     * Context object for transaction resolution. Bundles all the data needed
+     * to resolve category, transaction type, and build a Transaction object.
+     * Used to deduplicate logic across scanInbox, processAndInsert, and reclassifyTransactions.
+     */
+    data class TransactionResolutionContext(
+        val parsed: ParsedTransaction,
+        val categoryMap: Map<String, Category>,
+        val trustedNames: Set<String>? = null, // Pre-loaded for bulk ops, null for single-message
+        val db: AppDatabase,
+        val smsHash: String?
+    )
+    
+    /**
+     * Result of resolving category and transaction type.
+     */
+    data class ResolvedTransaction(
+        val categoryId: Long,
+        val transactionType: TransactionType,
+        val isUntrustedP2P: Boolean,
+        val merchantResult: SmsConstants.NormalizedMerchant
+    )
+    
+    // ========================================
+    // HELPER METHODS TO REDUCE DUPLICATION
+    // ========================================
+    
+    /**
+     * Resolves category and transaction type based on P2P trust, invariants, etc.
+     * This consolidates the duplicated logic from scanInbox, processAndInsert, reclassifyTransactions.
+     */
+    private suspend fun resolveTransactionDetails(
+        ctx: TransactionResolutionContext
+    ): ResolvedTransaction {
+        val parsed = ctx.parsed
+        var categoryId = ctx.categoryMap[parsed.category]?.id 
+            ?: ctx.categoryMap[AppConstants.Categories.UNCATEGORIZED]?.id 
+            ?: 1L
+        
+        // P2P TRUST CIRCLE LOGIC
+        var isUntrustedP2P = false
+        if (parsed.category == AppConstants.Categories.P2P_TRANSFERS || parsed.counterparty.type == CounterpartyExtractor.CounterpartyType.PERSON) {
+            val recipientName = parsed.counterparty.name
+            
+            // Use pre-loaded set if available (bulk ops), else fall back to DB query (single ops)
+            val isTrusted = if (!recipientName.isNullOrBlank()) {
+                if (ctx.trustedNames != null) {
+                    ctx.trustedNames.contains(recipientName.lowercase())
+                } else {
+                    ctx.db.transferCircleDao().isInCircle(recipientName)
+                }
+            } else false
+            
+            val isDebit = parsed.isDebit ?: true
+            
+            if (isDebit) {
+                if (!isTrusted) {
+                    categoryId = ctx.categoryMap[AppConstants.Categories.MISCELLANEOUS]?.id ?: categoryId
+                    isUntrustedP2P = true
+                } else {
+                    categoryId = ctx.categoryMap[AppConstants.Categories.P2P_TRANSFERS]?.id ?: categoryId
+                }
+            } else {
+                if (!isTrusted) {
+                    categoryId = ctx.categoryMap[AppConstants.Categories.OTHER_INCOME]?.id ?: categoryId
+                } else {
+                    categoryId = ctx.categoryMap[AppConstants.Categories.P2P_TRANSFERS]?.id ?: categoryId
+                }
+            }
+        }
+        
+        // TRANSACTION TYPE RESOLUTION (Consolidated Logic)
+        val categoryObj = ctx.categoryMap.values.find { it.id == categoryId } 
+                          ?: ctx.categoryMap[parsed.category]
+        
+        val txnType = com.saikumar.expensetracker.domain.TransactionRuleEngine.resolveTransactionType(
+            transaction = null,
+            manualClassification = null,
+            isSelfTransfer = false,
+            category = categoryObj,
+            isDebit = parsed.isDebit,
+            counterpartyType = parsed.counterparty.type.name,
+            isUntrustedP2P = isUntrustedP2P,
+            upiId = parsed.counterparty.upiId
+        )
+        
+        // MERCHANT NORMALIZATION
+        val merchantResult = SmsConstants.normalizeMerchant(parsed.counterparty.name)
+        
+        return ResolvedTransaction(
+            categoryId = categoryId,
+            transactionType = txnType,
+            isUntrustedP2P = isUntrustedP2P,
+            merchantResult = merchantResult
+        )
+    }
+    
+    /**
+     * Builds a Transaction entity from parsed data and resolved details.
+     */
+    private fun buildTransaction(
+        parsed: ParsedTransaction,
+        resolved: ResolvedTransaction,
+        smsHash: String?,
+        body: String
+    ): Transaction {
+        val extractedAccountNum = SmsConstants.extractAccountLast4(body)
+        
+        return Transaction(
+            amountPaisa = parsed.amountPaisa ?: 0L,
+            categoryId = resolved.categoryId,
+            timestamp = parsed.timestamp,
+            source = TransactionSource.SMS,
+            transactionType = resolved.transactionType,
+            smsHash = smsHash,
+            merchantName = resolved.merchantResult.normalized ?: resolved.merchantResult.raw,
+            smsSnippet = parsed.body.take(100),
+            fullSmsBody = parsed.body,
+            accountNumberLast4 = extractedAccountNum,
+            isExpenseEligible = resolved.transactionType == TransactionType.EXPENSE,
+            entityType = when (parsed.counterparty.type) {
+                CounterpartyExtractor.CounterpartyType.PERSON -> EntityType.PERSON
+                CounterpartyExtractor.CounterpartyType.MERCHANT -> EntityType.BUSINESS
+                else -> EntityType.UNKNOWN
+            },
+            confidenceScore = CategoryMapper.calculateConfidence(parsed.category)
+        )
+    }
+    
+    /**
+     * Inserts a merchant alias if normalization produced a different name.
+     */
+    private suspend fun tryInsertMerchantAlias(
+        db: AppDatabase,
+        merchantResult: SmsConstants.NormalizedMerchant
+    ) {
+        if (merchantResult.shouldCreateAlias) {
+            try {
+                db.merchantAliasDao().insert(MerchantAlias(merchantResult.raw!!, merchantResult.normalized!!))
+            } catch (e: Exception) { 
+                Log.w(TAG, "Alias insert failed: ${e.message}") 
+            }
+        }
+    }
+
+
     fun process(
-        sender: String, 
-        body: String, 
+        sender: String,
+        body: String,
         timestamp: Long,
         rules: List<CategorizationRule> = emptyList(),
         categoryMap: Map<Long, String> = emptyMap(),
         forceSenderType: SenderClassifier.SenderType? = null,
-        salaryCompanyNames: Set<String> = emptySet() // For salary company name matching
-    ): ParsedTransaction? {
+        salaryCompanyNames: Set<String> = emptySet(),
+        merchantMemories: Map<String, Long> = emptyMap(),
+        context: Context? = null,
+        userAccounts: List<UserAccount> = emptyList()
+    ): ProcessingResult {
         val senderType = forceSenderType ?: SenderClassifier.classify(sender)
-        if (senderType == SenderClassifier.SenderType.EXCLUDED) return null
+        if (senderType == SenderClassifier.SenderType.EXCLUDED) return ProcessingResult.Ignored
 
-        val extraction = TransactionExtractor.extract(body, senderType)
-        var counterparty = CounterpartyExtractor.extract(body, extraction.type)
-        
-        // Override for Statement to prevent garbage merchant extraction (e.g. "ar")
-        if (extraction.type == TransactionType.STATEMENT) {
-            counterparty = CounterpartyExtractor.Counterparty("Credit Card Statement", null, CounterpartyExtractor.CounterpartyType.MERCHANT)
+        // 0. PRE-GATE: Quick Drop for OTP/Spam (No extraction needed)
+        LedgerGate.quickFilter(body)?.let { dropDecision ->
+            return ProcessingResult.Dropped(dropDecision)
         }
 
+        // 1. Basic Extraction (Amount, Type)
+        val extraction = TransactionExtractor.extract(body, senderType)
+        
+        // 2. LEDGER GATE: Full Validation (Features, Type-based)
+        val gateDecision = LedgerGate.evaluate(body, extraction.type, extraction.amountPaisa, sender)
+        
+        if (gateDecision is LedgerDecision.Drop) {
+            return ProcessingResult.Dropped(gateDecision)
+        }
+        
+        // 3. Continue Processing for Accepted Transactions
+        val decision = gateDecision as LedgerDecision.Insert
+        
+        // Use the type decided by the Gate (it might have corrected it)
+        val transactionType = decision.transactionType
+        
+        // 4. Counterparty Extraction
+        var counterparty: CounterpartyExtractor.Counterparty
+        
+        // REGEX MODE (using pattern matching)
+        counterparty = CounterpartyExtractor.extract(body, transactionType)
+        val currentTrace = counterparty.trace.toMutableList()
+        currentTrace.add("Mode: REGEX")
+        counterparty = counterparty.copy(trace = currentTrace)
+        
+        // Log as Silver Label if valid
+        if (counterparty.name != null && context != null) {
+            // Auto-Training Log
+             com.saikumar.expensetracker.util.TrainingDataLogger.logSample(
+                context = context,
+                smsBody = body,
+                merchantName = counterparty.name,
+                confidence = 1.0f, // Regex is high confidence rule
+                isUserCorrection = false
+            )
+        }
+
+        // 5. Classification
         val classificationTrace = mutableListOf<String>()
         val category = CategoryMapper.categorize(
-            counterparty = counterparty, 
-            transactionType = extraction.type, 
-            rules = rules, 
-            categoryMap = categoryMap, 
-            messageBody = body, 
+            counterparty = counterparty,
+            transactionType = transactionType,
+            rules = rules,
+            categoryMap = categoryMap,
+            userAccounts = userAccounts,
+            messageBody = body,
             salaryCompanyNames = salaryCompanyNames,
+            merchantMemories = merchantMemories,
             trace = classificationTrace
         )
 
-        return ParsedTransaction(
+        val parsed = ParsedTransaction(
             sender = sender,
             body = body,
             timestamp = timestamp,
             senderType = senderType,
-            transactionType = extraction.type,
-            amount = extraction.amount,
+            transactionType = transactionType,
+            amountPaisa = extraction.amountPaisa,
             counterparty = counterparty,
             category = category,
             isDebit = extraction.isDebit,
+            accountTypeDetected = decision.accountType, // Use decision's account type
             classificationTrace = classificationTrace
         )
+        
+        return ProcessingResult.Success(parsed, decision)
     }
 
     suspend fun checkSalaryRecurrence(
         db: com.saikumar.expensetracker.data.db.AppDatabase,
         merchantName: String?,
         timestamp: Long,
-        amount: Double?
+        amountPaisa: Long?,
+        history: List<TransactionWithCategory>? = null
     ): Boolean {
         if (merchantName.isNullOrBlank()) return false
         
-        // Window: 20 to 50 days (wider window to catch irregular dates)
-        val oneDayMillis = 24 * 60 * 60 * 1000L
-        val endRange = timestamp - (20 * oneDayMillis)
-        val startRange = timestamp - (60 * oneDayMillis) 
-        
         try {
-            val history = db.transactionDao().getTransactionsInPeriod(startRange, endRange).first()
+            val historyList = if (history != null) {
+                history
+            } else {
+                // Fallback to DB query if no history provided
+                // Window: 20 to 60 days
+                val oneDayMillis = 24 * 60 * 60 * 1000L
+                val endRange = timestamp - (20 * oneDayMillis)
+                val startRange = timestamp - (60 * oneDayMillis)
+                db.transactionDao().getTransactionsInPeriod(startRange, endRange).first()
+            }
             
             // Check for match
-            val match = history.find { 
+            val match = historyList.find { 
                 it.transaction.transactionType == TransactionType.INCOME &&
                 it.transaction.merchantName.equals(merchantName, ignoreCase = true)
             }
@@ -109,8 +320,6 @@ object SmsProcessor {
                 Log.d(TAG, "SALARY RECURRENCE FOUND: '${merchantName}' matches prev txn on ${java.time.Instant.ofEpochMilli(match.transaction.timestamp)}")
                 return true
             } else {
-                // Debug log for failure
-                Log.d(TAG, "No recurrence for '${merchantName}' in window. History size: ${history.size}")
                 return false
             }
         } catch (e: Exception) {
@@ -119,53 +328,105 @@ object SmsProcessor {
         }
     }
 
-    private fun generateHash(body: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(body.toByteArray())
-        return hash.take(16).joinToString("") { "%02x".format(it) }
+    /**
+     * EXTRACTED HELPER: Finalizes processing and inserts transaction.
+     * Removes duplication between scanInbox and processAndInsert.
+     */
+    private suspend fun resolveAndInsert(
+        context: Context,
+        db: AppDatabase,
+        parsed: ParsedTransaction,
+        categoryMap: Map<String, Category>,
+        trustedNames: Set<String>?,
+        smsHash: String,
+        body: String,
+        salaryHistory: List<TransactionWithCategory>? = null,
+        logId: String
+    ): Transaction? {
+        // --- USE HELPER TO RESOLVE CATEGORY & TYPE ---
+        val resolutionCtx = TransactionResolutionContext(
+            parsed = parsed,
+            categoryMap = categoryMap,
+            trustedNames = trustedNames,
+            db = db,
+            smsHash = smsHash
+        )
+        var resolved = resolveTransactionDetails(resolutionCtx)
+        
+        // RECURRENCE CHECK FOR SALARY (specific post-processing)
+        if (parsed.category == AppConstants.Categories.OTHER_INCOME && parsed.transactionType == TransactionType.INCOME) {
+             if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amountPaisa, salaryHistory)) {
+                 val salaryId = categoryMap[AppConstants.Categories.SALARY]?.id ?: resolved.categoryId
+                 resolved = resolved.copy(categoryId = salaryId)
+             }
+        }
+        
+        // Insert merchant alias if needed
+        tryInsertMerchantAlias(db, resolved.merchantResult)
+
+        // Build transaction using helper
+        val transaction = buildTransaction(parsed, resolved, smsHash, body)
+        
+        val rowId = db.transactionDao().insertTransaction(transaction)
+        if (rowId > 0) {
+            // ACCOUNT DISCOVERY: Detect and save bank accounts from SMS
+            try {
+                AccountDiscoveryManager.scanAndDiscover(body, parsed.sender, db.userAccountDao())
+            } catch (e: Exception) {
+                Log.w(TAG, "Account discovery failed: ${e.message}")
+            }
+            
+            // Auto-discover account holder name for NEFT
+            val extractedAccountNum = SmsConstants.extractAccountLast4(body)
+            if (body.contains("NEFT", ignoreCase = true)) {
+                try {
+                    val holderName = CounterpartyExtractor.extractAccountHolderName(body)
+                    if (holderName != null && extractedAccountNum != null) {
+                        AccountDiscoveryManager.updateHolderName(db.userAccountDao(), extractedAccountNum, holderName)
+                    }
+                    if (resolved.transactionType == TransactionType.INCOME) {
+                        trackNeftSalarySource(db, body, parsed.timestamp)
+                    }
+                } catch (e: Exception) { }
+            }
+            
+            ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
+                transactionType = resolved.transactionType.name,
+                categoryId = resolved.categoryId,
+                categoryName = parsed.category,
+                finalConfidence = 1.0,
+                requiresUserConfirmation = false,
+                entityType = parsed.counterparty.type.name,
+                isExpenseEligible = resolved.transactionType == TransactionType.EXPENSE,
+                whyNotOtherCategories = parsed.classificationTrace
+            ))
+            ClassificationDebugLogger.persistLog(context, logId)
+            
+            // --- ML TRAINING LOGGING ---
+            com.saikumar.expensetracker.util.TrainingDataLogger.logSample(
+                context = context,
+                smsBody = body,
+                merchantName = transaction.merchantName, // Use final resolved merchant
+                confidence = 1.0f, // Automated extraction (Silver Label) - Rule based is high confidence
+                isUserCorrection = false
+            )
+            
+            return transaction.copy(id = rowId)
+        }
+        return null
     }
 
+
+
     suspend fun scanInbox(context: Context) = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Scanning inbox...")
+        Log.d(TAG, "Scanning inbox - Optimized Mode")
         ClassificationDebugLogger.startBatchSession()
         
         val app = context.applicationContext as ExpenseTrackerApplication
         val db = app.database
-        var categories = db.categoryDao().getAllEnabledCategories().first()
-        
-        // AUTO-SEED: If no categories exist (fresh install), seed them now
-        if (categories.isEmpty()) {
-            Log.w(TAG, "No categories found - seeding defaults...")
-            val categoriesToSeed = listOf(
-                Category(name = "Salary", type = CategoryType.INCOME, isDefault = true),
-                Category(name = "Other Income", type = CategoryType.INCOME, isDefault = true),
-                Category(name = "Unverified Income", type = CategoryType.INCOME, isDefault = true), // AUDIT: Needs review
-                Category(name = "Self Transfer", type = CategoryType.INCOME, isDefault = true), // Inter-bank transfers
-                Category(name = "Refund", type = CategoryType.INCOME, isDefault = true),
-                Category(name = "Interest", type = CategoryType.INCOME, isDefault = true),
-                Category(name = "Housing", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                Category(name = "Utilities", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                Category(name = "Insurance", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                Category(name = "Credit Bill Payments", type = CategoryType.FIXED_EXPENSE, isDefault = true),
-                Category(name = "Groceries", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Dining Out", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Entertainment", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Travel", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Cab & Taxi", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Food Delivery", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Medical", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Shopping", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Miscellaneous", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Unknown Expense", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Uncategorized", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "P2P Transfers", type = CategoryType.VARIABLE_EXPENSE, isDefault = true),
-                Category(name = "Mutual Funds", type = CategoryType.INVESTMENT, isDefault = true),
-                Category(name = "Fuel", type = CategoryType.VEHICLE, isDefault = true)
-            )
-            db.categoryDao().insertCategories(categoriesToSeed)
-            categories = db.categoryDao().getAllEnabledCategories().first()
-            Log.d(TAG, "Seeded ${categories.size} categories")
-        }
+
+        // Seed Categories
+        val categories = CategorySeeder.seedDefaultsIfNeeded(db.categoryDao())
         
         if (categories.isEmpty()) {
             Log.e(TAG, "Scan Inbox Aborted: Category seeding failed!")
@@ -174,340 +435,200 @@ object SmsProcessor {
         val categoryMap = categories.associateBy { it.name }
         val categoryNameMap = categories.associate { it.id to it.name }
         
-        // Load Active Rules
-        val rules = db.categorizationRuleDao().getAllActiveRules().first()
-        Log.d(TAG, "Loaded ${rules.size} active categorization rules")
+        // --- PERFORMANCE OPTIMIZATION: HOIST DB READS ---
+        Log.d(TAG, "Pre-loading data for generic performance...")
         
-        val cursor = context.contentResolver.query(
-            "content://sms/inbox".toUri(),
-            arrayOf("address", "body", "date"),
-            null, null, "date DESC"
-        )
+        // 1. Load Rules Once
+        val rules = db.categorizationRuleDao().getAllActiveRules().first()
+        
+        // 2. Load Preferences Once
+        val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
+        
+        // 3. Load Memories Once
+        val memories = db.merchantMemoryDao().getAllConfirmedMemories().associate { it.normalizedMerchant to it.categoryId }
+        
+        // 4. Load Existing Hashes (CRITICAL for skip performance)
+        // Also pre-loading existing salary transactions for N+1 fix
+        val existingHashes = db.transactionDao().getAllSmsHashes().toMutableSet()
+        val allHistory = db.transactionDao().getTransactionsInPeriod(0, Long.MAX_VALUE).first()
+        // Filter history for only relevant salary check items to reduce search space in loop
+        val salaryCheckHistory = allHistory.filter { 
+            it.transaction.transactionType == TransactionType.INCOME &&
+            // Optimization: Keep only recurring-like things (older than 20 days) if needed? 
+            // But simplify: just keep all income for now.
+            true
+        }
+        
+        Log.d(TAG, "Loaded ${existingHashes.size} hashes and ${salaryCheckHistory.size} income records for salary checks.")
+        
+        // 5. Load Trusted Names for P2P trust checks (avoids N DB calls)
+        val trustedNames = db.transferCircleDao().getAllTrustedNamesSync().toSet()
+
+        // 6. Load User Accounts for self-transfer detection
+        val userAccounts = db.userAccountDao().getAllAccounts()
         
         var inserted = 0
         var skipped = 0
         var epfNps = 0
         
         try {
-            cursor?.use {
-                while (it.moveToNext()) {
-                    val sender = it.getString(0) ?: continue
-                    val body = it.getString(1) ?: continue
-                    val timestamp = it.getLong(2)
-                    
-                    val logId = ClassificationDebugLogger.startLog(
-                        RawInputCapture(body, "SMS_SCAN", timestamp, sender, 0)
+            val inboxData = InboxScanner.readInbox(context)
+            com.saikumar.expensetracker.util.ScanProgressManager.start(inboxData.totalCount)
+            
+            var processedCount = 0
+            val batchSize = 50 // Notification update frequency
+            
+            inboxData.messages.forEach { sms ->
+                processedCount++
+                if (processedCount % batchSize == 0) {
+                    com.saikumar.expensetracker.util.ScanProgressManager.update(processedCount)
+                }
+                
+                val sender = sms.sender
+                val body = sms.body
+                val timestamp = sms.timestamp
+                
+                // --- FAST DUPLICATE CHECK ---
+                val smsHash = DuplicateChecker.generateHash(body)
+                if (existingHashes.contains(smsHash)) {
+                    skipped++
+                    return@forEach
+                }
+                
+                // Only start log logging for things we actually process
+                val logId = ClassificationDebugLogger.startLog(
+                    RawInputCapture(body, "SMS_SCAN", timestamp, sender, 0)
+                )
+
+                try {
+                    // Start Processing
+                    val result = process(
+                        sender = sender,
+                        body = body,
+                        timestamp = timestamp,
+                        rules = rules,
+                        categoryMap = categoryNameMap,
+                        salaryCompanyNames = salaryCompanyNames,
+                        merchantMemories = memories,
+                        context = context,
+                        userAccounts = userAccounts
                     )
                     
-                    try {
-                        val smsHash = generateHash(body)
-                        
-                        // Skip if already processed
-                        if (db.transactionDao().existsBySmsHash(smsHash)) {
-                            skipped++
-                            continue
-                        }
-
-                        // Fetch salary company names for initial parse
-                        val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
-                        
-                        // 1. PARSE (Extract fields first)
-                        // We parse first so the Gate has full context (Amount, inferred Type)
-                        // If parsing fails (e.g. excluded sender), we skip immediately.
-                        var parsed = process(sender, body, timestamp, rules, categoryNameMap, salaryCompanyNames = salaryCompanyNames)
-                        if (parsed == null) {
-                             // Excluded sender or extraction failure
-                             continue
-                        }
-                        
-                        // Update log with parsed amount
-                        ClassificationDebugLogger.updateLogAmount(
-                            logId = logId,
-                            amountPaisa = ((parsed.amount ?: 0.0) * 100).toLong()
-                        )
-
-                        // 2. LEDGER GATE (Single Authoritative Source of Truth)
-                        // Evaluates: Filters, Confirmation Invariants, Economic Reality, Eligibility
-                        val gateDecision = LedgerGate.evaluate(body, parsed.transactionType, sender)
-                        
-                        when (gateDecision) {
-                            is LedgerDecision.Drop -> {
-                                ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
-                                    gateDecision.ruleId, gateDecision.reason, "LEDGER_GATE", "REJECTED", 1.0, gateDecision.reason
-                                ))
-                                continue
-                            }
-                            is LedgerDecision.Insert -> {
-                                ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
-                                    "LEDGER_GATE_PASS", "Ledger Gate Acceptance", "LEDGER_GATE", "PASSED", 1.0
-                                ))
-                                
-                                // Apply Gate Overrides (e.g. CC Spend correction)
-                                if (parsed.transactionType != gateDecision.transactionType) {
-                                     ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
-                                        "GATE_OVERRIDE_TYPE", "Gate Type Correction", "OVERRIDE", "APPLIED", 1.0, gateDecision.reasoning
-                                    ))
-                                     parsed = parsed.copy(
-                                         transactionType = gateDecision.transactionType,
-                                         accountTypeDetected = gateDecision.accountType
-                                     )
-                                }
-                            }
-                        }
-                        
-                        // Proceed with Insert logic using the validated 'parsed' object and 'gateDecision' data
-                        val isExpenseEligible = (gateDecision as LedgerDecision.Insert).isExpenseEligible
-
-                        // Log Parsed Fields (Partial reconstruction)
-                        ClassificationDebugLogger.logParsedFields(logId, ParsedFields(
-                            merchantName = parsed.counterparty.name,
-                            upiId = parsed.counterparty.upiId,
-                            neftReference = null,
-                            detectedKeywords = TransactionExtractor.detectKeywords(body),
-                            accountTypeDetected = if (parsed.isDebit == true) "DEBIT" else "CREDIT",
-                            senderInferred = parsed.senderType.name,
-                            receiverInferred = null,
-                            merchantSanitization = MerchantSanitization(
-                                original = "SMS Extraction", 
-                                sanitized = parsed.counterparty.name ?: "NULL",
-                                strategy = "TEMPLATE_EXTRACTOR",
-                                steps = parsed.counterparty.trace
-                            )
+                    // Handle Non-Success cases early
+                    if (result is ProcessingResult.Ignored) return@forEach
+                    
+                    if (result is ProcessingResult.Dropped) {
+                        val decision = result.decision
+                        ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
+                            decision.ruleId, decision.reason, "LEDGER_GATE", "REJECTED", 1.0, decision.reason
                         ))
-                        
-                        // Handle EPF/NPS separately
-                        if (parsed.senderType == SenderClassifier.SenderType.PENSION ||
-                            parsed.senderType == SenderClassifier.SenderType.INVESTMENT) {
-                            handleRetirement(db, parsed, smsHash)
-                            ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
-                                transactionType = "RETIREMENT", categoryId = 0, categoryName = "RETIREMENT",
-                                finalConfidence = 1.0, requiresUserConfirmation = false
-                            ))
-                            ClassificationDebugLogger.persistLog(context, logId)
-                            epfNps++
-                            continue
-                        }
-                        
-                        // Skip if no amount
-                        if (parsed.amount == null || parsed.amount <= 0) {
-                             // Log as filtered
-                             continue
-                        }
-                        
-                        // Find category ID
-                        var categoryId = categoryMap[parsed.category]?.id 
-                            ?: categoryMap["Uncategorized"]?.id 
-                            ?: categories.first().id
-                        
-                        // TRANSFER CIRCLE CHECK
-                        // Trusted contacts -> P2P Transfers (TRANSFER)
-                        // Untrusted/Unknown -> Miscellaneous (EXPENSE)
-                        var isUntrustedP2P = false
-                        if (parsed.category == "P2P Transfers" || parsed.counterparty.type == CounterpartyExtractor.CounterpartyType.PERSON) {
-                            val recipientName = parsed.counterparty.name
-                            val isTrusted = if (!recipientName.isNullOrBlank()) {
-                                db.transferCircleDao().isInCircle(recipientName)
-                            } else false
-                            
-                            if (!isTrusted) {
-                                categoryId = categoryMap["Miscellaneous"]?.id ?: categoryId
-                                isUntrustedP2P = true
-                                Log.d(TAG, "Untrusted P2P (${recipientName ?: "Unknown"}) -> Treated as EXPENSE (Miscellaneous)")
-                            } else {
-                                categoryId = categoryMap["P2P Transfers"]?.id ?: categoryId
-                                Log.d(TAG, "Trusted Transfer Circle ($recipientName) -> P2P TRANSFER")
-                            }
-                        }
-                        
-                        // RECURRENCE CHECK FOR SALARY
-                        if (parsed.category == "Other Income" && parsed.transactionType == TransactionType.INCOME) {
-                             if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amount)) {
-                                 categoryId = categoryMap["Salary"]?.id ?: categoryId
-                                 Log.d(TAG, "Upgraded ${parsed.counterparty.name} to Salary due to recurrence")
-                             }
-                        }
-                        
-                        // Map transaction type
-                        // Untrusted P2P → EXPENSE, CC Bill → LIABILITY_PAYMENT (but NOT for statements), else normal mapping
-                        var txnType = when {
-                            isUntrustedP2P -> TransactionType.EXPENSE
-                            // FIX #5: STATEMENT must be preserved even if category is "Credit Bill Payments"
-                            // A statement is informational, not an actual payment
-                            parsed.transactionType == TransactionType.STATEMENT -> TransactionType.STATEMENT
-                            parsed.category == "Credit Bill Payments" -> TransactionType.LIABILITY_PAYMENT
-                            else -> when (parsed.transactionType) {
-                                TransactionType.INCOME -> TransactionType.INCOME
-                                TransactionType.EXPENSE -> TransactionType.EXPENSE
-                                TransactionType.TRANSFER -> TransactionType.TRANSFER
-                                TransactionType.LIABILITY_PAYMENT -> TransactionType.LIABILITY_PAYMENT
-                                TransactionType.PENSION -> TransactionType.PENSION
-                                TransactionType.INVESTMENT_CONTRIBUTION -> TransactionType.INVESTMENT_CONTRIBUTION
-                                TransactionType.STATEMENT -> TransactionType.STATEMENT
-                                TransactionType.UNKNOWN -> TransactionType.UNKNOWN
-                                else -> parsed.transactionType // Pass through CASHBACK, REFUND, PENDING, IGNORE, INVESTMENT_OUTFLOW
-                            }
-                        }
-                        
-                        // ====== FIX #1: CRITICAL INVARIANT ======
-                        // CREDIT direction (isDebit == false) MUST NOT result in EXPENSE
-                        // This is a fundamental accounting invariant: money coming IN cannot be an expense
-                        if (parsed.isDebit == false && txnType == TransactionType.EXPENSE) {
-                            Log.w(TAG, "INVARIANT_FIX: CREDIT direction forced INCOME over EXPENSE for ${parsed.counterparty.name}")
-                            txnType = TransactionType.INCOME
-                        }
-                        
-                        // ====== FIX #2: Cashback VPA Override ======
-                        // VPAs containing "cashback", "reward", etc. should be CASHBACK type, not regular P2P
-                        val upiId = parsed.counterparty.upiId?.lowercase() ?: ""
-                        val cashbackPatterns = listOf("cashback", "reward", "promo", "bhimcashback")
-                        if (cashbackPatterns.any { upiId.contains(it) } && parsed.isDebit == false) {
-                            Log.d(TAG, "CASHBACK_DETECTED: VPA $upiId identified as cashback")
-                            txnType = TransactionType.CASHBACK
-                        }
-                        
-                        // ====== FIX #3: P2P/PERSON → TRANSFER INVARIANT ======
-                        // If category is P2P Transfers OR entity is PERSON (above threshold), type MUST be TRANSFER
-                        // P2P transfers are neither income nor expense - they're neutral transfers
-                        val isP2pOrPerson = !isUntrustedP2P && (
-                            parsed.category == "P2P Transfers" ||
-                            parsed.counterparty.type == CounterpartyExtractor.CounterpartyType.PERSON
-                        )
-                        if (isP2pOrPerson && txnType != TransactionType.CASHBACK && txnType != TransactionType.TRANSFER) {
-                            Log.d(TAG, "P2P_INVARIANT: Forcing TRANSFER for P2P/PERSON entity (was ${txnType}, entity=${parsed.counterparty.type})")
-                            txnType = TransactionType.TRANSFER
-                        }
-                        
-                        val rawMerchant = parsed.counterparty.name
-                        val normalizedMerchant = MerchantNormalizer.normalize(rawMerchant)
-                        
-                        if (!rawMerchant.isNullOrBlank() && !normalizedMerchant.isNullOrBlank() && rawMerchant != normalizedMerchant) {
-                            try {
-                                db.merchantAliasDao().insert(MerchantAlias(rawMerchant, normalizedMerchant))
-                            } catch (e: Exception) { Log.w(TAG, "Alias insert failed: ${e.message}") }
-                        }
-
-                        // Extract account number from SMS for self-transfer detection
-                        val accountPattern = Regex("""(?:A/c|Acct|Account)\s+[*X]*(\d{4})""", RegexOption.IGNORE_CASE)
-                        val cardPattern = Regex("""(?:Card|Credit Card)\s+(?:ending\s+)?(?:[*X]*\s*)?(\d{4})""", RegexOption.IGNORE_CASE)
-                        val extractedAccountNum = accountPattern.find(body)?.groupValues?.get(1)
-                            ?: cardPattern.find(body)?.groupValues?.get(1)
-
-                        val transaction = Transaction(
-                            amountPaisa = (parsed.amount * 100).toLong(),
-                            categoryId = categoryId,
-                            timestamp = parsed.timestamp,
-                            source = TransactionSource.SMS,
-                            transactionType = txnType,
-                            smsHash = smsHash,
-                            merchantName = normalizedMerchant ?: rawMerchant,
-                            smsSnippet = parsed.body.take(100),
-                            fullSmsBody = parsed.body,
-                            accountNumberLast4 = extractedAccountNum,
-                            isExpenseEligible = txnType == TransactionType.EXPENSE,
-                            entityType = when (parsed.counterparty.type) {
-                                CounterpartyExtractor.CounterpartyType.PERSON -> EntityType.PERSON
-                                CounterpartyExtractor.CounterpartyType.MERCHANT -> EntityType.BUSINESS
-                                else -> EntityType.UNKNOWN
-                            },
-                            confidenceScore = CategoryMapper.calculateConfidence(parsed.category)
-                        )
-                        
-                        val rowId = db.transactionDao().insertTransaction(transaction)
-                        if (rowId > 0) {
-                            inserted++
-                            
-                            // ACCOUNT DISCOVERY: Detect and save bank accounts from SMS
-                            try {
-                                AccountDiscoveryManager.scanAndDiscover(body, sender, db.userAccountDao())
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Account discovery failed: ${e.message}")
-                            }
-                            
-                            // Fetch Rules
-                            val activeRules = db.categorizationRuleDao().getAllActiveRules().first() // Collect Flow
-                            
-                            // Auto-discover account holder name from NEFT salary deposits FIRST
-                            if (body.contains("NEFT", ignoreCase = true)) {
-                                val holderName = CounterpartyExtractor.extractAccountHolderName(body)
-                                if (holderName != null) {
-                                    // Target specific account if we extracted it from this SMS
-                                    if (extractedAccountNum != null) {
-                                        Log.d(TAG, "Updating holder name for account $extractedAccountNum to '$holderName'")
-                                        try {
-                                            AccountDiscoveryManager.updateHolderName(db.userAccountDao(), extractedAccountNum, holderName)
-                                        } catch (e: Exception) {
-                                             Log.w(TAG, "Failed to update holder name for $extractedAccountNum: ${e.message}")
-                                        }
-                                    } else {
-                                        // Fallback: Update accounts without holder name
-                                        val accountsToUpdate = db.userAccountDao().getAllAccounts()
-                                            .filter { it.accountHolderName == null }
-                                            .map { it.accountNumberLast4 }
-                                        
-                                        for (accountNum in accountsToUpdate) {
-                                            try {
-                                                AccountDiscoveryManager.updateHolderName(db.userAccountDao(), accountNum, holderName)
-                                            } catch (e: Exception) {
-                                                Log.w(TAG, "Failed to update holder name: ${e.message}")
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // SALARY PATTERN TRACKING: Track NEFT income sources
-                                if (txnType == TransactionType.INCOME) {
-                                    trackNeftSalarySource(db, body, parsed.timestamp)
-                                }
-                            }
-                            
-                            // NOW fetch userAccounts (with freshly saved holder name)
-                            val userAccounts = db.userAccountDao().getAllAccounts()
-                            
-                            // Fetch known salary sources for automatic salary categorization
-                            val salarySources = db.neftSourceDao().getSalarySources()
-                                .map { Pair(it.ifscCode, it.senderPattern) }
-                                .toSet()
-                            
-                            // Fetch user-configured salary company names
-                            val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
-
-                            CategoryMapper.categorize(
-                                counterparty = parsed.counterparty,
-                                transactionType = parsed.transactionType,
-                                rules = activeRules,
-                                userAccounts = userAccounts, // Pass discovered accounts
-                                categoryMap = categoryNameMap,
-                                messageBody = body, // For NEFT self-transfer detection
-                                salarySources = salarySources, // For automatic salary categorization
-                                salaryCompanyNames = salaryCompanyNames // For company name matching
-                            )
-                            ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
-                                transactionType = txnType.name,
-                                categoryId = categoryId,
-                                categoryName = parsed.category,
-                                finalConfidence = 1.0,
-                                requiresUserConfirmation = false,
-                                entityType = parsed.counterparty.type.name,
-                                isExpenseEligible = txnType == TransactionType.EXPENSE,
-                                whyNotOtherCategories = parsed.classificationTrace
-                            ))
-                            ClassificationDebugLogger.persistLog(context, logId)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error processing scan item", e)
-                        ClassificationDebugLogger.logError(logId, "Scan Error: ${e.message}", e)
-                        ClassificationDebugLogger.persistLog(context, logId)
+                        return@forEach
                     }
+                    
+                    // Proceed with Success
+                    val success = result as ProcessingResult.Success
+                    var parsed = success.transaction
+                    
+                    ClassificationDebugLogger.updateLogAmount(
+                        logId = logId,
+                        amountPaisa = parsed.amountPaisa ?: 0L
+                    )
+
+                    ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
+                        "LEDGER_GATE_PASS", "Ledger Gate Acceptance", "LEDGER_GATE", "PASSED", 1.0
+                    ))
+                    
+                    ClassificationDebugLogger.logParsedFields(logId, ParsedFields(
+                        merchantName = parsed.counterparty.name,
+                        upiId = parsed.counterparty.upiId,
+                        neftReference = null,
+                        detectedKeywords = TransactionExtractor.detectKeywords(body),
+                        accountTypeDetected = if (parsed.isDebit == true) "DEBIT" else "CREDIT",
+                        senderInferred = parsed.senderType.name,
+                        receiverInferred = null,
+                        merchantSanitization = MerchantSanitization(
+                            original = "SMS Extraction", 
+                            sanitized = parsed.counterparty.name ?: "NULL",
+                            strategy = "TEMPLATE_EXTRACTOR",
+                            steps = parsed.counterparty.trace
+                        )
+                    ))
+                    
+                    // --- LOG EXTRACTION FAILURES ---
+                    if (parsed.counterparty.name.isNullOrBlank() && 
+                        parsed.transactionType != TransactionType.STATEMENT &&
+                        parsed.transactionType != TransactionType.IGNORE) {
+                         ClassificationDebugLogger.logExtractionFailure(context, body, sender, timestamp)
+                    }
+                    
+                    // Handle EPF/NPS
+                    if (parsed.senderType == SenderClassifier.SenderType.PENSION ||
+                        parsed.senderType == SenderClassifier.SenderType.INVESTMENT) {
+                        handleRetirement(db, parsed, smsHash)
+                        ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
+                            transactionType = "RETIREMENT", categoryId = 0, categoryName = "RETIREMENT",
+                            finalConfidence = 1.0, requiresUserConfirmation = false
+                        ))
+                        ClassificationDebugLogger.persistLog(context, logId)
+                        epfNps++
+                        existingHashes.add(smsHash) // Mark processed
+                        return@forEach
+                    }
+                    
+                    if (parsed.amountPaisa == null || parsed.amountPaisa <= 0) return@forEach
+                    
+                    // --- RESOLVE AND INSERT (Optimized) ---
+                    val insertedTxn = resolveAndInsert(
+                        context = context,
+                        db = db,
+                        parsed = parsed,
+                        categoryMap = categoryMap,
+                        trustedNames = trustedNames,
+                        smsHash = smsHash,
+                        body = body,
+                        salaryHistory = salaryCheckHistory, // Pass pre-loaded history
+                        logId = logId
+                    )
+                    
+                    if (insertedTxn != null) {
+                        inserted++
+                        existingHashes.add(smsHash)
+                    }
+                    
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing scan item", e)
+                    ClassificationDebugLogger.logError(logId, "Scan Error: ${e.message}", e)
+                    ClassificationDebugLogger.persistLog(context, logId)
                 }
-            }
+            } // End ForEach
+            
+        } catch (e: SecurityException) {
+            ClassificationDebugLogger.endBatchSession(context)
+            Log.e(TAG, "Scan failed: Permission denied", e)
+            com.saikumar.expensetracker.util.TransactionNotificationHelper.showErrorNotification(
+                context, "SMS Permission Denied", "Cannot scan messages."
+            )
+            throw e
+        } catch (e: Exception) {
+            ClassificationDebugLogger.endBatchSession(context)
+            Log.e(TAG, "Scan failed", e)
+             com.saikumar.expensetracker.util.TransactionNotificationHelper.showErrorNotification(
+                context, "Scan Failed", "Error: ${e.message}"
+            )
+            throw e
         } finally {
+            com.saikumar.expensetracker.util.ScanProgressManager.finish()
             ClassificationDebugLogger.endBatchSession(context)
             Log.d(TAG, "Scan complete: inserted=$inserted, skipped=$skipped, epf/nps=$epfNps")
         }
         
         // Run self-transfer pairing after scan
-        pairSelfTransfers(context)
-        pairStatementToPayments(context)
+        try {
+            pairSelfTransfers(context)
+            pairStatementToPayments(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Pairing failed", e)
+        }
     }
 
     private suspend fun handleRetirement(
@@ -516,15 +637,9 @@ object SmsProcessor {
         smsHash: String
     ) {
         // Extract balance from EPF/NPS messages
-        // Use non-greedy match .*? with DOT_MATCHES_ALL to handle newlines
-        val options = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
-        val balanceRegex = Regex("(?:balance|bal).*?Rs\\.?\\s*([\\d,]+(?:\\.\\d+)?)", options)
-        val contributionRegex = Regex("(?:contribution|credit).*?Rs\\.?\\s*([\\d,]+(?:\\.\\d+)?)", options)
-        val monthRegex = Regex("(?:for|month).*?(\\w{3})['-]?(\\d{2,4})", options)
-        
-        val balanceMatch = balanceRegex.find(parsed.body)
-        val contributionMatch = contributionRegex.find(parsed.body)
-        val monthMatch = monthRegex.find(parsed.body)
+        val balanceMatch = BALANCE_REGEX.find(parsed.body)
+        val contributionMatch = CONTRIBUTION_REGEX.find(parsed.body)
+        val monthMatch = MONTH_REGEX.find(parsed.body)
         
         // Log extraction results for debugging
         Log.d(TAG, "EPF/NPS Extraction: BalMatch=${balanceMatch?.value}, ContribMatch=${contributionMatch?.value}")
@@ -578,29 +693,47 @@ object SmsProcessor {
             val app = context.applicationContext as ExpenseTrackerApplication
             val db = app.database
             
-            // Skip if already processed
-            val smsHash = generateHash(body)
-            if (db.transactionDao().existsBySmsHash(smsHash)) return@withContext
+            // Check duplicate
+            val smsHash = DuplicateChecker.generateHash(body)
+            if (DuplicateChecker.isDuplicate(db, smsHash)) return@withContext
 
-            // Fetch salary company names
             val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
+
+            // Adaptive Categorization
+            val memories = db.merchantMemoryDao().getAllConfirmedMemories().associate { it.normalizedMerchant to it.categoryId }
+
+            // Load User Accounts for self-transfer detection
+            val userAccounts = db.userAccountDao().getAllAccounts()
+
+            val result = process(sender, body, timestamp, salaryCompanyNames = salaryCompanyNames, merchantMemories = memories, context = context, userAccounts = userAccounts)
             
-            val parsed = process(sender, body, timestamp, salaryCompanyNames = salaryCompanyNames)
-            if (parsed == null) {
-                // Excluded
+            // Handle Non-Sucess
+            if (result is ProcessingResult.Ignored) return@withContext
+            if (result is ProcessingResult.Dropped) {
+                val decision = result.decision
+                ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
+                    decision.ruleId, decision.reason, "LEDGER_GATE", "REJECTED", 1.0, decision.reason
+                ))
+                 ClassificationDebugLogger.persistLog(context, logId)
                 return@withContext
             }
 
-            // Update log amount
+            val success = result as ProcessingResult.Success
+            var parsed = success.transaction
+            val gateDecision = success.gateDecision
+
             ClassificationDebugLogger.updateLogAmount(
                 logId = logId,
-                amountPaisa = ((parsed.amount ?: 0.0) * 100).toLong()
+                amountPaisa = parsed.amountPaisa ?: 0L
             )
             
-            // Log Parsed
+            ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
+                "LEDGER_GATE_PASS", "Ledger Gate Acceptance", "LEDGER_GATE", "PASSED", 1.0
+            ))
+            
              ClassificationDebugLogger.logParsedFields(logId, ParsedFields(
                 merchantName = parsed.counterparty.name,
-                upiId = null,
+                upiId = parsed.counterparty.upiId,
                 neftReference = null,
                 detectedKeywords = TransactionExtractor.detectKeywords(body),
                 accountTypeDetected = if (parsed.isDebit == true) "DEBIT" else "CREDIT",
@@ -614,6 +747,13 @@ object SmsProcessor {
                 )
             ))
             
+            // --- LOG EXTRACTION FAILURES ---
+            if (parsed.counterparty.name.isNullOrBlank() && 
+                parsed.transactionType != TransactionType.STATEMENT && 
+                parsed.transactionType != TransactionType.IGNORE) {
+                 ClassificationDebugLogger.logExtractionFailure(context, body, sender, timestamp)
+            }
+            
             val categories = db.categoryDao().getAllEnabledCategories().first()
             if (categories.isEmpty()) {
                 val msg = "No categories found! Cannot insert transaction."
@@ -624,7 +764,7 @@ object SmsProcessor {
             }
             val categoryMap = categories.associateBy { it.name }
 
-            // Handle EPF/NPS separately
+            // Handle EPF/NPS
             if (parsed.senderType == SenderClassifier.SenderType.PENSION ||
                 parsed.senderType == SenderClassifier.SenderType.INVESTMENT) {
                 handleRetirement(db, parsed, smsHash)
@@ -637,176 +777,48 @@ object SmsProcessor {
                 return@withContext
             }
             
-            // Skip if no amount
-            if (parsed.amount == null || parsed.amount <= 0) return@withContext
+            if (parsed.amountPaisa == null || parsed.amountPaisa <= 0) return@withContext
             
-            // Find category ID - Safe fallback
-            var categoryId = categoryMap[parsed.category]?.id 
-                ?: categoryMap["Uncategorized"]?.id 
-                ?: categories.first().id 
-            
-            // TRANSFER CIRCLE CHECK
-            var isUntrustedP2P = false
-            if (parsed.category == "P2P Transfers" || parsed.counterparty.type == CounterpartyExtractor.CounterpartyType.PERSON) {
-                val recipientName = parsed.counterparty.name
-                val isTrusted = if (!recipientName.isNullOrBlank()) {
-                    db.transferCircleDao().isInCircle(recipientName)
-                } else false
-                
-                if (!isTrusted) {
-                    categoryId = categoryMap["Miscellaneous"]?.id ?: categoryId
-                    isUntrustedP2P = true
-                } else {
-                    categoryId = categoryMap["P2P Transfers"]?.id ?: categoryId
-                }
-            }
-            
-            // RECURRENCE CHECK FOR SALARY
-            if (parsed.category == "Other Income" && parsed.transactionType == TransactionType.INCOME) {
-                 if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amount)) {
-                     categoryId = categoryMap["Salary"]?.id ?: categoryId
-                 }
-            } 
-            
-            // Map transaction type - Untrusted P2P becomes EXPENSE
-            var txnType = if (isUntrustedP2P) {
-                TransactionType.EXPENSE
-            } else {
-                when {
-                     // 1. STATEMENTS (Highest Priority - never become expenses)
-                    parsed.transactionType == TransactionType.STATEMENT -> TransactionType.STATEMENT
-                    
-                    // 2. CREDIT BILL PAYMENTS (Distinct from Statements)
-                    parsed.category == "Credit Bill Payments" -> TransactionType.LIABILITY_PAYMENT
-
-                    // 2.1 CASHBACK
-                    parsed.category == "Cashback" || parsed.category == "Cashback / Rewards" -> TransactionType.CASHBACK
-                    
-                    // 3. Standard Mapping
-                    else -> when (parsed.transactionType) {
-                        TransactionType.INCOME -> TransactionType.INCOME
-                        TransactionType.EXPENSE -> TransactionType.EXPENSE
-                        TransactionType.TRANSFER -> TransactionType.TRANSFER
-                        TransactionType.LIABILITY_PAYMENT -> TransactionType.LIABILITY_PAYMENT
-                        TransactionType.PENSION -> TransactionType.PENSION
-                        TransactionType.INVESTMENT_CONTRIBUTION -> TransactionType.INVESTMENT_CONTRIBUTION
-                        TransactionType.STATEMENT -> TransactionType.STATEMENT
-                        TransactionType.UNKNOWN -> TransactionType.UNKNOWN
-                        else -> parsed.transactionType // Pass through CASHBACK, REFUND, PENDING, IGNORE, INVESTMENT_OUTFLOW
-                    }
-                }
-            }
-            
-            // ====== FIX #1: CRITICAL INVARIANT ======
-            // CREDIT direction (isDebit == false) MUST NOT result in EXPENSE
-            if (parsed.isDebit == false && txnType == TransactionType.EXPENSE) {
-                Log.w(TAG, "INVARIANT_FIX: CREDIT direction forced INCOME over EXPENSE for ${parsed.counterparty.name}")
-                txnType = TransactionType.INCOME
-            }
-            
-            // ====== FIX #2: Cashback VPA/Category Override ======
-            val upiId = parsed.counterparty.upiId?.lowercase() ?: ""
-            val cashbackPatterns = listOf("cashback", "reward", "promo", "bhimcashback")
-            if ((parsed.category == "Cashback" || cashbackPatterns.any { upiId.contains(it) }) && parsed.isDebit == false) {
-                Log.d(TAG, "CASHBACK_DETECTED: Identified as cashback (Category: ${parsed.category}, VPA: $upiId)")
-                txnType = TransactionType.CASHBACK
-            }
-            
-            // ====== FIX #3: P2P/PERSON → TRANSFER INVARIANT ======
-            // If category is P2P Transfers OR entity is PERSON (above threshold), type MUST be TRANSFER
-            // P2P transfers are neither income nor expense - they're neutral transfers
-            val isP2pOrPerson = !isUntrustedP2P && (
-                parsed.category == "P2P Transfers" ||
-                parsed.counterparty.type == CounterpartyExtractor.CounterpartyType.PERSON
-            )
-            if (isP2pOrPerson && txnType != TransactionType.CASHBACK && txnType != TransactionType.TRANSFER) {
-                Log.d(TAG, "P2P_INVARIANT: Forcing TRANSFER for P2P/PERSON entity (was ${txnType}, entity=${parsed.counterparty.type})")
-                txnType = TransactionType.TRANSFER
-            }
-            
-            val rawMerchant = parsed.counterparty.name
-            val normalizedMerchant = MerchantNormalizer.normalize(rawMerchant)
-            
-            if (!rawMerchant.isNullOrBlank() && !normalizedMerchant.isNullOrBlank() && rawMerchant != normalizedMerchant) {
-                 try {
-                     db.merchantAliasDao().insert(MerchantAlias(rawMerchant, normalizedMerchant))
-                 } catch (e: Exception) { Log.w(TAG, "Alias insert failed: ${e.message}") }
-            }
-            
-            // Extract account number from SMS for self-transfer detection
-            val accountPattern = Regex("""(?:A/c|Acct|Account)\s+[*X]*(\d{4})""", RegexOption.IGNORE_CASE)
-            val cardPattern = Regex("""(?:Card|Credit Card)\s+(?:ending\s+)?(?:[*X]*\s*)?(\d{4})""", RegexOption.IGNORE_CASE)
-            val extractedAccountNum = accountPattern.find(body)?.groupValues?.get(1)
-                ?: cardPattern.find(body)?.groupValues?.get(1)
-            
-            val transaction = Transaction(
-                amountPaisa = (parsed.amount * 100).toLong(),
-                categoryId = categoryId,
-                timestamp = parsed.timestamp,
-                source = TransactionSource.SMS,
-                transactionType = txnType,
-                smsHash = smsHash,
-                merchantName = normalizedMerchant ?: rawMerchant,
-                smsSnippet = parsed.body.take(100),
-                fullSmsBody = parsed.body,
-                accountNumberLast4 = extractedAccountNum,
-                // ECONOMIC ACTIVITY INVARIANT: Only actual Expenses count.
-                // Transfers, Income, Liability Payments are NOT expenses.
-                isExpenseEligible = txnType == TransactionType.EXPENSE,
-                entityType = when (parsed.counterparty.type) {
-                    CounterpartyExtractor.CounterpartyType.PERSON -> EntityType.PERSON
-                    CounterpartyExtractor.CounterpartyType.MERCHANT -> EntityType.BUSINESS
-                    else -> EntityType.UNKNOWN
-                },
-                confidenceScore = CategoryMapper.calculateConfidence(parsed.category)
-            )
-            
-            db.transactionDao().insertTransaction(transaction)
-            
-            // ACCOUNT DISCOVERY: Detect and save bank accounts from incoming SMS
-            try {
-                AccountDiscoveryManager.scanAndDiscover(body, sender, db.userAccountDao())
-            } catch (e: Exception) {
-                Log.w(TAG, "Account discovery failed: ${e.message}")
-            }
-            
-            // Send notification for new transaction
-            val finalCategoryName = categories.find { it.id == categoryId }?.name ?: parsed.category
-            com.saikumar.expensetracker.util.TransactionNotificationHelper.showTransactionNotification(
+            // --- USE HELPER TO RESOLVE CATEGORY & TYPE ---
+            // For single transaction, we don't need to pre-load history, let checkSalaryRecurrence do it if needed
+            val transaction = resolveAndInsert(
                 context = context,
-                amountPaise = transaction.amountPaisa,
-                merchantName = transaction.merchantName,
-                categoryName = finalCategoryName,
-                isDebit = parsed.isDebit ?: true
+                db = db,
+                parsed = parsed,
+                categoryMap = categoryMap,
+                trustedNames = null, // Will use DB fallback inside resolveAndInsert -> resolveTransactionDetails
+                smsHash = smsHash,
+                body = body,
+                salaryHistory = null, // Will use DB fallback inside resolveAndInsert -> checkSalaryRecurrence
+                logId = logId
             )
             
-            // Check Budget Breach
-            if (txnType == TransactionType.EXPENSE) {
-                try {
-                    val budgetManager = (context.applicationContext as ExpenseTrackerApplication).budgetManager
-                    val status = budgetManager.checkBudgetStatus()
-                    
-                    if (status.status != com.saikumar.expensetracker.util.BudgetStatus.SAFE) {
-                         com.saikumar.expensetracker.util.TransactionNotificationHelper.showBudgetBreachNotification(
-                             context,
-                             status
-                         )
+            if (transaction != null) {
+                val finalCategoryName = categories.find { it.id == transaction.categoryId }?.name ?: parsed.category
+                com.saikumar.expensetracker.util.TransactionNotificationHelper.showTransactionNotification(
+                    context = context,
+                    amountPaise = transaction.amountPaisa,
+                    merchantName = transaction.merchantName,
+                    categoryName = finalCategoryName,
+                    isDebit = parsed.isDebit ?: true
+                )
+                
+                if (transaction.transactionType == TransactionType.EXPENSE) {
+                    try {
+                        val budgetManager = (context.applicationContext as ExpenseTrackerApplication).budgetManager
+                        val status = budgetManager.checkBudgetStatus()
+                        
+                        if (status.status != com.saikumar.expensetracker.util.BudgetStatus.SAFE) {
+                             com.saikumar.expensetracker.util.TransactionNotificationHelper.showBudgetBreachNotification(
+                                 context,
+                                 status
+                             )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Budget check failed", e)
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Budget check failed", e)
                 }
             }
-            
-            ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
-                transactionType = txnType.name,
-                categoryId = categoryId,
-                categoryName = parsed.category,
-                finalConfidence = 1.0,
-                requiresUserConfirmation = false,
-                reasoning = "Inserted successfully. CategoryID: $categoryId",
-                whyNotOtherCategories = parsed.classificationTrace
-            ))
-            ClassificationDebugLogger.persistLog(context, logId)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error in processAndInsert", e)
@@ -823,19 +835,24 @@ object SmsProcessor {
         val app = context.applicationContext as ExpenseTrackerApplication
         val db = app.database
         
-        // 1. Load Categories & Rules
         val categories = db.categoryDao().getAllEnabledCategories().first()
         if (categories.isEmpty()) return@withContext
         val categoryMap = categories.associateBy { it.name }
-        val categoryNameMap = categories.associate { it.id to it.name } // ID -> Name
+        val categoryNameMap = categories.associate { it.id to it.name }
         
         val rules = db.categorizationRuleDao().getAllActiveRules().first()
         
-        // 2. Load ALL Transactions (using wide time range)
-        // Since DAO doesn't have getAll, use getTransactionsInPeriod with wide range
+        // --- PERFORMANCE OPTIMIZATION: HOIST DB READS ---
+        Log.d(TAG, "Pre-loading data for reclassify performance...")
+        val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
+        val memories = db.merchantMemoryDao().getAllConfirmedMemories().associate { it.normalizedMerchant to it.categoryId }
+        val trustedNames = db.transferCircleDao().getAllTrustedNamesSync().toSet()
+        val smallP2pThreshold = app.preferencesManager.getSmallP2pThresholdSync()
+        val userAccounts = db.userAccountDao().getAllAccounts()
+        Log.d(TAG, "Loaded ${trustedNames.size} trusted names, ${memories.size} memories, ${userAccounts.size} accounts")
+        
+        // Load all transactions for full context (recurrence checks etc)
         val allTxnsFlow = db.transactionDao().getTransactionsInPeriod(0, Long.MAX_VALUE)
-        // Sort Chronologically (Oldest First) so specifically for recurrence check, 
-        // the "history" is already cleaned/updated when satisfying the check for newer txns.
         val allTxnsWithCategory = allTxnsFlow.first().sortedBy { it.transaction.timestamp }
         
         var updatedCount = 0
@@ -843,9 +860,9 @@ object SmsProcessor {
 
         for (item in allTxnsWithCategory) {
             val txn = item.transaction
-            if (txn.fullSmsBody.isNullOrBlank()) continue // Skip manual txns
+            if (txn.fullSmsBody.isNullOrBlank()) continue
             
-            // Infer Sender Type to bypass exclusion/UNKNOWN check
+            // Infer Sender Type to avoid UNKNOWN rejection
             val inferredSenderType = when (txn.transactionType) {
                 TransactionType.PENSION -> SenderClassifier.SenderType.PENSION
                 TransactionType.INVESTMENT_CONTRIBUTION -> SenderClassifier.SenderType.INVESTMENT
@@ -857,28 +874,28 @@ object SmsProcessor {
             )
             
             try {
-                // Fetch salary company names for reclassification
-                val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
-                
-                // FORCE RE-PROCESS
-                val parsed = process(
-                    sender = "UNKNOWN", // Sender lost, but forced type handles it
-                    body = txn.fullSmsBody, 
-                    timestamp = txn.timestamp, 
-                    rules = rules, 
+                val result = process(
+                    sender = "UNKNOWN", // Forced type handles checks
+                    body = txn.fullSmsBody,
+                    timestamp = txn.timestamp,
+                    rules = rules,
                     categoryMap = categoryNameMap,
                     forceSenderType = inferredSenderType,
-                    salaryCompanyNames = salaryCompanyNames
+                    salaryCompanyNames = salaryCompanyNames,
+                    merchantMemories = memories,
+                    userAccounts = userAccounts
                 )
                 
-                if (parsed != null) {
-                    // Update log with parsed amount
+                if (result is ProcessingResult.Success) {
+                    val parsed = result.transaction
+                    // We don't apply Gate Drops during reclassify (assume existing txns are valid-ish, or should we drop them if now invalid? 
+                    // Let's assume reclassify is strictly for CATEGORY/MERCHANT updates, not deletion.)
+                    
                     ClassificationDebugLogger.updateLogAmount(
                         logId = logId,
-                        amountPaisa = ((parsed.amount ?: 0.0) * 100).toLong()
+                        amountPaisa = parsed.amountPaisa ?: 0L
                     )
 
-                    // Log Parsed Fields (Crucial for MerchantSanitization debug)
                     ClassificationDebugLogger.logParsedFields(logId, ParsedFields(
                         merchantName = parsed.counterparty.name,
                         upiId = parsed.counterparty.upiId,
@@ -895,104 +912,50 @@ object SmsProcessor {
                         )
                     ))
                     
-                    // Update Transaction object
-                    // Note: We do NOT change amount or timestamp, only Metadata
-                    
-                    var newCategoryId = categoryMap[parsed.category]?.id 
-                        ?: categoryMap["Uncategorized"]?.id 
-                        ?: categories.first().id
-                    
+                    // --- USE HELPER TO RESOLVE CATEGORY & TYPE ---
+                    val resolutionCtx = TransactionResolutionContext(
+                        parsed = parsed,
+                        categoryMap = categoryMap,
+                        trustedNames = trustedNames,
+                        db = db,
+                        smsHash = null // Not needed for reclassify context usually
+                    )
+                    var resolved = resolveTransactionDetails(resolutionCtx)
 
                     // RECURRENCE CHECK FOR SALARY
+                    var finalCategoryId = resolved.categoryId
                     if (parsed.category == "Other Income" && parsed.transactionType == TransactionType.INCOME) {
-                         if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amount)) {
-                             newCategoryId = categoryMap["Salary"]?.id ?: newCategoryId
+                         if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amountPaisa, allTxnsWithCategory)) {
+                             finalCategoryId = categoryMap[AppConstants.Categories.SALARY]?.id ?: finalCategoryId
+                             resolved = resolved.copy(categoryId = finalCategoryId)
                          }
                     }
 
-                    // SMALL P2P AS MERCHANT EXPENSE check
-                    val rawMerchant = parsed.counterparty.name
-                    val normalizedMerchant = MerchantNormalizer.normalize(rawMerchant)
-                    val finalMerchant = normalizedMerchant ?: rawMerchant ?: txn.merchantName
+                    // Insert merchant alias if needed
+                    tryInsertMerchantAlias(db, resolved.merchantResult)
                     
-                    // SMALL P2P AS MERCHANT EXPENSE check
-                    var isSmallP2pExpense = false
-                    if (parsed.category == "P2P Transfers") {
-                        val threshold = app.preferencesManager.getSmallP2pThresholdSync()
-                        val amountPaise = ((parsed.amount ?: 0.0) * 100).toLong()
-                        if (threshold > 0 && amountPaise < threshold) {
-                            newCategoryId = categoryMap["Miscellaneous"]?.id ?: newCategoryId
-                            isSmallP2pExpense = true
-                        }
-                    }
-
-                    // Recalculate Transaction Type (CRITICAL FIX: Ensure Type matches Category)
-                    var newTxnType = if (isSmallP2pExpense) {
-                        TransactionType.EXPENSE
-                    } else {
-                        when {
-                            // STATEMENT must be preserved
-                            parsed.transactionType == TransactionType.STATEMENT -> TransactionType.STATEMENT
-                            // Credit Bill Payments -> LIABILITY_PAYMENT
-                            parsed.category == "Credit Bill Payments" -> TransactionType.LIABILITY_PAYMENT
-                            // Cashback -> CASHBACK
-                            parsed.category == "Cashback" || parsed.category == "Cashback / Rewards" -> TransactionType.CASHBACK
-                            else -> when (parsed.transactionType) {
-                                TransactionType.INCOME -> TransactionType.INCOME
-                                TransactionType.EXPENSE -> TransactionType.EXPENSE
-                                TransactionType.TRANSFER -> TransactionType.TRANSFER
-                                TransactionType.LIABILITY_PAYMENT -> TransactionType.LIABILITY_PAYMENT
-                                TransactionType.PENSION -> TransactionType.PENSION
-                                TransactionType.INVESTMENT_CONTRIBUTION -> TransactionType.INVESTMENT_CONTRIBUTION
-                                TransactionType.STATEMENT -> TransactionType.STATEMENT
-                                TransactionType.UNKNOWN -> TransactionType.UNKNOWN
-                                else -> parsed.transactionType // Pass through CASHBACK, REFUND, PENDING, IGNORE, INVESTMENT_OUTFLOW
-                            }
-                        }
-                    }
-
-                    // Apply Invariants (Copied from processAndInsert)
-                    if (parsed.isDebit == false && newTxnType == TransactionType.EXPENSE) {
-                        newTxnType = TransactionType.INCOME
-                    }
-                    val upiId = parsed.counterparty.upiId?.lowercase() ?: ""
-                    val cashbackPatterns = listOf("cashback", "reward", "promo", "bhimcashback")
-                    if ((parsed.category == "Cashback" || cashbackPatterns.any { upiId.contains(it) }) && parsed.isDebit == false) {
-                        newTxnType = TransactionType.CASHBACK
-                    }
-                    if (!isSmallP2pExpense && parsed.category == "P2P Transfers" && newTxnType != TransactionType.CASHBACK && newTxnType != TransactionType.TRANSFER) {
-                        newTxnType = TransactionType.TRANSFER
-                    }
-
-                    // Recalculate Expense Eligibility
-                    // CRITICAL INVARIANT: Only EXPENSE type is eligible. Liability Payments are NOT.
-                    val isExpenseEligible = newTxnType == TransactionType.EXPENSE
-
-
+                    val finalMerchant = resolved.merchantResult.normalized ?: resolved.merchantResult.raw ?: txn.merchantName
                     
-                    if (!rawMerchant.isNullOrBlank() && !normalizedMerchant.isNullOrBlank() && rawMerchant != normalizedMerchant) {
-                         try {
-                             db.merchantAliasDao().insert(MerchantAlias(rawMerchant, normalizedMerchant))
-                         } catch (e: Exception) { Log.w(TAG, "Alias insert failed: ${e.message}") }
-                    }
+                    // INVARIANT: Only EXPENSE type is eligible
+                    val isExpenseEligible = resolved.transactionType == TransactionType.EXPENSE
 
-                    if (txn.categoryId != newCategoryId || 
+                    if (txn.categoryId != finalCategoryId || 
                         txn.merchantName != finalMerchant ||
-                        txn.transactionType != newTxnType ||
+                        txn.transactionType != resolved.transactionType ||
                         txn.isExpenseEligible != isExpenseEligible) {
                         
                         val newTxn = txn.copy(
-                            categoryId = newCategoryId,
+                            categoryId = finalCategoryId,
                             merchantName = finalMerchant,
-                            transactionType = newTxnType,
+                            transactionType = resolved.transactionType,
                             isExpenseEligible = isExpenseEligible
                         )
                         db.transactionDao().updateTransaction(newTxn)
                         updatedCount++
                         
                         ClassificationDebugLogger.finalizeLog(logId, FinalDecision(
-                            transactionType = newTxnType.name,
-                            categoryId = newCategoryId, 
+                            transactionType = resolved.transactionType.name,
+                            categoryId = finalCategoryId, 
                             categoryName = parsed.category,
                             finalConfidence = 1.0, 
                             requiresUserConfirmation = false,
@@ -1039,19 +1002,35 @@ object SmsProcessor {
     ): Int {
         val app = context.applicationContext as ExpenseTrackerApplication
         val db = app.database
-        val txn = db.transactionDao().getById(transactionId) ?: return 0
+        val sourceTxn = db.transactionDao().getById(transactionId) ?: return 0
         
-        // Collect all affected transactions for undo logging
-        val affectedTxns = mutableListOf(txn)
-        if (applyToSimilar && txn.merchantName != null) {
-            affectedTxns.addAll(db.transactionDao().getByMerchantName(txn.merchantName))
+        // ===== STEP 1: FIND ALL SIMILAR TRANSACTIONS (INCLUDING SOURCE) =====
+        // This must happen BEFORE any updates to avoid race conditions
+        val allAffectedTxns = mutableSetOf<Transaction>()
+        
+        // Always include the source transaction
+        allAffectedTxns.add(sourceTxn)
+        
+        if (applyToSimilar) {
+            // Match by merchant name (Indexed, fast)
+            if (!sourceTxn.merchantName.isNullOrBlank()) {
+                val byMerchant = db.transactionDao().getByMerchantName(sourceTxn.merchantName)
+                allAffectedTxns.addAll(byMerchant)
+                Log.d(TAG, "Found ${byMerchant.size} transactions with merchant: ${sourceTxn.merchantName}")
+            }
         }
         
-        // Create undo data before making changes
+        // Convert to sorted list for consistent processing
+        val affectedTxnsList = allAffectedTxns.toList().sortedBy { it.id }
+        Log.d(TAG, "Total affected transactions: ${affectedTxnsList.size} (source + similar)")
+        
+        // ===== STEP 2: CREATE UNDO LOG WITH COMPLETE DATA =====
         val undoData = org.json.JSONObject().apply {
-            put("txnIds", org.json.JSONArray(affectedTxns.map { it.id }))
-            put("oldCategoryIds", org.json.JSONArray(affectedTxns.map { it.categoryId }))
+            put("txnIds", org.json.JSONArray(affectedTxnsList.map { it.id }))
+            put("oldCategoryIds", org.json.JSONArray(affectedTxnsList.map { it.categoryId }))
+            put("oldTransactionTypes", org.json.JSONArray(affectedTxnsList.map { it.transactionType.name }))
             put("newCategoryId", categoryId)
+            put("newTransactionType", transactionType?.name ?: "UNCHANGED")
         }
         
         // Get category name for description
@@ -1062,54 +1041,34 @@ object SmsProcessor {
         val undoLog = com.saikumar.expensetracker.data.entity.UndoLog(
             actionType = com.saikumar.expensetracker.data.entity.UndoLog.ACTION_BATCH_CATEGORIZE,
             undoData = undoData.toString(),
-            description = "Changed ${affectedTxns.size} transactions to '$categoryName'",
-            affectedCount = affectedTxns.size
+            description = "Changed ${affectedTxnsList.size} transactions to '$categoryName'",
+            affectedCount = affectedTxnsList.size
         )
         db.undoLogDao().insert(undoLog)
         
-        // Now apply the actual updates
-        val updated = if (transactionType != null) {
-            txn.copy(categoryId = categoryId, transactionType = transactionType, confidenceScore = 100) // User confirmed = 100
-        } else {
-            txn.copy(categoryId = categoryId, confidenceScore = 100)
-        }
-        db.transactionDao().updateTransaction(updated)
-        
-        if (applyToSimilar) {
-            // Enhanced matching: Try merchantName first, then smsSnippet pattern
-            val allSimilar = mutableListOf<Transaction>()
-            
-            if (!txn.merchantName.isNullOrBlank()) {
-                allSimilar.addAll(db.transactionDao().getByMerchantName(txn.merchantName))
-            }
-            
-            // Also match by UPI ID pattern if present in smsSnippet (for P2P transactions)
-            val smsContent = txn.smsSnippet ?: ""
-            val upiIdRegex = Regex("([a-zA-Z0-9._-]+@[a-zA-Z]+)")
-            val upiMatch = upiIdRegex.find(smsContent)?.value?.lowercase()
-            if (upiMatch != null && !upiMatch.contains("gmail") && !upiMatch.contains("yahoo")) {
-                val byPattern = db.transactionDao().getTransactionsBySnippetPattern(upiMatch)
-                byPattern.forEach { tx ->
-                    if (allSimilar.none { it.id == tx.id }) {
-                        allSimilar.add(tx)
-                    }
-                }
-            }
-            
-            if (allSimilar.isNotEmpty()) {
-                val similarTxns = allSimilar.map { 
-                     if (transactionType != null) {
-                        it.copy(categoryId = categoryId, transactionType = transactionType, confidenceScore = 100)
-                    } else {
-                        it.copy(categoryId = categoryId, confidenceScore = 100)
-                    }
-                }
-                db.transactionDao().updateTransactions(similarTxns)
-                Log.d(TAG, "Updated ${similarTxns.size} similar transactions (merchant: ${txn.merchantName}, upi: $upiMatch)")
+        // ===== STEP 3: UPDATE ALL TRANSACTIONS AT ONCE =====
+        val updatedTxns = affectedTxnsList.map { txn ->
+            if (transactionType != null) {
+                txn.copy(
+                    categoryId = categoryId, 
+                    transactionType = transactionType, 
+                    confidenceScore = 100 // User confirmed = 100%
+                )
+            } else {
+                txn.copy(
+                    categoryId = categoryId, 
+                    confidenceScore = 100
+                )
             }
         }
         
-        return affectedTxns.size
+        // Batch update all transactions
+        db.transactionDao().updateTransactions(updatedTxns)
+        
+        Log.d(TAG, "Successfully updated ${updatedTxns.size} transactions to category '$categoryName'" +
+            if (transactionType != null) " with type $transactionType" else "")
+        
+        return updatedTxns.size
     }
     
     /**
@@ -1127,16 +1086,38 @@ object SmsProcessor {
             val txnIds = data.getJSONArray("txnIds")
             val oldCategoryIds = data.getJSONArray("oldCategoryIds")
             
+            // Check if we have transaction types stored (backward compatibility)
+            val oldTransactionTypes = if (data.has("oldTransactionTypes")) {
+                data.getJSONArray("oldTransactionTypes")
+            } else null
+            
+            val txnsToUpdate = mutableListOf<Transaction>()
+            
             for (i in 0 until txnIds.length()) {
                 val txnId = txnIds.getLong(i)
                 val oldCategoryId = oldCategoryIds.getLong(i)
                 
                 val txn = db.transactionDao().getById(txnId)
                 if (txn != null) {
-                    db.transactionDao().updateTransaction(
-                        txn.copy(categoryId = oldCategoryId)
-                    )
+                    var updatedTxn = txn.copy(categoryId = oldCategoryId)
+                    
+                    // Restore transaction type if available
+                    if (oldTransactionTypes != null) {
+                        try {
+                            val typeName = oldTransactionTypes.getString(i)
+                            val explicitType = TransactionType.valueOf(typeName)
+                            updatedTxn = updatedTxn.copy(transactionType = explicitType)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to restore transaction type for txn $txnId", e)
+                        }
+                    }
+                    
+                    txnsToUpdate.add(updatedTxn)
                 }
+            }
+            
+            if (txnsToUpdate.isNotEmpty()) {
+                db.transactionDao().updateTransactions(txnsToUpdate)
             }
             
             // Mark as undone
@@ -1146,22 +1127,12 @@ object SmsProcessor {
             return undoLog.description
             
         } catch (e: Exception) {
-            Log.e(TAG, "UNDO failed: ${e.message}")
+            Log.e(TAG, "UNDO failed: ${e.message}", e)
             return null
         }
     }
 
-    fun findSimilarTransactions(
-        sourceTransaction: Transaction,
-        allTransactions: List<Transaction>
-    ): SimilarityResult {
-        val similar = allTransactions.filter {
-            it.id != sourceTransaction.id &&
-            it.merchantName == sourceTransaction.merchantName &&
-            it.merchantName != null
-        }
-        return SimilarityResult(similar, "MERCHANT_NAME", 0.8f)
-    }
+
     
     /**
      * Track NEFT income sources for salary pattern detection.

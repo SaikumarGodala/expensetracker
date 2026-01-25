@@ -1,6 +1,8 @@
 package com.saikumar.expensetracker.ui.dashboard
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,7 +55,31 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var editingTransaction by remember { mutableStateOf<TransactionWithCategory?>(null) }
+    var sortOption by remember { mutableStateOf(com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC) }
     var showDateRangePicker by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    
+    // Observe snackbar messages from ViewModel
+    val snackbarMessages by viewModel.snackbarController.messages.collectAsState()
+    
+    LaunchedEffect(snackbarMessages) {
+        snackbarMessages.firstOrNull()?.let { message ->
+            val result = snackbarHostState.showSnackbar(
+                message = message.message,
+                actionLabel = message.actionLabel,
+                duration = when (message.duration) {
+                    com.saikumar.expensetracker.util.SnackbarDuration.Short -> SnackbarDuration.Short
+                    com.saikumar.expensetracker.util.SnackbarDuration.Long -> SnackbarDuration.Long
+                    com.saikumar.expensetracker.util.SnackbarDuration.Indefinite -> SnackbarDuration.Indefinite
+                }
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                message.onAction?.invoke()
+            }
+            viewModel.snackbarController.dismiss(message.id)
+        }
+    }
 
     if (editingTransaction != null) {
         TransactionEditDialog(
@@ -70,7 +96,8 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
             onDelete = { txn ->
                 viewModel.deleteTransaction(txn)
                 editingTransaction = null
-            }
+            },
+            onFindSimilar = { viewModel.findSimilarTransactions(editingTransaction!!.transaction) }
         )
     }
 
@@ -127,8 +154,21 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
             }
         )
     }
+
+    val sortedTransactions = remember(uiState.transactions, sortOption) {
+        when (sortOption) {
+            com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC -> uiState.transactions.sortedByDescending { it.transaction.timestamp }
+            com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC -> uiState.transactions.sortedBy { it.transaction.timestamp }
+            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC -> uiState.transactions.sortedByDescending { it.transaction.amountPaisa }
+            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC -> uiState.transactions.sortedBy { it.transaction.amountPaisa }
+        }
+    }
+    
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scanState by com.saikumar.expensetracker.util.ScanProgressManager.scanState.collectAsState()
     
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
@@ -151,78 +191,172 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
             }
         }
     ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })
-                    
-                    // Account Filter Dropdown
-                    AccountFilterDropdown(
-                        accounts = uiState.detectedAccounts,
-                        selectedAccounts = uiState.selectedAccounts,
-                        transactions = uiState.transactions,
-                        onToggle = { viewModel.toggleAccountFilter(it) },
-                        onClearAll = { viewModel.clearAccountFilter() }
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            
+            // Scan Progress Indicator
+            if (scanState is com.saikumar.expensetracker.util.ScanState.Scanning) {
+                val scanning = scanState as com.saikumar.expensetracker.util.ScanState.Scanning
+                
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(bottom = 8.dp)
+                        .zIndex(1f)
+                ) {
+                    LinearProgressIndicator(
+                        progress = scanning.progress,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    
-                    HeroBalanceCard(uiState)
+                    Text(
+                        text = "Scanning SMS: ${scanning.current} / ${scanning.total}",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 4.dp)
+                    )
                 }
             }
-            item { SummaryRowList(uiState) { type -> 
-                uiState.cycleRange?.let { range ->
-                    val startMillis = range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val endMillis = range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    onCategoryClick(type, startMillis, endMillis)
-                }
-            } }
-            // Removed spending breakdown chart - already have category breakdown in Overview
             
-            // STATEMENTS SECTION (Collapsible)
-            if (uiState.statements.isNotEmpty()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(), 
+                contentPadding = PaddingValues(bottom = 80.dp, top = if (scanState is com.saikumar.expensetracker.util.ScanState.Scanning) 40.dp else 0.dp), // Adjust padding for progress bar
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 item {
-                    var statementsExpanded by remember { mutableStateOf(false) }
-                    
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { statementsExpanded = !statementsExpanded }
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Statements (${uiState.statements.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(
-                                if (statementsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = if (statementsExpanded) "Collapse" else "Expand"
-                            )
+                        if (searchQuery.isNotBlank()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Results for \"$searchQuery\"",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear Search")
+                                }
+                            }
+                        } else {
+                            CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })
                         }
                         
-                        if (statementsExpanded) {
-                            uiState.statements.forEach { stmt ->
-                                TransactionItem(
-                                    item = stmt,
-                                    linkType = uiState.transactionLinks[stmt.transaction.id]?.type,
-                                    onClick = { editingTransaction = stmt }
+                        // Account Filter Dropdown
+                        AccountFilterDropdown(
+                            accounts = uiState.detectedAccounts,
+                            selectedAccounts = uiState.selectedAccounts,
+                            transactions = uiState.transactions,
+                            onToggle = { viewModel.toggleAccountFilter(it) },
+                            onClearAll = { viewModel.clearAccountFilter() }
+                        )
+                        
+                        HeroBalanceCard(uiState)
+                    }
+                }
+                item { SummaryRowList(uiState) { type -> 
+                    uiState.cycleRange?.let { range ->
+                        val startMillis = range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val endMillis = range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        onCategoryClick(type, startMillis, endMillis)
+                    }
+                } }
+                // Removed spending breakdown chart - already have category breakdown in Overview
+                
+                // STATEMENTS SECTION (Collapsible)
+                if (uiState.statements.isNotEmpty()) {
+                    item {
+                        var statementsExpanded by remember { mutableStateOf(false) }
+                        
+                        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { statementsExpanded = !statementsExpanded }
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Statements (${uiState.statements.size})",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                Icon(
+                                    if (statementsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (statementsExpanded) "Collapse" else "Expand"
+                                )
+                            }
+                            
+                            if (statementsExpanded) {
+                                uiState.statements.forEach { stmt ->
+                                    TransactionItem(
+                                        item = stmt,
+                                        linkType = uiState.transactionLinks[stmt.transaction.id]?.type,
+                                        onClick = { editingTransaction = stmt }
+                                    )
+                                }
                             }
                         }
                     }
                 }
+                
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Transactions",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        com.saikumar.expensetracker.ui.components.TransactionSortSelector(
+                            currentSort = sortOption,
+                            onSortChange = { sortOption = it }
+                        )
+                    }
+                }
+
+
+                if (sortOption == com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC || 
+                    sortOption == com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC) {
+                    // Flat list for Amount sort
+                    items(sortedTransactions, key = { it.transaction.id }) { transaction ->
+                        val linkDetail = uiState.transactionLinks[transaction.transaction.id]
+                        TransactionItem(
+                            transaction, 
+                            linkType = linkDetail?.type, 
+                            onClick = { editingTransaction = transaction },
+                            modifier = Modifier.animateItemPlacement()
+                        )
+                    }
+                } else {
+                    // Grouped list for Date sort
+                    val groupedTransactions = sortedTransactions.groupBy { timestampToLocalDate(it.transaction.timestamp) }
+                    groupedTransactions.forEach { (date, transactions) ->
+                        stickyHeader { DateHeader(date) }
+                        items(transactions, key = { it.transaction.id }) { transaction ->
+                            val linkDetail = uiState.transactionLinks[transaction.transaction.id]
+                            TransactionItem(
+                                transaction, 
+                                linkType = linkDetail?.type, 
+                                onClick = { editingTransaction = transaction },
+                                modifier = Modifier.animateItemPlacement()
+                            )
+                        }
+                    }
+                }
+                
+
             }
             
-            val groupedTransactions = uiState.transactions.groupBy { timestampToLocalDate(it.transaction.timestamp) }
-            groupedTransactions.forEach { (date, transactions) ->
-                stickyHeader { DateHeader(date) }
-                items(transactions, key = { it.transaction.id }) { transaction ->
-                    val linkDetail = uiState.transactionLinks[transaction.transaction.id]
-                    TransactionItem(transaction, linkType = linkDetail?.type, onClick = { editingTransaction = transaction })
-                }
-            }
+
         }
     }
 }
@@ -362,7 +496,7 @@ fun DateHeader(date: LocalDate) {
 fun AccountFilterDropdown(
     accounts: List<com.saikumar.expensetracker.data.entity.UserAccount>,
     selectedAccounts: Set<String>,
-    transactions: List<TransactionWithCategory> = emptyList(), // AUDIT: Added for count display
+    transactions: List<TransactionWithCategory> = emptyList(),
     onToggle: (String) -> Unit,
     onClearAll: () -> Unit
 ) {
@@ -488,7 +622,13 @@ fun DashboardChart(state: DashboardUiState) {
 }
 
 @Composable
-fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, onClick: () -> Unit) {
+
+fun TransactionItem(
+    item: TransactionWithCategory, 
+    linkType: LinkType? = null, 
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     val transactionType = item.transaction.transactionType
     val isSelfTransferLinked = linkType == LinkType.SELF_TRANSFER
     // Trust the LinkType if present, otherwise fall back to TransactionType
@@ -507,7 +647,6 @@ fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, o
                        transactionType == TransactionType.INVESTMENT_OUTFLOW ||
                        transactionType == TransactionType.INVESTMENT_CONTRIBUTION
 
-    // AUDIT FIX: Flag uncategorized and unverified income transactions for review
     val isUncategorized = item.category.name == "Uncategorized"
     val isUnverifiedIncome = item.category.name == "Unverified Income"
     val needsReview = isUncategorized || isUnverifiedIncome
@@ -552,7 +691,7 @@ fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, o
         isPending -> Icons.Default.Schedule
         needsReview -> Icons.Default.Warning // Warning icon for needs review
         isStatement -> Icons.Default.ReceiptLong
-        isInvestment -> Icons.Default.TrendingUp  // Investment icon (check before transfer!)
+        isInvestment -> Icons.Default.TrendingUp
         isTransfer -> Icons.Default.SwapHoriz
         isLiabilityPayment -> Icons.Default.CreditCard
         isRefund -> Icons.Default.Refresh
@@ -596,7 +735,7 @@ fun TransactionItem(item: TransactionWithCategory, linkType: LinkType? = null, o
     }
     
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))

@@ -14,24 +14,66 @@ data class TransactionWithCategory(
     val category: Category
 )
 
+
+
+data class TransactionSummary(
+    val totalIncome: Long,
+    val totalExpense: Long, // Fixed + Variable
+    val totalInvestment: Long,
+    val totalVehicle: Long,
+    val totalRefund: Long,
+    val totalFixed: Long,
+    val totalVariable: Long
+)
+
 @Dao
 interface TransactionDao {
+    @androidx.room.Transaction
+    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    fun getTransactionsPaged(startTimestamp: Long, endTimestamp: Long, limit: Int, offset: Int): Flow<List<TransactionWithCategory>>
+
     @androidx.room.Transaction
     @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL ORDER BY timestamp DESC")
     fun getTransactionsInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionWithCategory>>
 
+    @androidx.room.Transaction
+    @Query("""
+        SELECT t.* FROM transactions t
+        INNER JOIN categories c ON t.categoryId = c.id
+        WHERE (t.merchantName LIKE '%' || :query || '%' 
+           OR t.note LIKE '%' || :query || '%' 
+           OR c.name LIKE '%' || :query || '%')
+        AND t.deletedAt IS NULL
+        ORDER BY t.timestamp DESC
+    """)
+    fun searchTransactions(query: String): Flow<List<TransactionWithCategory>>
+
+    @Query("""
+        SELECT
+            SUM(CASE WHEN t.transactionType IN ('INCOME', 'CASHBACK') THEN t.amountPaisa ELSE 0 END) as totalIncome,
+            SUM(CASE WHEN t.transactionType = 'EXPENSE' AND c.type IN ('FIXED_EXPENSE', 'VARIABLE_EXPENSE') THEN t.amountPaisa ELSE 0 END) as totalExpense,
+            SUM(CASE WHEN c.type = 'INVESTMENT' THEN t.amountPaisa ELSE 0 END) as totalInvestment,
+            SUM(CASE WHEN c.type = 'VEHICLE' THEN t.amountPaisa ELSE 0 END) as totalVehicle,
+            SUM(CASE WHEN t.transactionType = 'REFUND' THEN t.amountPaisa ELSE 0 END) as totalRefund,
+            SUM(CASE WHEN c.type = 'FIXED_EXPENSE' THEN t.amountPaisa ELSE 0 END) as totalFixed,
+            SUM(CASE WHEN c.type = 'VARIABLE_EXPENSE' THEN t.amountPaisa ELSE 0 END) as totalVariable
+        FROM transactions t
+        LEFT JOIN categories c ON t.categoryId = c.id
+        WHERE t.timestamp >= :startTimestamp
+        AND t.timestamp <= :endTimestamp
+        AND t.deletedAt IS NULL
+        AND t.status = 'COMPLETED'
+        AND t.transactionType NOT IN ('LIABILITY_PAYMENT', 'TRANSFER', 'PENDING', 'IGNORE', 'STATEMENT')
+    """)
+    fun getTransactionSummary(startTimestamp: Long, endTimestamp: Long): Flow<TransactionSummary>
+
     @Query("SELECT * FROM transactions WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: Long): Transaction?
 
-
     /**
      * Insert a transaction with idempotent duplicate handling.
-     * 
-     * CRITICAL FIX 2: Uses OnConflictStrategy.IGNORE to prevent duplicate SMS
-     * from creating duplicate transactions. Returns -1 if the insert was ignored
-     * due to a conflict (e.g., duplicate smsHash).
-     * 
-     * @return Row ID of inserted transaction, or -1 if ignored due to conflict
+     * Uses OnConflictStrategy.IGNORE to prevent duplicate SMS from creating duplicate transactions.
+     * Returns -1 if the insert was ignored due to conflict.
      */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTransaction(transaction: Transaction): Long
@@ -39,32 +81,23 @@ interface TransactionDao {
     @Update
     suspend fun updateTransaction(transaction: Transaction)
 
-    /**
-     * Soft delete a transaction by setting deletedAt timestamp
-     */
     @Query("UPDATE transactions SET deletedAt = :deletedAt WHERE id = :id")
     suspend fun softDelete(id: Long, deletedAt: Long)
     
-    /**
-     * Restore a soft-deleted transaction by setting deletedAt to null
-     */
     @Query("UPDATE transactions SET deletedAt = NULL WHERE id = :id")
     suspend fun restore(id: Long)
     
-    // Kept for legacy compatibility if needed, but repository should use softDelete
     @Delete
     suspend fun hardDelete(transaction: Transaction)
 
-    /**
-     * Check if a transaction with this SMS hash already exists.
-     * Used to prevent duplicate SMS imports.
-     */
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE smsHash = :hash AND deletedAt IS NULL LIMIT 1)")
     suspend fun existsBySmsHash(hash: String): Boolean
 
+    @Query("SELECT smsHash FROM transactions WHERE smsHash IS NOT NULL AND deletedAt IS NULL")
+    suspend fun getAllSmsHashes(): List<String>
+
     /**
-     * BUG FIX 1: Enhanced deduplication - Check for duplicate by reference number + amount.
-     * Used to catch duplicates even when SMS text differs slightly.
+     * BUG FIX: Enhanced deduplication - Check for duplicate by reference number + amount.
      */
     @Query("""
         SELECT EXISTS(
@@ -79,12 +112,7 @@ interface TransactionDao {
     suspend fun existsByReferenceAndAmount(refNo: String?, amountPaisa: Long): Boolean
 
     /**
-     * BUG FIX 1: Find potential duplicates by amount and timestamp (within a time window).
-     * Used to detect duplicates when reference numbers are missing.
-     * 
-     * @param amountPaisa Exact amount in paisa
-     * @param timestampStart Start of time window (transaction time - 5 minutes)
-     * @param timestampEnd End of time window (transaction time + 5 minutes)
+     * BUG FIX: Find potential duplicates by amount and timestamp (time window check).
      */
     @Query("""
         SELECT * FROM transactions 
@@ -98,30 +126,21 @@ interface TransactionDao {
         timestampEnd: Long
     ): List<Transaction>
 
-    /**
-     * Get all transactions that need category reassignment
-     * (e.g., after a category is deleted and transactions fallback to default)
-     */
     @Query("SELECT * FROM transactions WHERE categoryId = :categoryId AND deletedAt IS NULL")
     suspend fun getTransactionsByCategoryId(categoryId: Long): List<Transaction>
 
-    // P1 Fix: Optimized similarity search queries
     @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     suspend fun getTransactionsByMerchant(merchantName: String): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE smsSnippet LIKE '%' || :pattern || '%' AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     suspend fun getTransactionsBySnippetPattern(pattern: String): List<Transaction>
 
-    @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL")
+    @Query("SELECT * FROM transactions WHERE LOWER(merchantName) = LOWER(:merchantName) AND deletedAt IS NULL")
     suspend fun getByMerchantName(merchantName: String): List<Transaction>
 
     @Update
     suspend fun updateTransactions(transactions: List<Transaction>)
     
-    /**
-     * Get ALL transactions (non-deleted) for self-transfer pairing.
-     * key details: ID, Amount, Timestamp, Type, Account Number, SMS Sender.
-     */
     @androidx.room.Transaction
     @Query("""
         SELECT t.id, t.amountPaisa, t.timestamp, t.transactionType, t.accountNumberLast4, s.sender as smsSender 
@@ -132,10 +151,6 @@ interface TransactionDao {
     """)
     suspend fun getAllTransactionsSync(): List<TransactionPairCandidate>
     
-    /**
-     * Get all transactions with merchant names for ML training data export.
-     * Includes only transactions with non-null merchant names.
-     */
     @Query("""
         SELECT * FROM transactions 
         WHERE merchantName IS NOT NULL 
@@ -144,9 +159,6 @@ interface TransactionDao {
     """)
     suspend fun getAllForMlExport(): List<Transaction>
     
-    /**
-     * Bulk update category and type for list of merchants (e.g. for P2P Transfer Circle updates)
-     */
     @Query("UPDATE transactions SET categoryId = :categoryId, transactionType = :type WHERE merchantName IN (:merchantNames) AND deletedAt IS NULL")
     suspend fun updateTransactionsForMerchants(
         merchantNames: List<String>, 
@@ -154,14 +166,12 @@ interface TransactionDao {
         type: com.saikumar.expensetracker.data.entity.TransactionType
     )
 
-    /**
-     * Get transactions with sender info for ML training.
-     */
+    @androidx.room.Transaction
     @Query("""
-        SELECT t.merchantName, t.categoryId, t.confidenceScore, s.sender as smsSender 
+        SELECT t.merchantName, t.categoryId, t.confidenceScore, t.fullSmsBody, s.sender as smsSender, t.timestamp 
         FROM transactions t 
         LEFT JOIN sms_raw s ON t.rawSmsId = s.rawSmsId
-        WHERE t.merchantName IS NOT NULL 
+        WHERE (t.merchantName IS NOT NULL OR t.fullSmsBody IS NOT NULL)
         AND t.deletedAt IS NULL 
         ORDER BY t.timestamp DESC
     """)
@@ -189,6 +199,67 @@ interface TransactionDao {
         AND t.deletedAt IS NULL
     """)
     suspend fun getTotalExpenseForPeriod(start: Long, end: Long): Long?
+
+    @Query("""
+        SELECT c.name as categoryName, c.icon as categoryIcon, SUM(t.amountPaisa) as totalAmount
+        FROM transactions t
+        JOIN categories c ON t.categoryId = c.id
+        WHERE t.timestamp BETWEEN :start AND :end
+        AND t.deletedAt IS NULL
+        AND t.transactionType = 'EXPENSE'
+        AND t.status = 'COMPLETED'
+        GROUP BY c.id
+        ORDER BY totalAmount DESC
+    """)
+    suspend fun getCategorySpending(start: Long, end: Long): List<CategorySpending>
+
+    @Query("""
+        SELECT strftime('%Y-%m', t.timestamp / 1000, 'unixepoch', 'localtime') as month, SUM(t.amountPaisa) as totalAmount
+        FROM transactions t
+        WHERE t.timestamp BETWEEN :start AND :end
+        AND t.deletedAt IS NULL
+        AND t.transactionType = 'EXPENSE'
+        AND t.status = 'COMPLETED'
+        GROUP BY month
+        ORDER BY month ASC
+    """)
+    suspend fun getMonthlySpending(start: Long, end: Long): List<MonthlySpending>
+
+    @Query("""
+        SELECT strftime('%Y-%m', t.timestamp / 1000, 'unixepoch', 'localtime') as month, SUM(t.amountPaisa) as totalAmount
+        FROM transactions t
+        WHERE t.categoryId = :categoryId
+        AND t.timestamp BETWEEN :start AND :end
+        AND t.deletedAt IS NULL
+        AND t.transactionType = 'EXPENSE'
+        AND t.status = 'COMPLETED'
+        GROUP BY month
+        ORDER BY month ASC
+    """)
+    suspend fun getMonthlySpendingForCategory(categoryId: Long, start: Long, end: Long): List<MonthlySpending>
+
+    @Query("""
+        SELECT strftime('%Y', t.timestamp / 1000, 'unixepoch', 'localtime') as year, SUM(t.amountPaisa) as totalAmount
+        FROM transactions t
+        WHERE t.deletedAt IS NULL
+        AND t.transactionType = 'EXPENSE'
+        AND t.status = 'COMPLETED'
+        GROUP BY year
+        ORDER BY year DESC
+    """)
+    suspend fun getYearlySpending(): List<YearlySpending>
+
+    @Query("""
+        SELECT strftime('%Y', t.timestamp / 1000, 'unixepoch', 'localtime') as year, SUM(t.amountPaisa) as totalAmount
+        FROM transactions t
+        WHERE t.categoryId = :categoryId
+        AND t.deletedAt IS NULL
+        AND t.transactionType = 'EXPENSE'
+        AND t.status = 'COMPLETED'
+        GROUP BY year
+        ORDER BY year DESC
+    """)
+    suspend fun getYearlySpendingForCategory(categoryId: Long): List<YearlySpending>
 }
 
 data class TransactionPairCandidate(
@@ -201,8 +272,26 @@ data class TransactionPairCandidate(
 )
 
 data class MlExportCandidate(
-    val merchantName: String,
+    val merchantName: String?,
     val categoryId: Long,
     val confidenceScore: Int,
-    val smsSender: String?
+    val fullSmsBody: String?,
+    val smsSender: String?,
+    val timestamp: Long
+)
+
+data class CategorySpending(
+    val categoryName: String,
+    val categoryIcon: String,
+    val totalAmount: Long
+)
+
+data class MonthlySpending(
+    val month: String, // Format: YYYY-MM
+    val totalAmount: Long
+)
+
+data class YearlySpending(
+    val year: String, // Format: YYYY
+    val totalAmount: Long
 )

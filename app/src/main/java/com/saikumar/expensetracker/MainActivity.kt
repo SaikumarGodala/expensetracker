@@ -12,8 +12,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Modifier
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -35,10 +38,17 @@ import com.saikumar.expensetracker.ui.settings.SettingsScreen
 import com.saikumar.expensetracker.ui.settings.SettingsViewModel
 import com.saikumar.expensetracker.ui.retirement.RetirementScreen
 import com.saikumar.expensetracker.ui.theme.ExpenseTrackerTheme
-import com.saikumar.expensetracker.ui.components.BudgetBreachDialog
 import com.saikumar.expensetracker.util.BudgetStatus
+import com.saikumar.expensetracker.util.BiometricPromptManager
+import com.saikumar.expensetracker.ui.components.LockScreen
+import androidx.appcompat.app.AppCompatActivity
+import com.saikumar.expensetracker.ui.components.BudgetBreachDialog
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
+    private val promptManager by lazy {
+        BiometricPromptManager(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -52,10 +62,54 @@ class MainActivity : ComponentActivity() {
                 themeMode = themeMode,
                 colorPalette = colorPalette
             ) {
-                val navController = rememberNavController()
+                var isUnlocked by remember { mutableStateOf(false) }
+                val biometricResult by promptManager.promptResults.collectAsState(initial = null)
+                
+                LaunchedEffect(biometricResult) {
+                    if (biometricResult is BiometricPromptManager.BiometricResult.AuthenticationSuccess) {
+                        isUnlocked = true
+                    }
+                }
+                
+                LaunchedEffect(Unit) {
+                    promptManager.showBiometricPrompt(
+                        title = "Unlock Expense Tracker",
+                        description = "Authenticate to access your financial data"
+                    )
+                }
+                
+                if (!isUnlocked) {
+                    LockScreen(
+                        onUnlockClick = {
+                            promptManager.showBiometricPrompt(
+                                title = "Unlock Expense Tracker",
+                                description = "Authenticate to access your financial data"
+                            )
+                        }
+                    )
+                } else {
+                    val navController = rememberNavController()
                 
                 val scope = rememberCoroutineScope()
                 
+                val context = androidx.compose.ui.platform.LocalContext.current
+                var showPermissionRationale by remember { mutableStateOf(false) }
+                
+                // Function to check and request permissions
+                val checkAndRequestPermissions = {
+                    val hasReceiveSms = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECEIVE_SMS
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    
+                    val hasReadSms = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.READ_SMS
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    
+                    if (!hasReceiveSms || !hasReadSms) {
+                        showPermissionRationale = true
+                    }
+                }
+
                 val smsPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestMultiplePermissions()
                 ) { permissionsGranted ->
@@ -80,11 +134,24 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(Unit) {
-                    smsPermissionLauncher.launch(
-                        arrayOf(
-                            Manifest.permission.RECEIVE_SMS,
-                            Manifest.permission.READ_SMS
-                        )
+                    checkAndRequestPermissions()
+                }
+                
+                if (showPermissionRationale) {
+                    com.saikumar.expensetracker.ui.components.PermissionRationaleDialog(
+                        onConfirm = {
+                            showPermissionRationale = false
+                            smsPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.RECEIVE_SMS,
+                                    Manifest.permission.READ_SMS
+                                )
+                            )
+                        },
+                        onDismiss = {
+                            showPermissionRationale = false
+                            // Permission denied flow (optional: show snackbar)
+                        }
                     )
                 }
                 
@@ -109,16 +176,23 @@ class MainActivity : ComponentActivity() {
                         BudgetBreachDialog(
                             state = state,
                             onSubmit = { reason ->
+                                // Optimistically dismiss dialog to prevent loop
+                                budgetState = null
+                                
                                 scope.launch(Dispatchers.IO) {
-                                    budgetManager.recordBreach(
-                                        month = state.month,
-                                        stage = if (state.status == BudgetStatus.BREACHED_STAGE_1) 1 else 2,
-                                        limit = state.limit,
-                                        expenses = state.expenses,
-                                        reason = reason
-                                    )
-                                    withContext(Dispatchers.Main) {
-                                        refreshBudgetCheck++
+                                    try {
+                                        budgetManager.recordBreach(
+                                            month = state.month,
+                                            stage = if (state.status == BudgetStatus.BREACHED_STAGE_1) 1 else 2,
+                                            limit = state.limit,
+                                            expenses = state.expenses,
+                                            reason = reason
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            refreshBudgetCheck++
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("MainActivity", "Failed to save breach", e)
                                     }
                                 }
                             }
@@ -151,6 +225,13 @@ class MainActivity : ComponentActivity() {
                                 selected = currentRoute == "overview",
                                 onClick = { navController.navigate("overview") }
                             )
+                            // Analytics Navigation Item
+                            NavigationBarItem(
+                                icon = { Icon(androidx.compose.material.icons.Icons.Filled.DateRange, contentDescription = "Analytics") },
+                                label = { Text("Analytics") },
+                                selected = currentRoute == "analytics",
+                                onClick = { navController.navigate("analytics") }
+                            )
                             NavigationBarItem(
                                 icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                                 label = { Text("Settings") },
@@ -169,7 +250,11 @@ class MainActivity : ComponentActivity() {
                         startDestination = startDestination,
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        composable("onboarding") {
+                        composable(
+                            "onboarding",
+                            enterTransition = { fadeIn(tween(300)) },
+                            exitTransition = { fadeOut(tween(300)) }
+                        ) {
                             com.saikumar.expensetracker.ui.onboarding.OnboardingScreen(
                                 onComplete = {
                                     scope.launch {
@@ -181,7 +266,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        composable("dashboard") {
+                        
+                        // Top Level Screens (Fade Transitions)
+                        composable(
+                            "dashboard",
+                            enterTransition = { fadeIn(tween(300)) },
+                            exitTransition = { fadeOut(tween(300)) }
+                        ) {
                             val viewModel: DashboardViewModel = viewModel(
                                 factory = DashboardViewModel.Factory(app.repository, app.preferencesManager, app.database.cycleOverrideDao(), app.database.userAccountDao())
                             )
@@ -191,13 +282,24 @@ class MainActivity : ComponentActivity() {
                                 onCategoryClick = { type, start, end -> navController.navigate("filtered/${type.name}/$start/$end") }
                             )
                         }
-                        composable("add") {
-                            val viewModel: AddTransactionViewModel = viewModel(
-                                factory = AddTransactionViewModel.Factory(app.repository)
+                        composable(
+                            "analytics",
+                            enterTransition = { fadeIn(tween(300)) },
+                            exitTransition = { fadeOut(tween(300)) }
+                        ) {
+                            com.saikumar.expensetracker.ui.analytics.AnalyticsScreen(
+                                repository = app.repository,
+                                onNavigateBack = { navController.popBackStack() },
+                                onCategoryClick = { category, start, end ->
+                                    navController.navigate("filtered/${category.type.name}/$start/$end?categoryName=${category.name}")
+                                }
                             )
-                            AddTransactionScreen(viewModel, onNavigateBack = { navController.popBackStack() })
                         }
-                        composable("overview") {
+                        composable(
+                            "overview",
+                            enterTransition = { fadeIn(tween(300)) },
+                            exitTransition = { fadeOut(tween(300)) }
+                        ) {
                             val viewModel: MonthlyOverviewViewModel = viewModel(
                                 factory = MonthlyOverviewViewModel.Factory(app.repository, app.preferencesManager, app.database.userAccountDao())
                             )
@@ -207,7 +309,11 @@ class MainActivity : ComponentActivity() {
                                 onCategoryClick = { type, start, end -> navController.navigate("filtered/${type.name}/$start/$end") }
                             )
                         }
-                        composable("settings") {
+                        composable(
+                            "settings",
+                            enterTransition = { fadeIn(tween(300)) },
+                            exitTransition = { fadeOut(tween(300)) }
+                        ) {
                             val viewModel: SettingsViewModel = viewModel(
                                 factory = SettingsViewModel.Factory(app.preferencesManager, app.database.budgetBreachDao())
                             )
@@ -218,20 +324,44 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToCategories = { navController.navigate("category_management") },
                                 onNavigateToRetirement = { navController.navigate("retirement") },
                                 onNavigateToInterestTransactions = {
-                                    // Use a very wide date range to show all time
-                                    // Filter by "Interest" category
                                     navController.navigate("filtered/${CategoryType.INCOME.name}/0/4102444800000?categoryName=Interest") 
                                 },
                                 onNavigateToAdvanced = { navController.navigate("advanced_settings") },
                                 onNavigateToTransferCircle = { navController.navigate("transfer_circle") }
                             )
                         }
-                        composable("transfer_circle") {
+
+                        // Detail Screens (Slide Transitions)
+                        composable(
+                            "add",
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
+                        ) {
+                            val viewModel: AddTransactionViewModel = viewModel(
+                                factory = AddTransactionViewModel.Factory(app.repository)
+                            )
+                            AddTransactionScreen(viewModel, onNavigateBack = { navController.popBackStack() })
+                        }
+                        composable(
+                            "transfer_circle",
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
+                        ) {
                             com.saikumar.expensetracker.ui.transfercircle.TransferCircleScreen(
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }
-                        composable("advanced_settings") {
+                        composable(
+                            "advanced_settings",
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
+                        ) {
                             val viewModel: SettingsViewModel = viewModel(
                                 factory = SettingsViewModel.Factory(app.preferencesManager, app.database.budgetBreachDao())
                             )
@@ -240,10 +370,22 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }
-                        composable("retirement") {
+                        composable(
+                            "retirement",
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
+                        ) {
                             RetirementScreen(onBack = { navController.popBackStack() })
                         }
-                        composable("category_management") {
+                        composable(
+                            "category_management",
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
+                        ) {
                             val categories by app.repository.allCategories.collectAsState(initial = emptyList())
                             val scope = rememberCoroutineScope()
                             com.saikumar.expensetracker.ui.settings.CategoryManagementScreen(
@@ -272,7 +414,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                        composable("salary_history") {
+                        composable(
+                            "salary_history",
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
+                        ) {
                             val viewModel: SalaryHistoryViewModel = viewModel(
                                 factory = SalaryHistoryViewModel.Factory(app.repository)
                             )
@@ -289,7 +437,11 @@ class MainActivity : ComponentActivity() {
                                     nullable = true
                                     defaultValue = null
                                 }
-                            )
+                            ),
+                            enterTransition = { slideInHorizontally { it } + fadeIn() },
+                            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+                            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+                            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
                         ) { backStackEntry ->
                             val typeStr = backStackEntry.arguments?.getString("type") ?: return@composable
                             val start = backStackEntry.arguments?.getLong("start") ?: return@composable
@@ -306,12 +458,15 @@ class MainActivity : ComponentActivity() {
                                 type, 
                                 start, 
                                 end, 
-                                categoryName, 
+                                categoryName,
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }
                     }
                 }
+
+
+                } // End else
             }
         }
     }

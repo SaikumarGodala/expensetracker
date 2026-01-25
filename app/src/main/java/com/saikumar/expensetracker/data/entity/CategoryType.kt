@@ -8,5 +8,6 @@ enum class CategoryType {
     VEHICLE,
     IGNORE,
     STATEMENT,
-    LIABILITY
+    LIABILITY,
+    TRANSFER
 }
