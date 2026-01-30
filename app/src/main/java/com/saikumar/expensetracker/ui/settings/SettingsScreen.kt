@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import android.util.Log
+import android.content.Intent
+import android.os.Process
 import com.saikumar.expensetracker.data.db.AppDatabase
 import com.saikumar.expensetracker.data.entity.Category
 import com.saikumar.expensetracker.data.entity.CategoryType
@@ -482,24 +484,33 @@ fun SettingsScreen(
                                 try {
                                     Log.d("SettingsScreen", "=== DATABASE RESET STARTED ===")
 
+                                    // 1. Close existing DB connection
                                     AppDatabase.clearInstance()
-                                    app.forceDatabaseReload()
-
+                                    
+                                    // 2. Delete files safely
                                     val dbFile = context.getDatabasePath("expense_tracker_db")
-                                    dbFile.delete()
+                                    if (dbFile.exists()) dbFile.delete()
                                     context.getDatabasePath("expense_tracker_db-wal").delete()
                                     context.getDatabasePath("expense_tracker_db-shm").delete()
 
                                     Log.d("SettingsScreen", "Database files deleted")
 
-                                    val newDb = app.database
-                                    val finalCount = newDb.categoryDao().getCount()
-
+                                    // 3. Restart App to ensure fresh state (avoids race conditions with old DB instance)
                                     withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "Database Reset. $finalCount categories seeded.", android.widget.Toast.LENGTH_LONG).show()
+                                        android.widget.Toast.makeText(context, "Reset successful. Restarting app...", android.widget.Toast.LENGTH_LONG).show()
+                                        
+                                        val packageManager = context.packageManager
+                                        val intent = packageManager.getLaunchIntentForPackage(context.packageName)
+                                        if (intent != null) {
+                                            val componentName = intent.component
+                                            val mainIntent = Intent.makeRestartActivityTask(componentName)
+                                            context.startActivity(mainIntent)
+                                            Process.killProcess(Process.myPid())
+                                        } else {
+                                             // Fallback if intent lookup fails
+                                             Runtime.getRuntime().exit(0)
+                                        }
                                     }
-
-                                    Log.d("SettingsScreen", "=== DATABASE RESET COMPLETED ===")
                                 } catch (e: Exception) {
                                     Log.e("SettingsScreen", "Reset failed", e)
                                     withContext(Dispatchers.Main) {

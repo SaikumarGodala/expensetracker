@@ -2,6 +2,7 @@ package com.saikumar.expensetracker.util
 
 import com.saikumar.expensetracker.data.dao.BudgetBreachDao
 import com.saikumar.expensetracker.data.db.TransactionDao
+import com.saikumar.expensetracker.data.db.CategoryDao
 import com.saikumar.expensetracker.data.entity.BudgetBreach
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
@@ -25,6 +26,7 @@ data class BudgetState(
 class BudgetManager(
     private val transactionDao: TransactionDao,
     private val budgetBreachDao: BudgetBreachDao,
+    private val categoryDao: CategoryDao,
     private val preferencesManager: PreferencesManager
 ) {
 
@@ -45,7 +47,12 @@ class BudgetManager(
         val endTs = prevMonth.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         // 2. Get Salary
-        val salary = transactionDao.getSalaryForPeriod(startTs, endTs) ?: 0L
+        val salaryCategory = categoryDao.getCategoryByName(com.saikumar.expensetracker.core.AppConstants.Categories.SALARY)
+        val salary = if (salaryCategory != null) {
+            transactionDao.getSalaryForPeriod(salaryCategory.id, startTs, endTs) ?: 0L
+        } else {
+            0L
+        }
         
         // 3. Set Limit (50%)
         // If salary is 0 (no data), default to 0 or keep existing?

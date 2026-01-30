@@ -142,7 +142,7 @@ class DashboardViewModel(
             val endTs = now.atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
             // Query salary transactions
-            val salaryAmount = repository.transactionDao.getSalaryForPeriod(startTs, endTs)
+            val salaryAmount = repository.transactionDao.getSalaryForPeriod(salaryCategory.id, startTs, endTs)
 
             // If salary exists, get the most recent salary transaction to extract the day
             if (salaryAmount != null && salaryAmount > 0) {
@@ -411,8 +411,9 @@ class DashboardViewModel(
                 android.util.Log.d("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '$trainingKey' → '${newCategory.name}'")
 
                 // Backup merchant memory after user confirmation (preserves across app updates)
-                val app = preferencesManager.context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
-                app.merchantBackupManager.backupMerchantMemory()
+                // Backup merchant memory after user confirmation (preserves across app updates)
+                (preferencesManager.context.applicationContext as? com.saikumar.expensetracker.ExpenseTrackerApplication)
+                    ?.merchantBackupManager?.backupMerchantMemory()
 
                 // --- ML TRAINING LOGGING (GOLD LABEL) ---
                 if (!transaction.fullSmsBody.isNullOrBlank()) {
@@ -466,8 +467,9 @@ class DashboardViewModel(
                 SmsProcessor.reclassifyTransactions(context)
 
                 // Backup merchant memory after reclassification (preserves learned patterns)
-                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
-                app.merchantBackupManager.backupMerchantMemory()
+                // Backup merchant memory after reclassification (preserves learned patterns)
+                (context.applicationContext as? com.saikumar.expensetracker.ExpenseTrackerApplication)
+                    ?.merchantBackupManager?.backupMerchantMemory()
 
                 snackbarController.showSuccess("Reclassification complete")
             } catch (e: Exception) {

@@ -197,8 +197,13 @@ fun DashboardScreen(
             // Scan Progress Indicator
             if (scanState is com.saikumar.expensetracker.util.ScanState.Scanning) {
                 val scanning = scanState as com.saikumar.expensetracker.util.ScanState.Scanning
-                
-                }
+                LinearProgressIndicator(
+                    progress = scanning.progress,
+                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            }
             // --- HEADER & FILTER ---
             // Floating Top Bar with Actions
             Row(

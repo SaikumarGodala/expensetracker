@@ -3,7 +3,14 @@ package com.saikumar.expensetracker.data.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "budget_breaches")
+import androidx.room.Index
+
+@Entity(
+    tableName = "budget_breaches",
+    indices = [
+        Index(value = ["month", "stage"], unique = true)
+    ]
+)
 data class BudgetBreach(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val month: String,         // "2024-01"

@@ -22,6 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.saikumar.expensetracker.R
 
 /**
  * Sort options for transaction lists
@@ -68,11 +70,11 @@ fun TransactionSortSelector(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("Time", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.sort_time), style = MaterialTheme.typography.labelSmall)
                     if (isTimeSort) {
                         Icon(
                             imageVector = if (isTimeDesc) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
-                            contentDescription = if (isTimeDesc) "Newest first" else "Oldest first",
+                            contentDescription = stringResource(if (isTimeDesc) R.string.sort_newest_first else R.string.sort_oldest_first),
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -113,11 +115,11 @@ fun TransactionSortSelector(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("Amount", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.sort_amount), style = MaterialTheme.typography.labelSmall)
                     if (isAmountSort) {
                         Icon(
                             imageVector = if (isAmountDesc) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
-                            contentDescription = if (isAmountDesc) "Highest first" else "Lowest first",
+                            contentDescription = stringResource(if (isAmountDesc) R.string.sort_highest_first else R.string.sort_lowest_first),
                             modifier = Modifier.size(14.dp)
                         )
                     }

@@ -9,7 +9,7 @@ enum class RetirementType { EPF, NPS }
 @Entity(
     tableName = "retirement_balances",
     indices = [
-        Index(value = ["identifier"], unique = true)
+        Index(value = ["identifier", "month"], unique = true)
     ]
 )
 data class RetirementBalance(

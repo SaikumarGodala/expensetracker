@@ -49,7 +49,10 @@ object TransactionPairer {
 
         val userAccounts = db.userAccountDao().getAllAccounts()
         val myAccountNumbers = userAccounts.map { it.accountNumberLast4 }.toSet()
-        Log.d(TAG, "Detected user accounts: ${myAccountNumbers.size} - $myAccountNumbers")
+        if (com.saikumar.expensetracker.BuildConfig.DEBUG) {
+            val redactedAccounts = myAccountNumbers.map { "****" } // Redact all for safety
+            Log.d(TAG, "Detected user accounts: ${myAccountNumbers.size} - $redactedAccounts")
+        }
 
         val oneDayMillis = 24 * 60 * 60 * 1000L
 
@@ -59,15 +62,18 @@ object TransactionPairer {
         Log.d(TAG, "Debits to match: ${debits.size}, Credits available: ${credits.size}")
         var pairsCreated = 0
 
+        // Bulk fetch all currently linked transaction IDs to avoid O(N*M) DB queries
+        val linkedTxnIds = linkDao.getAllLinkedTransactionIds().toMutableSet()
+
         for (debit in debits) {
-            if (linkDao.isTransactionLinked(debit.id)) continue
+            if (debit.id in linkedTxnIds) continue
 
             val debitAmount = debit.amountPaisa
             val debitTimestamp = debit.timestamp
             val debitSender = debit.smsSender
 
             for (credit in credits) {
-                if (linkDao.isTransactionLinked(credit.id)) continue
+                if (credit.id in linkedTxnIds) continue
                 if (credit.id == debit.id) continue
                 if (credit.amountPaisa != debitAmount) continue
 
@@ -90,7 +96,8 @@ object TransactionPairer {
                 if (debitAccountNum != null && creditAccountNum != null && debitAccountNum != creditAccountNum) {
                     if (debitAccountNum in myAccountNumbers && creditAccountNum in myAccountNumbers) {
                         confidence += 25
-                        Log.d(TAG, "Account match boost: $debitAccountNum → $creditAccountNum (+25)")
+                        // Redacted log
+                        Log.d(TAG, "Account match boost: **** → **** (+25)")
                     }
                 }
 
@@ -105,7 +112,12 @@ object TransactionPairer {
                         )
                         linkDao.insertLink(link)
                         pairsCreated++
-                        Log.d(TAG, "PAIRED: ₹${debitAmount / 100.0} | ${debitSender} → ${creditSender} | Confidence: $confidence%")
+                        // Add to set to prevent re-linking in this same run
+                        linkedTxnIds.add(debit.id)
+                        linkedTxnIds.add(credit.id)
+                        if (com.saikumar.expensetracker.BuildConfig.DEBUG) {
+                            Log.d(TAG, "PAIRED: ₹${debitAmount / 100.0} | ${debitSender} → ${creditSender} | Confidence: $confidence%")
+                        }
                         break
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to create link: ${e.message}")
@@ -138,15 +150,18 @@ object TransactionPairer {
         val sevenDaysMillis = 7L * 24 * 60 * 60 * 1000
         var pairsCreated = 0
 
+        // Bulk fetch all currently linked transaction IDs
+        val linkedTxnIds = linkDao.getAllLinkedTransactionIds().toMutableSet()
+
         for (statement in statements) {
-            if (linkDao.isTransactionLinked(statement.id)) continue
+            if (statement.id in linkedTxnIds) continue
 
             val statementAmount = statement.amountPaisa
             val statementTime = statement.timestamp
             val statementAccount = statement.accountNumberLast4
 
             for (payment in payments) {
-                if (linkDao.isTransactionLinked(payment.id)) continue
+                if (payment.id in linkedTxnIds) continue
                 if (payment.id == statement.id) continue
 
                 val timeDiff = kotlin.math.abs(payment.timestamp - statementTime)
@@ -181,7 +196,11 @@ object TransactionPairer {
                         )
                         linkDao.insertLink(link)
                         pairsCreated++
-                        Log.d(TAG, "CC_PAYMENT LINKED: Statement ₹${statementAmount / 100.0} → Payment | Confidence: $confidence%")
+                        linkedTxnIds.add(statement.id)
+                        linkedTxnIds.add(payment.id)
+                        if (com.saikumar.expensetracker.BuildConfig.DEBUG) {
+                            Log.d(TAG, "CC_PAYMENT LINKED: Statement ₹${statementAmount / 100.0} → Payment | Confidence: $confidence%")
+                        }
                         break
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to create CC_PAYMENT link: ${e.message}")

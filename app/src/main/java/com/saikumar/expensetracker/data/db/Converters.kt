@@ -64,4 +64,18 @@ class Converters {
             PatternType.MERCHANT_NAME
         }
     }
+
+    @TypeConverter
+    fun fromTransactionStatus(value: com.saikumar.expensetracker.data.entity.TransactionStatus): String {
+        return value.name
+    }
+
+    @TypeConverter
+    fun toTransactionStatus(value: String): com.saikumar.expensetracker.data.entity.TransactionStatus {
+        return try {
+            com.saikumar.expensetracker.data.entity.TransactionStatus.valueOf(value)
+        } catch (e: Exception) {
+            com.saikumar.expensetracker.data.entity.TransactionStatus.COMPLETED
+        }
+    }
 }

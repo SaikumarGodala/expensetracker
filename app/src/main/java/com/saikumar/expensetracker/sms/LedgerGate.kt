@@ -119,16 +119,6 @@ object LedgerGate {
                 reasoning = "INVARIANT_CARD_SPEND"
             )
         }
-
-        // 5b. P2P Transfer Invariant
-        if (lowerBody.contains("friend") || lowerBody.contains("family")) {
-             return LedgerDecision.Insert(
-                transactionType = TransactionType.TRANSFER,
-                isExpenseEligible = false,
-                accountType = AccountType.UNKNOWN,
-                reasoning = "INVARIANT_P2P_TRANSFER"
-            )
-        }
         
         // 5c. Default based on Parsed Type
         if (parsedType != null) {

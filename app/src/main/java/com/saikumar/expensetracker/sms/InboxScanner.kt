@@ -26,19 +26,15 @@ object InboxScanner {
             null, null, "date DESC"
         )
         
-        val totalCount = cursor?.count ?: 0
-        
-        val messages = sequence {
-            cursor?.use {
-                while (it.moveToNext()) {
-                    val sender = it.getString(0) ?: continue
-                    val body = it.getString(1) ?: continue
-                    val timestamp = it.getLong(2)
-                    yield(RawSms(sender, body, timestamp))
-                }
+        return cursor?.use { c ->
+            val messages = mutableListOf<RawSms>()
+            while (c.moveToNext()) {
+                val sender = c.getString(0) ?: continue
+                val body = c.getString(1) ?: continue
+                val timestamp = c.getLong(2)
+                messages.add(RawSms(sender, body, timestamp))
             }
-        }
-        
-        return InboxData(totalCount, messages)
+            InboxData(c.count, messages.asSequence())
+        } ?: InboxData(0, emptySequence())
     }
 }

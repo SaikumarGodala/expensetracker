@@ -4,6 +4,10 @@ import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -28,6 +32,8 @@ fun LineChartComposable(
     fillColor: Color = Color(0xFF2196F3),
     modifier: Modifier = Modifier.fillMaxWidth().height(200.dp)
 ) {
+    var previousEntries by remember { mutableStateOf<List<Entry>?>(null) }
+
     AndroidView(
         modifier = modifier,
         factory = { context ->
@@ -68,6 +74,8 @@ fun LineChartComposable(
                 
                 // Right Y-Axis - disabled
                 axisRight.isEnabled = false
+                
+                animateX(800)
             }
         },
         update = { chart ->
@@ -86,7 +94,13 @@ fun LineChartComposable(
             }
             
             chart.data = LineData(dataSet)
-            chart.animateX(800)
+
+            
+            if (previousEntries != entries) {
+                chart.animateX(800)
+                previousEntries = entries
+            }
+            
             chart.invalidate()
         }
     )

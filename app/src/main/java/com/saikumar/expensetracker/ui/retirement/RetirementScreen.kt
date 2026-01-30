@@ -221,20 +221,20 @@ private fun prepareRetirementChartData(
     epfHistory: List<RetirementBalance>,
     npsHistory: List<RetirementBalance>
 ): ChartData {
-    // Combine and sort all balances by month
-    val allBalances = (epfHistory + npsHistory)
-        .sortedBy { parseMonth(it.month) }
-    
-    // Group by month and sum contributions
-    val monthlyTotals = allBalances.groupBy { it.month }
+    // Normalize by YearMonth to avoid format-based duplicates
+    val monthlyTotals = (epfHistory + npsHistory)
+        .mapNotNull { balance ->
+            parseMonthOrNull(balance.month)?.let { it to balance }
+        }
+        .groupBy({ it.first }, { it.second })
         .mapValues { (_, balances) -> balances.sumOf { it.contributionPaisa } }
-        .toSortedMap(compareBy { parseMonth(it) })
+        .toSortedMap()
     
     val entries = monthlyTotals.values.mapIndexed { index, total ->
         com.github.mikephil.charting.data.Entry(index.toFloat(), (total / 100f))
     }
     
-    val labels = monthlyTotals.keys.map { formatMonthLabel(it) }
+    val labels = monthlyTotals.keys.map { it.format(DateTimeFormatter.ofPattern("MMM yy")) }
     
     return ChartData(entries, labels)
 }
@@ -243,23 +243,24 @@ private fun prepareIndividualChartData(
     history: List<RetirementBalance>,
     isEpf: Boolean
 ): ChartData {
-    // Group by month and sum contributions
-    val monthlyData = history.groupBy { it.month }
-        .mapValues { (_, balances) -> 
-            balances.sumOf { it.contributionPaisa } / 100f
+    val monthlyData = history
+        .mapNotNull { balance ->
+            parseMonthOrNull(balance.month)?.let { it to balance }
         }
-        .toSortedMap(compareBy { parseMonth(it) })
+        .groupBy({ it.first }, { it.second })
+        .mapValues { (_, balances) -> balances.sumOf { it.contributionPaisa } / 100f }
+        .toSortedMap()
 
     val entries = monthlyData.values.mapIndexed { index, value ->
          com.github.mikephil.charting.data.Entry(index.toFloat(), value)
     }
     
-    val labels = monthlyData.keys.map { formatMonthLabel(it) }
+    val labels = monthlyData.keys.map { it.format(DateTimeFormatter.ofPattern("MMM yy")) }
     
     return ChartData(entries, labels)
 }
 
-private fun parseMonth(monthStr: String): YearMonth {
+private fun parseMonthOrNull(monthStr: String): YearMonth? {
     // Try standard yyyy-MM
     try {
         return YearMonth.parse(monthStr, DateTimeFormatter.ofPattern("yyyy-MM"))
@@ -281,17 +282,12 @@ private fun parseMonth(monthStr: String): YearMonth {
         } catch (e2: Exception) {
             // Log or ignore
         }
-        return YearMonth.now()
+        return null
     }
 }
 
 private fun formatMonthLabel(monthStr: String): String {
-    return try {
-        val ym = parseMonth(monthStr)
-        ym.format(DateTimeFormatter.ofPattern("MMM yy"))
-    } catch (e: Exception) {
-        monthStr
-    }
+    return parseMonthOrNull(monthStr)?.format(DateTimeFormatter.ofPattern("MMM yy")) ?: monthStr
 }
 
 @Composable

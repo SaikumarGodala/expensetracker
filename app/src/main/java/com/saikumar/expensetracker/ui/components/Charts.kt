@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -282,9 +283,15 @@ fun BarChart(
 
     val maxAmount = data.maxOf { it.totalAmount }
     
+    val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val secondaryLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+    
     Canvas(modifier = modifier.padding(16.dp)) {
         val barWidth = size.width / (data.size * 3)
         val space = barWidth
+        
+
+
         
         data.forEachIndexed { index, item ->
             val barHeight = (item.totalAmount.toFloat() / maxAmount.toFloat()) * (size.height - 60f) // Keep room for text
@@ -310,7 +317,7 @@ fun BarChart(
                     x + barWidth / 2,
                     size.height,
                     android.graphics.Paint().apply {
-                        this.color = android.graphics.Color.GRAY
+                        this.color = secondaryLabelColor
                         textSize = 30f
                         textAlign = android.graphics.Paint.Align.CENTER
                     }
@@ -323,7 +330,7 @@ fun BarChart(
                         x + barWidth / 2,
                         size.height + 30f, 
                         android.graphics.Paint().apply {
-                            this.color = android.graphics.Color.LTGRAY
+                            this.color = secondaryLabelColor
                             textSize = 20f
                             textAlign = android.graphics.Paint.Align.CENTER
                         }
@@ -336,7 +343,7 @@ fun BarChart(
                     x + barWidth / 2,
                     y - 10f,
                     android.graphics.Paint().apply {
-                        this.color = android.graphics.Color.BLACK
+                        this.color = labelColor
                         textSize = 25f
                         textAlign = android.graphics.Paint.Align.CENTER
                         this.typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -363,6 +370,9 @@ fun LineChart(
     val color = Color(0xFF66BB6A)
     val gradientColors = listOf(color.copy(alpha = 0.4f), color.copy(alpha = 0.0f))
     
+    val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val secondaryLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+
     Canvas(modifier = modifier.padding(16.dp)) {
         val spacing = size.width / (data.size - 1).coerceAtLeast(1)
         val points = data.mapIndexed { index, item ->
@@ -438,7 +448,7 @@ fun LineChart(
                     point.x,
                     point.y - 20f,
                     android.graphics.Paint().apply {
-                         this.color = android.graphics.Color.BLACK
+                         this.color = labelColor
                          textSize = 24f
                          textAlign = android.graphics.Paint.Align.CENTER
                          this.typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -451,7 +461,7 @@ fun LineChart(
                     point.x,
                     size.height,
                     android.graphics.Paint().apply {
-                        this.color = android.graphics.Color.GRAY
+                        this.color = secondaryLabelColor
                         textSize = 28f
                         textAlign = android.graphics.Paint.Align.CENTER
                     }

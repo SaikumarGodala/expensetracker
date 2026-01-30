@@ -54,9 +54,10 @@ class ExpenseTrackerApplication : Application() {
 
     val budgetManager by lazy {
         com.saikumar.expensetracker.util.BudgetManager(
-            database.transactionDao(),
-            database.budgetBreachDao(),
-            preferencesManager
+            transactionDao = database.transactionDao(),
+            budgetBreachDao = database.budgetBreachDao(),
+            categoryDao = database.categoryDao(),
+            preferencesManager = preferencesManager
         )
     }
 

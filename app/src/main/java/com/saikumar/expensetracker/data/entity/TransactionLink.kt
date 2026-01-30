@@ -86,7 +86,6 @@ enum class LinkSource {
     AUTO,
     
     /** User manually created or confirmed link */
-    /** User manually created or confirmed link */
     MANUAL,
 
     /** System suggested, waiting for user confirmation */

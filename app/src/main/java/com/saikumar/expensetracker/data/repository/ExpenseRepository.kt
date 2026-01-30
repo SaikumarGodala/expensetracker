@@ -316,6 +316,8 @@ class ExpenseRepository(
                 p2pCategory.id,
                 com.saikumar.expensetracker.data.entity.TransactionType.TRANSFER
             )
+        } else {
+            android.util.Log.w("ExpenseRepository", "P2P Transfers category not found - cannot update transactions")
         }
     }
 

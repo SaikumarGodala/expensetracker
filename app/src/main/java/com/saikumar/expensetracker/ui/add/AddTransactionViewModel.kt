@@ -53,8 +53,8 @@ class AddTransactionViewModel(private val repository: ExpenseRepository) : ViewM
             _saveResult.value = SaveResult.Loading
 
             try {
-                val categories = repository.allEnabledCategories.stateIn(viewModelScope).value
-                val category = categories.find { it.id == categoryId }
+                val categoriesList = categories.value
+                val category = categoriesList.find { it.id == categoryId }
 
                 if (category == null) {
                     _saveResult.value = SaveResult.Error("Invalid category selected")
@@ -78,7 +78,10 @@ class AddTransactionViewModel(private val repository: ExpenseRepository) : ViewM
                 val finalType = if (TransactionRuleEngine.validateCategoryType(resolvedType, category) is TransactionRuleEngine.ValidationResult.Valid) {
                     resolvedType
                 } else {
-                    TransactionRuleEngine.getAllowedTypes(category).first()
+                    TransactionRuleEngine.getAllowedTypes(category).firstOrNull() ?: run {
+                        _saveResult.value = SaveResult.Error("No valid transaction type for category")
+                        return@launch
+                    }
                 }
 
                 val transaction = Transaction(

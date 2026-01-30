@@ -150,7 +150,11 @@ fun AdvancedSettingsScreen(
                     // Log All SMS Button
                     OutlinedButton(
                         onClick = {
-                            val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                            val app = context.applicationContext as? com.saikumar.expensetracker.ExpenseTrackerApplication
+                            if (app == null) {
+                                android.widget.Toast.makeText(context, "❌ Unable to access application scope", android.widget.Toast.LENGTH_SHORT).show()
+                                return@OutlinedButton
+                            }
                             app.applicationScope.launch(Dispatchers.IO) {
                                 withContext(Dispatchers.Main) {
                                     android.widget.Toast.makeText(context, "📱 Logging ALL existing SMS messages...", android.widget.Toast.LENGTH_SHORT).show()

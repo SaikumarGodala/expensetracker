@@ -1,6 +1,7 @@
 package com.saikumar.expensetracker.ui.components
 
 import androidx.compose.foundation.background
+import android.os.SystemClock
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -34,13 +35,13 @@ fun LockScreen(
     var showError by remember { mutableStateOf(false) }
     var failedAttempts by remember { mutableIntStateOf(0) }
     var lockoutEndTime by remember { mutableLongStateOf(0L) }
-    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var currentTime by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
 
     // Update current time every second during lockout
     LaunchedEffect(lockoutEndTime) {
         while (lockoutEndTime > 0 && currentTime < lockoutEndTime) {
             kotlinx.coroutines.delay(1000L)
-            currentTime = System.currentTimeMillis()
+            currentTime = SystemClock.elapsedRealtime()
         }
     }
 
@@ -128,8 +129,8 @@ fun LockScreen(
                                     showError = true
                                     failedAttempts++
                                     if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
-                                        lockoutEndTime = System.currentTimeMillis() + LOCKOUT_DURATION_MS
-                                        currentTime = System.currentTimeMillis()
+                                        lockoutEndTime = SystemClock.elapsedRealtime() + LOCKOUT_DURATION_MS
+                                        currentTime = SystemClock.elapsedRealtime()
                                         failedAttempts = 0
                                     }
                                 }

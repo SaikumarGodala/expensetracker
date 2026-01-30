@@ -439,11 +439,10 @@ object CounterpartyExtractor {
 
         // Check for meaningful merchant VPAs (not generic payment gateways)
         // These VPAs have actual merchant info embedded
-        if (lower.contains(".rzp@") ||  // blinkitjkb.rzp@
-            lower.contains("@hdfcbank") ||  // May have merchant prefix
-            lower.contains("@icici") ||
-            lower.contains("@axisbank") ||
-            lower.contains("@okbizaxis")) {
+        if (lower.contains(".rzp") ||  // blinkitjkb.rzp
+            lower.endsWith("rzp") ||
+            lower.endsWith("jkb") ||
+            lower.endsWith("esbz")) {
             // These might have merchant names, let extraction proceed
             return false
         }

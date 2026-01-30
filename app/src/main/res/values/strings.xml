@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">ExpenseTracker</string>
+    <string name="sort_time">Time</string>
+    <string name="sort_amount">Amount</string>
+    <string name="sort_newest_first">Newest first</string>
+    <string name="sort_oldest_first">Oldest first</string>
+    <string name="sort_highest_first">Highest first</string>
+    <string name="sort_lowest_first">Lowest first</string>
 </resources>

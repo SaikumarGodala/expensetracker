@@ -208,9 +208,14 @@ class SettingsViewModel(
                 // Use IO dispatcher for DB ops
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     val db = com.saikumar.expensetracker.data.db.AppDatabase.getDatabase(context, viewModelScope)
+                    val interestCategory = db.categoryDao().getCategoryByName(com.saikumar.expensetracker.core.AppConstants.Categories.INTEREST)
                     
                     // Use optimized SQL query with Join
-                    val interestPaisa = db.transactionDao().getTotalInterestPaisa() ?: 0L
+                    val interestPaisa = if (interestCategory != null) {
+                        db.transactionDao().getTotalInterestPaisa(interestCategory.id) ?: 0L
+                    } else {
+                        0L
+                    }
                     _totalInterest.value = interestPaisa / 100.0
                 }
             } catch (e: Exception) {
@@ -230,7 +235,11 @@ class SettingsViewModel(
     fun loadBackupInfo(context: Context) {
         viewModelScope.launch {
             try {
-                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                val app = context.applicationContext as? com.saikumar.expensetracker.ExpenseTrackerApplication
+                    ?: run {
+                        snackbarController.showError("Application context unavailable")
+                        return@launch
+                    }
                 val info = app.merchantBackupManager.getBackupInfo()
                 _backupInfo.value = info
             } catch (e: Exception) {
@@ -242,7 +251,11 @@ class SettingsViewModel(
     fun backupMerchantMemory(context: Context) {
         viewModelScope.launch {
             try {
-                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                val app = context.applicationContext as? com.saikumar.expensetracker.ExpenseTrackerApplication
+                    ?: run {
+                        snackbarController.showError("Application context unavailable")
+                        return@launch
+                    }
                 val success = app.merchantBackupManager.backupMerchantMemory()
                 if (success) {
                     snackbarController.showSuccess("Category preferences backed up")

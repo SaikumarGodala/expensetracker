@@ -14,6 +14,7 @@ class SpendingTrendsCalculator(
      * Excluding the current month to avoid partial data skimming the average.
      */
     suspend fun calculateTypicalSpend(categoryId: Long, monthsBack: Int = 3): Long {
+        if (monthsBack <= 0) return 0L
         val now = LocalDate.now()
         // We want the previous N complete months from 1st of (Current - N) to End of (Current - 1)
         val endOfLastMonth = now.withDayOfMonth(1).minusDays(1)

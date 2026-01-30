@@ -9,6 +9,8 @@ import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 
 class FilteredTransactionsViewModel(
@@ -126,52 +128,54 @@ class FilteredTransactionsViewModel(
                 null
             }
 
-            if (!trainingText.isNullOrBlank()) {
-                repository.userConfirmMerchantMapping(
-                    merchantName = trainingText,
-                    categoryId = newCategoryId,
-                    transactionType = newTransactionType.name,
-                    timestamp = System.currentTimeMillis()
+            withContext(Dispatchers.IO) {
+                if (!trainingText.isNullOrBlank()) {
+                    repository.userConfirmMerchantMapping(
+                        merchantName = trainingText,
+                        categoryId = newCategoryId,
+                        transactionType = newTransactionType.name,
+                        timestamp = System.currentTimeMillis()
+                    )
+
+                    // Backup merchant memory after user confirmation (preserves across app updates)
+                    val app = com.saikumar.expensetracker.ExpenseTrackerApplication.instance
+                    app.merchantBackupManager.backupMerchantMemory()
+                }
+
+                // Log override for debug analysis
+                val overrideLogId = com.saikumar.expensetracker.util.ClassificationDebugLogger.startLog(
+                    com.saikumar.expensetracker.data.entity.RawInputCapture(
+                        fullMessageText = transaction.fullSmsBody ?: "Manual/Unknown",
+                        source = "USER_EDIT",
+                        receivedTimestamp = transaction.timestamp,
+                        sender = "USER",
+                        amount = transaction.amountPaisa
+                    )
+                )
+                com.saikumar.expensetracker.util.ClassificationDebugLogger.logUserOverride(
+                    overrideLogId,
+                    com.saikumar.expensetracker.data.entity.UserOverride(
+                        originalType = transaction.transactionType.name,
+                        originalCategoryId = transaction.categoryId,
+                        userSelectedType = newTransactionType.name,
+                        userSelectedCategoryId = newCategoryId,
+                        overrideTimestamp = System.currentTimeMillis()
+                    )
+                )
+                com.saikumar.expensetracker.util.ClassificationDebugLogger.persistLog(
+                    com.saikumar.expensetracker.ExpenseTrackerApplication.instance,
+                    overrideLogId
                 )
 
-                // Backup merchant memory after user confirmation (preserves across app updates)
-                val app = com.saikumar.expensetracker.ExpenseTrackerApplication.instance
-                app.merchantBackupManager.backupMerchantMemory()
-            }
-            
-            // Log override for debug analysis
-            val overrideLogId = com.saikumar.expensetracker.util.ClassificationDebugLogger.startLog(
-                com.saikumar.expensetracker.data.entity.RawInputCapture(
-                    fullMessageText = transaction.fullSmsBody ?: "Manual/Unknown",
-                    source = "USER_EDIT",
-                    receivedTimestamp = transaction.timestamp,
-                    sender = "USER",
-                    amount = transaction.amountPaisa
-                )
-            )
-            com.saikumar.expensetracker.util.ClassificationDebugLogger.logUserOverride(
-                overrideLogId,
-                com.saikumar.expensetracker.data.entity.UserOverride(
-                    originalType = transaction.transactionType.name,
-                    originalCategoryId = transaction.categoryId,
-                    userSelectedType = newTransactionType.name,
-                    userSelectedCategoryId = newCategoryId,
-                    overrideTimestamp = System.currentTimeMillis()
-                )
-            )
-            com.saikumar.expensetracker.util.ClassificationDebugLogger.persistLog(
-                 com.saikumar.expensetracker.ExpenseTrackerApplication.instance, 
-                 overrideLogId
-            )
-
-            if (updateSimilar) {
-                com.saikumar.expensetracker.sms.SmsProcessor.assignCategoryToTransaction(
-                    context = com.saikumar.expensetracker.ExpenseTrackerApplication.instance,
-                    transactionId = transaction.id,
-                    categoryId = newCategoryId,
-                    applyToSimilar = true,
-                    transactionType = newTransactionType
-                )
+                if (updateSimilar) {
+                    com.saikumar.expensetracker.sms.SmsProcessor.assignCategoryToTransaction(
+                        context = com.saikumar.expensetracker.ExpenseTrackerApplication.instance,
+                        transactionId = transaction.id,
+                        categoryId = newCategoryId,
+                        applyToSimilar = true,
+                        transactionType = newTransactionType
+                    )
+                }
             }
         }
     }

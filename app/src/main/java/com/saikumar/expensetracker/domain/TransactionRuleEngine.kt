@@ -30,7 +30,9 @@ object TransactionRuleEngine {
     fun validateCategoryType(transactionType: TransactionType, category: Category): ValidationResult {
         return when (category.type) {
             CategoryType.INCOME -> {
-                if (transactionType == TransactionType.INCOME || transactionType == TransactionType.REFUND) ValidationResult.Valid 
+                if (transactionType == TransactionType.INCOME || 
+                    transactionType == TransactionType.REFUND ||
+                    transactionType == TransactionType.CASHBACK) ValidationResult.Valid 
                 else ValidationResult.Invalid("Income categories can only be used for Income transactions.")
             }
             CategoryType.FIXED_EXPENSE, 
@@ -130,6 +132,7 @@ object TransactionRuleEngine {
             else -> try {
                 TransactionType.valueOf(manual)
             } catch (e: Exception) {
+                android.util.Log.w("TransactionRuleEngine", "Invalid manual classification: $manual", e)
                 TransactionType.EXPENSE
             }
         }

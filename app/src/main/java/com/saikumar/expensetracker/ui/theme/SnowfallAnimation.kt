@@ -38,10 +38,11 @@ fun SnowfallAnimation(
     var size by remember { mutableStateOf(IntSize.Zero) }
     
     // Initialize snowflakes
-    val snowflakes = remember(size, snowflakeCount) {
-        if (size.width == 0 || size.height == 0) return@remember emptyList()
+    val safeCount = snowflakeCount.coerceAtLeast(0)
+    val snowflakes = remember(size, safeCount) {
+        if (size.width == 0 || size.height == 0 || safeCount == 0) return@remember emptyList()
         
-        List(snowflakeCount) {
+        List(safeCount) {
              createRandomSnowflake(size.width, size.height)
         }
     }
@@ -209,6 +210,7 @@ private fun DrawScope.drawWave(
     yOffset: Float
 ) {
     val path = Path()
+    if (size.width <= 0f || size.height <= 0f) return
     val waveLength = size.width
     
     path.moveTo(0f, size.height)

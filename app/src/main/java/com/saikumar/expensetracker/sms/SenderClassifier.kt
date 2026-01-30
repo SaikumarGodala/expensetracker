@@ -38,7 +38,7 @@ object SenderClassifier {
         // Bank of Baroda
         "BOBNEW", "BOBIBN", "BOBSMS",
         // Indian Bank
-        "INDBNK", "INDIANB",
+        "INDIANB",
         // Central Bank
         "CNTBNK", "CENBNK",
         // Bank of Maharashtra
@@ -87,15 +87,15 @@ object SenderClassifier {
     private val INSURANCE_PATTERNS = listOf("ICICIP", "POLBAZ")
     private val EXCLUDED_PATTERNS = listOf(
         "LSKART", "RAPIDO", "GOFYND", "CREDIN", "MAMERT", "REDBUS", "FLPKRT",
-        "JIOPAY", "JioPay", "AIRTEL", "AIRSLF", "AIROPT", "Docomo", "DOCOMO", "IMPINF", "RECHRG",
-        "PHONPE", "PAYTM", "iPaytm", "IPAYTM", "TMESEV"
+        "JIOPAY", "AIRTEL", "AIRSLF", "AIROPT", "DOCOMO", "IMPINF", "RECHRG",
+        "PHONPE", "PAYTM", "IPAYTM", "TMESEV"
     )
 
     fun classify(senderId: String): SenderType {
         val upper = senderId.uppercase()
         val numericPart = senderId.filter { it.isDigit() }
         if (numericPart.length == 6 && numericPart.startsWith("65")) return SenderType.EXCLUDED
-        if (EXCLUDED_PATTERNS.any { upper.contains(it.uppercase()) }) return SenderType.EXCLUDED
+        if (EXCLUDED_PATTERNS.any { upper.contains(it) }) return SenderType.EXCLUDED
         if (BANK_PATTERNS.any { upper.contains(it) }) return SenderType.BANK
         if (VIRTUAL_CARD_PATTERNS.any { upper.contains(it) }) return SenderType.VIRTUAL_CARD
         if (PENSION_PATTERNS.any { upper.contains(it) }) return SenderType.PENSION

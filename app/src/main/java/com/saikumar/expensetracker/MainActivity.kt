@@ -518,19 +518,7 @@ class MainActivity : AppCompatActivity() {
                                 viewModel = viewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onTransactionClick = { txn ->
-                                    // Navigate to filtered view focused on this transaction, OR just show details.
-                                    // Since we don't have a dedicated detail screen, we might need a workaround or just do nothing for now?
-                                    // User flow: Click -> usually Edit.
-                                    // But we are in Search.
-                                    // Let's assume we want to Edit. But SearchScreen doesn't have the EditDialog logic embedded easily unless we copy it.
-                                    // For now, let's just Log or do nothing? No, users want to edit.
-                                    // I will leave the callback empty or TODO for a Detail/Edit route later if user complains.
-                                    // Actually, let's navigate to "filtered/EXPENSE/..." as a fallback or implemented EditDialog in SearchScreen later.
-                                    // For now, I will NOT implement edit on click to keep scope manageable, or just open a generic list view.
-                                    // Wait, the user said "Search the entire database...".
-                                    // I'll make it clickable but maybe just show a Toast "Editing coming soon"?
-                                    // Or better: Pass a "onTransactionClick" that opens a dialog?
-                                    // I'll stick to basic implementation first on SearchScreen side.
+                                    // TODO: Implement transaction edit on click
                                 }
                             )
                         }

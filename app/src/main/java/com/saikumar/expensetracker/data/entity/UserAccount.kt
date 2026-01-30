@@ -5,9 +5,11 @@ import androidx.room.PrimaryKey
 
 
 
-@Entity(tableName = "user_accounts")
+@Entity(
+    tableName = "user_accounts",
+    primaryKeys = ["accountNumberLast4", "bankName", "accountType"]
+)
 data class UserAccount(
-    @PrimaryKey
     val accountNumberLast4: String, // e.g., "2725"
     val bankName: String,          // e.g., "HDFC"
     val accountType: AccountType,

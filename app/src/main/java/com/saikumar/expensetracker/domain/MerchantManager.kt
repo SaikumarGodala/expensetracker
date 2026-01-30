@@ -19,6 +19,8 @@ class MerchantManager(
 
     /**
      * Record or update a merchant occurrence.
+     * Note: categoryId and transactionType are only used for new merchants.
+     * Existing merchants retain their original category (first-seen wins).
      */
     suspend fun recordOccurrence(
         merchantName: String,

@@ -193,18 +193,17 @@ interface TransactionDao {
     """)
     suspend fun getAllForMlExportWithSender(): List<MlExportCandidate>
     
-    @Query("SELECT SUM(t.amountPaisa) FROM transactions t INNER JOIN categories c ON t.categoryId = c.id WHERE c.name = 'Interest' AND t.deletedAt IS NULL")
-    suspend fun getTotalInterestPaisa(): Long?
+    @Query("SELECT SUM(amountPaisa) FROM transactions WHERE categoryId = :categoryId AND deletedAt IS NULL")
+    suspend fun getTotalInterestPaisa(categoryId: Long): Long?
 
     @Query("""
-        SELECT SUM(t.amountPaisa) 
-        FROM transactions t 
-        INNER JOIN categories c ON t.categoryId = c.id 
-        WHERE c.name = 'Salary' 
-        AND t.timestamp BETWEEN :start AND :end 
-        AND t.deletedAt IS NULL
+        SELECT SUM(amountPaisa) 
+        FROM transactions 
+        WHERE categoryId = :categoryId 
+        AND timestamp BETWEEN :start AND :end 
+        AND deletedAt IS NULL
     """)
-    suspend fun getSalaryForPeriod(start: Long, end: Long): Long?
+    suspend fun getSalaryForPeriod(categoryId: Long, start: Long, end: Long): Long?
 
     @Query("""
         SELECT SUM(t.amountPaisa) 

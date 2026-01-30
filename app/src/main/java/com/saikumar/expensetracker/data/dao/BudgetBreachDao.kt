@@ -12,7 +12,7 @@ interface BudgetBreachDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(breach: BudgetBreach)
 
-    @Query("SELECT * FROM budget_breaches WHERE month = :month AND stage = :stage LIMIT 1")
+    @Query("SELECT * FROM budget_breaches WHERE month = :month AND stage = :stage ORDER BY timestamp DESC LIMIT 1")
     suspend fun getBreachForMonth(month: String, stage: Int): BudgetBreach?
 
     @Query("SELECT * FROM budget_breaches ORDER BY timestamp DESC")

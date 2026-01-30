@@ -415,7 +415,10 @@ fun AnalyticsScreen(
                                         try {
                                             val m = java.time.YearMonth.parse(it.month).monthValue
                                             m <= currentMonVal
-                                        } catch(e: Exception) { true }
+                                        } catch(e: Exception) {
+                                            android.util.Log.w("AnalyticsScreen", "Failed to parse month: ${it.month}", e)
+                                            true // Include unparseable entries
+                                        }
                                     }.sortedBy { it.month }
                                 } else {
                                      state.monthlyTrends.sortedBy { it.month }
@@ -615,6 +618,7 @@ private fun monthName(yyyymm: String): String {
         val m = java.time.YearMonth.parse(yyyymm)
         m.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)
     } catch (e: Exception) {
+        android.util.Log.w("AnalyticsScreen", "Failed to parse month: $yyyymm", e)
         yyyymm
     }
 }

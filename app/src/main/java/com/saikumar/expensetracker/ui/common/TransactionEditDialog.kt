@@ -65,9 +65,10 @@ fun TransactionEditDialog(
 
     if (showAddCategoryDialog && onAddCategory != null) {
         AddCategoryDialog(
-            onDismiss = { },
+            onDismiss = { showAddCategoryDialog = false },
             onConfirm = { name, type ->
                 onAddCategory(name, type)
+                showAddCategoryDialog = false
             }
         )
     }
@@ -333,7 +334,7 @@ fun TransactionEditDialog(
                 // Add New Category button
                 if (onAddCategory != null) {
                     TextButton(
-                        onClick = { },
+                        onClick = { showAddCategoryDialog = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -478,7 +479,7 @@ fun TransactionEditDialog(
                                 // Filter out the current transaction
                                 similarTransactions = result.matchedTransactions.filter { it.id != transaction.transaction.id }
                             } catch (e: Exception) {
-                                // Ignore error
+                                android.util.Log.e("TransactionEditDialog", "Failed to find similar transactions", e)
                             } finally {
                                 isSearching = false
                             }

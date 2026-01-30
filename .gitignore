@@ -42,3 +42,6 @@ __pycache__/
 venv/
 scripts/venv/
 *.egg-info/
+
+# Device configurations
+.idea/deploymentTargetSelector.xml

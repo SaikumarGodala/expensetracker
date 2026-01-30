@@ -133,7 +133,7 @@ class MonthlyOverviewViewModel(
             val endTs = now.atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
             // Query salary transactions
-            val salaryAmount = repository.transactionDao.getSalaryForPeriod(startTs, endTs)
+            val salaryAmount = repository.transactionDao.getSalaryForPeriod(salaryCategory.id, startTs, endTs)
 
             // If salary exists, get the most recent salary transaction to extract the day
             if (salaryAmount != null && salaryAmount > 0) {

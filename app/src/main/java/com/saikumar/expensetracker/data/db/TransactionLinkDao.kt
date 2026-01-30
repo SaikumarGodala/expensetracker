@@ -15,13 +15,13 @@ interface TransactionLinkDao {
     /**
      * Insert a new transaction link
      */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertLink(link: TransactionLink): Long
     
     /**
      * Insert multiple links in a single transaction
      */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertLinks(links: List<TransactionLink>)
     
     /**
@@ -98,4 +98,11 @@ interface TransactionLinkDao {
         WHERE primary_txn_id = :transactionId OR secondary_txn_id = :transactionId
     """)
     suspend fun deleteLinksForTransaction(transactionId: Long)
+
+    /**
+     * Get all transaction IDs that are currently part of any link.
+     * Used for bulk pre-fetching to avoid N+1 queries during auto-pairing.
+     */
+    @Query("SELECT primary_txn_id AS id FROM transaction_links UNION SELECT secondary_txn_id AS id FROM transaction_links")
+    suspend fun getAllLinkedTransactionIds(): List<Long>
 }

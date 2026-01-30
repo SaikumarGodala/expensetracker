@@ -33,13 +33,15 @@ object AccountDiscoveryManager {
 
     suspend fun scanAndDiscover(message: String, sender: String, dao: UserAccountDao) {
         val accountMatch = ACCOUNT_PATTERN.matcher(message)
+        val accountLast4 = if (accountMatch.find()) accountMatch.group(1) else null
         val cardMatch = CARD_PATTERN.matcher(message)
+
         val vpaMatch = VPA_FROM_PATTERN.matcher(message)
         val bankName = inferBankName(sender)
 
         // Discover bank account
-        if (accountMatch.find()) {
-            val last4 = accountMatch.group(1) ?: return
+        if (accountLast4 != null) {
+            val last4 = accountLast4
             saveAccount(dao, last4, bankName, AccountType.SAVINGS, null)
         }
 
@@ -57,7 +59,7 @@ object AccountDiscoveryManager {
             if (isDebit) {
                 // This is user's own VPA - save it
                 // We'll associate it with the account if we can extract account number
-                val accountNum = accountMatch.group(1)
+                val accountNum = accountLast4
                 if (accountNum != null) {
                     updateUserVpa(dao, accountNum, vpa)
                 } else {
@@ -94,7 +96,7 @@ object AccountDiscoveryManager {
             upiVpa = upiVpa
         )
 
-        Log.d(TAG, "Discovered NEW Account: ${newAccount.alias}" + (if (upiVpa != null) " with VPA: $upiVpa" else ""))
+        Log.d(TAG, "Discovered NEW Account: ${redact(newAccount.alias ?: "")}" + (if (upiVpa != null) " with VPA: ${redact(upiVpa)}" else ""))
         dao.insert(newAccount)
     }
 
@@ -102,7 +104,7 @@ object AccountDiscoveryManager {
         if (holderName.isBlank()) return
 
         // Log discovery
-        Log.d(TAG, "Discovered Account Holder Name for $last4: $holderName")
+        Log.d(TAG, "Discovered Account Holder Name for ${redact(last4)}: ${redact(holderName)}")
 
         // Update DB
         dao.updateAccountHolderName(last4, holderName)
@@ -112,7 +114,7 @@ object AccountDiscoveryManager {
         if (vpa.isBlank()) return
 
         // Log discovery
-        Log.d(TAG, "Discovered UPI VPA for account $last4: $vpa")
+        Log.d(TAG, "Discovered UPI VPA for account ${redact(last4)}: ${redact(vpa)}")
 
         // Update DB
         dao.updateUpiVpa(last4, vpa)
@@ -127,5 +129,17 @@ object AccountDiscoveryManager {
             sender.contains("IDFC", ignoreCase = true) -> "IDFC FIRST Bank"
             else -> "Unknown Bank"
         }
+    }
+
+    private fun redact(value: String): String {
+        if (value.length <= 4) return "****" // For short strings like last4
+        if (value.contains("@")) {
+            // Likely a VPA/Email: m***@bank
+            val parts = value.split("@")
+            val user = if (parts[0].length > 2) parts[0].take(2) + "***" else "***"
+            return "$user@${parts.getOrElse(1) { "***" }}"
+        }
+        // Default: keep first 2 chars, mask rest
+        return if (value.length > 2) value.take(2) + "***" else "***"
     }
 }
