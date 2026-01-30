@@ -29,24 +29,37 @@ data class TransactionSummary(
 @Dao
 interface TransactionDao {
     @androidx.room.Transaction
-    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
     fun getTransactionsPaged(startTimestamp: Long, endTimestamp: Long, limit: Int, offset: Int): Flow<List<TransactionWithCategory>>
 
     @androidx.room.Transaction
-    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL ORDER BY timestamp DESC")
+    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp ASC LIMIT :limit OFFSET :offset")
+    suspend fun getTransactionsPagedSync(startTimestamp: Long, endTimestamp: Long, limit: Int, offset: Int): List<TransactionWithCategory>
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL AND transactionType != 'STATEMENT'")
+    suspend fun getTransactionCount(startTimestamp: Long, endTimestamp: Long): Int
+
+    @androidx.room.Transaction
+    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     fun getTransactionsInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionWithCategory>>
+
+    @androidx.room.Transaction
+    @Query("SELECT * FROM transactions WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp AND deletedAt IS NULL AND transactionType = 'STATEMENT' ORDER BY timestamp DESC")
+    fun getStatementsInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionWithCategory>>
 
     @androidx.room.Transaction
     @Query("""
         SELECT t.* FROM transactions t
         INNER JOIN categories c ON t.categoryId = c.id
-        WHERE (t.merchantName LIKE '%' || :query || '%' 
-           OR t.note LIKE '%' || :query || '%' 
+        WHERE (t.merchantName LIKE '%' || :query || '%'
+           OR t.note LIKE '%' || :query || '%'
            OR c.name LIKE '%' || :query || '%')
         AND t.deletedAt IS NULL
+        AND t.transactionType != 'STATEMENT'
         ORDER BY t.timestamp DESC
+        LIMIT :limit
     """)
-    fun searchTransactions(query: String): Flow<List<TransactionWithCategory>>
+    fun searchTransactions(query: String, limit: Int = 500): Flow<List<TransactionWithCategory>>
 
     @Query("""
         SELECT
@@ -126,7 +139,7 @@ interface TransactionDao {
         timestampEnd: Long
     ): List<Transaction>
 
-    @Query("SELECT * FROM transactions WHERE categoryId = :categoryId AND deletedAt IS NULL")
+    @Query("SELECT * FROM transactions WHERE categoryId = :categoryId AND deletedAt IS NULL AND transactionType != 'STATEMENT'")
     suspend fun getTransactionsByCategoryId(categoryId: Long): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
@@ -137,6 +150,9 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE LOWER(merchantName) = LOWER(:merchantName) AND deletedAt IS NULL")
     suspend fun getByMerchantName(merchantName: String): List<Transaction>
+
+    @Query("SELECT * FROM transactions WHERE upiId = :upiId AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
+    suspend fun getTransactionsByUpiId(upiId: String): List<Transaction>
 
     @Update
     suspend fun updateTransactions(transactions: List<Transaction>)
@@ -260,6 +276,30 @@ interface TransactionDao {
         ORDER BY year DESC
     """)
     suspend fun getYearlySpendingForCategory(categoryId: Long): List<YearlySpending>
+    @androidx.room.Transaction
+    @Query("""
+        SELECT t.* FROM transactions t
+        INNER JOIN categories c ON t.categoryId = c.id
+        WHERE (t.merchantName LIKE '%' || :query || '%' 
+           OR t.note LIKE '%' || :query || '%' 
+           OR c.name LIKE '%' || :query || '%')
+        AND t.timestamp >= :startTime AND t.timestamp <= :endTime
+        AND t.deletedAt IS NULL
+        ORDER BY t.timestamp DESC
+    """)
+    fun searchTransactionsInRange(query: String, startTime: Long, endTime: Long): Flow<List<TransactionWithCategory>>
+
+    @androidx.room.Transaction
+    @Query("""
+        SELECT t.* FROM transactions t
+        INNER JOIN categories c ON t.categoryId = c.id
+        WHERE (t.merchantName LIKE '%' || :query || '%' 
+           OR t.note LIKE '%' || :query || '%' 
+           OR c.name LIKE '%' || :query || '%')
+        AND t.deletedAt IS NULL
+        ORDER BY t.timestamp DESC
+    """)
+    fun searchAllTransactions(query: String): Flow<List<TransactionWithCategory>>
 }
 
 data class TransactionPairCandidate(

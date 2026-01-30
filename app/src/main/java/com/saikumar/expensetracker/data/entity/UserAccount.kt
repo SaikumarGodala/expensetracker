@@ -14,5 +14,6 @@ data class UserAccount(
     val isMyAccount: Boolean = true,
     val alias: String? = null,     // e.g., "Salary Account"
     val accountHolderName: String? = null, // e.g., "GODALA SAIKUMAR REDDY" - discovered from NEFT
+    val upiVpa: String? = null,    // e.g., "9876543210@ybl" or "saikumar@okaxis" - user's UPI VPA for self-transfer detection
     val detectedAt: Long = System.currentTimeMillis()
 )

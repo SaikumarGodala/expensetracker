@@ -18,15 +18,62 @@ object TransactionExtractor {
 
     // Amount patterns - order matters! More specific patterns first
     private val AMOUNT_PATTERNS = listOf(
+        // ICICI specific: "credited:Rs. X" or "debited:Rs. X" (Handling spaces and case)
+        Pattern.compile("(?:credited|debited)\\s*[:.]?\\s*(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
         // Currency prefix patterns (most reliable)
-        Pattern.compile("Rs\\.?\\s*([\\d,]+\\.?\\d*)"),
-        Pattern.compile("INR\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("Rs\\.?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("INR\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
         Pattern.compile("₹\\s*([\\d,]+\\.?\\d*)"),
+        // Foreign currency patterns (USD, EUR, GBP, AED, SGD)
+        Pattern.compile("USD\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("EUR\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("GBP\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("AED\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("SGD\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("\\$\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("€\\s*([\\d,]+\\.?\\d*)"),
+        Pattern.compile("£\\s*([\\d,]+\\.?\\d*)"),
         // "debited by X" / "credited with X" patterns (SBI format)
         Pattern.compile("(?:debited|credited|spent|withdrawn|deposited)\\s*(?:by|with|of)?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
         // Amount before keyword pattern (fallback)
         Pattern.compile("([\\d,]+\\.?\\d*)\\s*(?:debited|credited|spent|withdrawn|deposited)")
     )
+
+    // Currency extraction for display purposes
+    data class AmountWithCurrency(
+        val amountPaisa: Long,
+        val currency: String,
+        val originalAmount: Double
+    )
+
+    private val CURRENCY_PATTERNS = listOf(
+        "USD" to 83.0,   // Approximate USD to INR
+        "EUR" to 90.0,   // Approximate EUR to INR
+        "GBP" to 105.0,  // Approximate GBP to INR
+        "AED" to 22.5,   // Approximate AED to INR
+        "SGD" to 62.0,   // Approximate SGD to INR
+        "$" to 83.0,
+        "€" to 90.0,
+        "£" to 105.0,
+        "INR" to 1.0,
+        "Rs" to 1.0,
+        "₹" to 1.0
+    )
+
+    /**
+     * Detect currency from SMS body
+     */
+    fun detectCurrency(body: String): String {
+        val upper = body.uppercase()
+        return when {
+            upper.contains("USD") || body.contains("$") -> "USD"
+            upper.contains("EUR") || body.contains("€") -> "EUR"
+            upper.contains("GBP") || body.contains("£") -> "GBP"
+            upper.contains("AED") -> "AED"
+            upper.contains("SGD") -> "SGD"
+            else -> "INR"
+        }
+    }
 
     // Debit indicators
     private val DEBIT_KEYWORDS = listOf(
@@ -51,9 +98,9 @@ object TransactionExtractor {
     
     // Statement indicators
     private val STATEMENT_KEYWORDS = listOf(
-        "total amount due", "min due", "statement generated", "stmt generated", "total due", 
+        "total amount due", "min due", "statement generated", "stmt generated", "total due",
         "statement is sent", "total of", "minimum of", "e-stmt", "estmt",
-        "amt due", "pay by"
+        "amt due", "pay by", "is due by", "or minimum of"
     )
 
     // Regex for "Payment for" pattern
@@ -98,6 +145,61 @@ object TransactionExtractor {
     }
 
     private fun extractAmountPaisa(body: String): Long? {
+        // PRIORITY 1: Extract amount that appears with "spent" keyword (handles foreign currency)
+        // Pattern: "USD 23.60 spent" or "INR 199 spent" - amount BEFORE "spent"
+        val spentAmountPattern = Pattern.compile(
+            "(USD|EUR|GBP|AED|SGD|INR|Rs\\.?|₹)\\s*([\\d,]+\\.?\\d*)\\s*spent",
+            Pattern.CASE_INSENSITIVE
+        )
+        spentAmountPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val currency = m.group(1)?.uppercase() ?: "INR"
+                val amountStr = m.group(2)?.replace(",", "") ?: return@let
+                try {
+                    val amount = java.math.BigDecimal(amountStr)
+                    val conversionRate = when {
+                        currency.startsWith("USD") || currency == "$" -> java.math.BigDecimal("83.0")
+                        currency.startsWith("EUR") || currency == "€" -> java.math.BigDecimal("90.0")
+                        currency.startsWith("GBP") || currency == "£" -> java.math.BigDecimal("105.0")
+                        currency.startsWith("AED") -> java.math.BigDecimal("22.5")
+                        currency.startsWith("SGD") -> java.math.BigDecimal("62.0")
+                        else -> java.math.BigDecimal("1.0") // INR
+                    }
+                    return amount.multiply(conversionRate).multiply(java.math.BigDecimal(100)).toLong()
+                } catch (e: Exception) {
+                    // Fall through to generic patterns
+                }
+            }
+        }
+
+        // PRIORITY 2: "Spent <currency> <amount>" pattern (Axis Bank format)
+        // Pattern: "Spent INR 1220" or "Spent Rs.339.2"
+        val spentPrefixPattern = Pattern.compile(
+            "Spent\\s+(USD|EUR|GBP|AED|SGD|INR|Rs\\.?)\\s*([\\d,]+\\.?\\d*)",
+            Pattern.CASE_INSENSITIVE
+        )
+        spentPrefixPattern.matcher(body).let { m ->
+            if (m.find()) {
+                val currency = m.group(1)?.uppercase() ?: "INR"
+                val amountStr = m.group(2)?.replace(",", "") ?: return@let
+                try {
+                    val amount = java.math.BigDecimal(amountStr)
+                    val conversionRate = when {
+                        currency.startsWith("USD") || currency == "$" -> java.math.BigDecimal("83.0")
+                        currency.startsWith("EUR") || currency == "€" -> java.math.BigDecimal("90.0")
+                        currency.startsWith("GBP") || currency == "£" -> java.math.BigDecimal("105.0")
+                        currency.startsWith("AED") -> java.math.BigDecimal("22.5")
+                        currency.startsWith("SGD") -> java.math.BigDecimal("62.0")
+                        else -> java.math.BigDecimal("1.0") // INR
+                    }
+                    return amount.multiply(conversionRate).multiply(java.math.BigDecimal(100)).toLong()
+                } catch (e: Exception) {
+                    // Fall through to generic patterns
+                }
+            }
+        }
+
+        // PRIORITY 3: Generic patterns (fallback)
         for (pattern in AMOUNT_PATTERNS) {
             val matcher = pattern.matcher(body)
             if (matcher.find()) {
@@ -165,17 +267,47 @@ object TransactionExtractor {
 
     private fun detectBankTransactionType(body: String, isDebit: Boolean?): TransactionType {
         val lower = body.lowercase()
-        
+
         // Statement detection
         if (STATEMENT_KEYWORDS.any { lower.contains(it) }) {
             return TransactionType.STATEMENT
         }
-        
-        // P2P Transfer detection (Priority: High)
+
+        // ============ CREDIT CARD BILL PAYMENT DETECTION (High Priority) ============
+        // These are LIABILITY_PAYMENT - paying off credit card debt
+
+        // Pattern 1: "Sent Rs.X To CRED Club" - UPI payment to credit card via CRED
+        if (lower.contains("cred club") || lower.contains("cred app")) {
+            return TransactionType.LIABILITY_PAYMENT
+        }
+
+        // Pattern 2: "Payment of Rs X has been received on your Credit Card"
+        // This is a payment TO the credit card (reduces liability)
+        if ((lower.contains("payment") && lower.contains("received") && lower.contains("credit card")) ||
+            (lower.contains("payment") && lower.contains("received towards") && lower.contains("card"))) {
+            return TransactionType.LIABILITY_PAYMENT
+        }
+
+        // Pattern 3: "HDFC Bank Cardmember, Online Payment...credited to your card"
+        if (lower.contains("cardmember") && lower.contains("payment") && lower.contains("credited to your card")) {
+            return TransactionType.LIABILITY_PAYMENT
+        }
+
+        // Pattern 4: "Payment of INR X has been received towards your Axis Bank Credit Card"
+        if (lower.contains("payment") && lower.contains("received towards") && lower.contains("credit card")) {
+            return TransactionType.LIABILITY_PAYMENT
+        }
+
+        // Pattern 5: "Bharat Bill Payment System" credit card payment
+        if (lower.contains("bharat bill payment") && lower.contains("credit card")) {
+            return TransactionType.LIABILITY_PAYMENT
+        }
+
+        // ============ P2P TRANSFER DETECTION ============
         // "Sent Rs.X To <NAME>" = UPI P2P transfer, NOT an expense
         // "debited for Rs X; <NAME> credited" = UPI P2P transfer
         // BUT: If the name matches a known merchant, treat as EXPENSE
-        if ((lower.contains("sent") || lower.contains("debited for")) && 
+        if ((lower.contains("sent") || lower.contains("debited for")) &&
             (lower.contains(" to ") || lower.contains("credited")) &&
             !lower.contains("card") &&  // Not a card transaction
             !lower.contains("merchant")) {  // Not a merchant
@@ -186,16 +318,16 @@ object TransactionExtractor {
                 // Extract the name to check if it's a merchant
                 val nameMatch = Regex("""(?:To|to)\s+([A-Za-z][A-Za-z\s]+?)(?:\n|\r|On)""").find(body)
                 val recipientName = nameMatch?.groupValues?.getOrNull(1)?.trim()?.uppercase() ?: ""
-                
+
                 // Check if recipient is a known merchant (not a person)
                 // Expanded list to include Investment entities which often look like Person names
                 val isMerchant = MERCHANT_SIGNALS.any { recipientName.contains(it) } ||
-                                 recipientName.contains("ZERODHA") || 
-                                 recipientName.contains("ICCL") || 
+                                 recipientName.contains("ZERODHA") ||
+                                 recipientName.contains("ICCL") ||
                                  recipientName.contains("INDIAN CLEARING") ||
                                  recipientName.contains("GROWW") ||
                                  recipientName.contains("KUVERA")
-                
+
                 if (!isMerchant) {
                     return TransactionType.TRANSFER
                 }
@@ -219,26 +351,13 @@ object TransactionExtractor {
         }
         
         // CARD SPEND DETECTION (Priority High)
-        // Matches: "Txn Rs... On ... Card"
+        // Matches: "Txn Rs... On ... Card" or "Spent...Card"
         if ((lower.contains("txn") || lower.contains("spent")) && lower.contains("card")) {
              // Ensure it's not a payment received *for* a card
-             if (!lower.contains("payment received")) {
+             // "payment received on your credit card" = LIABILITY_PAYMENT (already handled above)
+             if (!lower.contains("payment received") && !lower.contains("payment") && !lower.contains("credited")) {
                  return TransactionType.EXPENSE
              }
-        }
-
-        // CC payment detection
-        if (CC_PAYMENT_KEYWORDS.any { lower.contains(it) } && lower.contains("payment")) {
-            // Refinement: "Payment for Youtube" or "Debited from Credit Card" is an EXPENSE.
-            // Use regex to catch "Payment of X for Y"
-            val isExpense = PAYMENT_FOR_PATTERN.matcher(lower).find() || 
-                           lower.contains("debited from") ||
-                           lower.contains("spent on") ||
-                           lower.contains("using")
-                           
-            if (!isExpense) {
-                return TransactionType.LIABILITY_PAYMENT
-            }
         }
 
         // Self-transfer detection (same user accounts)

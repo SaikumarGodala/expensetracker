@@ -47,8 +47,10 @@ class TransferCircleDetector(
     }
     
     private suspend fun detectCandidates(minCount: Int, minAmount: Long, excludeIgnored: Boolean): List<RecipientSuggestion> {
-        // Get all transactions
-        val allTransactions = expenseRepository.getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
+        // Performance Fix: Only analyze last 6 months for transfer circle detection
+        // This captures recent patterns without loading entire transaction history
+        val sixMonthsAgo = System.currentTimeMillis() - (180L * 24 * 60 * 60 * 1000)
+        val allTransactions = expenseRepository.getTransactionsInPeriod(sixMonthsAgo, Long.MAX_VALUE).first()
         
         // Determine exclusion list
         val existingNames: Set<String> = if (excludeIgnored) {

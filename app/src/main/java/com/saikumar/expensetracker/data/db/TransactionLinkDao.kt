@@ -50,18 +50,34 @@ interface TransactionLinkDao {
 
 
     /**
-     * Get ALL links with full transaction details
+     * Get links with full transaction details (limited to last 500 for performance)
      * Used for Link Manager UI
      */
     @Transaction
-    @Query("SELECT * FROM transaction_links ORDER BY created_at DESC")
+    @Query("SELECT * FROM transaction_links ORDER BY created_at DESC LIMIT 500")
     fun getAllLinksWithDetails(): kotlinx.coroutines.flow.Flow<List<com.saikumar.expensetracker.data.entity.LinkWithDetails>>
 
     @Query("DELETE FROM transaction_links WHERE id = :linkId")
     suspend fun deleteLinkById(linkId: Long)
 
-    @Query("SELECT * FROM transaction_links")
+    /**
+     * Get all transaction links, limited to last 1000 to prevent unbounded growth
+     * Performance optimization: Most UIs only need recent links
+     */
+    @Query("SELECT * FROM transaction_links ORDER BY created_at DESC LIMIT 1000")
     fun getAllLinks(): kotlinx.coroutines.flow.Flow<List<TransactionLink>>
+
+    /**
+     * Get transaction links within a time period (by joining with transactions)
+     * Useful for period-specific views like Dashboard
+     */
+    @Query("""
+        SELECT DISTINCT tl.* FROM transaction_links tl
+        INNER JOIN transactions t1 ON tl.primary_txn_id = t1.id
+        WHERE t1.timestamp >= :startTimestamp AND t1.timestamp <= :endTimestamp
+        ORDER BY tl.created_at DESC
+    """)
+    fun getLinksInPeriod(startTimestamp: Long, endTimestamp: Long): kotlinx.coroutines.flow.Flow<List<TransactionLink>>
     
     /**
      * Check if a transaction is already linked

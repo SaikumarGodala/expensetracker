@@ -6,8 +6,11 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.saikumar.expensetracker.ExpenseTrackerApplication
 import com.saikumar.expensetracker.data.entity.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
@@ -86,9 +89,32 @@ object ClassificationDebugLogger {
                 }
             }
         } finally {
+            // Write batched extraction failures if any
+            val failuresToWrite = synchronized(batchExtractionFailures) { batchExtractionFailures.toList() }
+            if (failuresToWrite.isNotEmpty()) {
+                val sb = StringBuilder()
+                for (f in failuresToWrite) {
+                    sb.append(jsonlGson.toJson(f)).append("\n")
+                }
+                try {
+                    // One single append operation for all failures
+                    appendToDownloadsFile(context, "extraction_failures.jsonl", sb.toString())
+                    runCatching {
+                        withContext(Dispatchers.Main) {
+                             android.widget.Toast.makeText(context, "Logged ${failuresToWrite.size} failures to:\nextraction_failures.jsonl", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to write batch extraction failures", e)
+                }
+            }
+
             isBatchSessionActive = false
             synchronized(batchLogs) {
                 batchLogs.clear()
+            }
+            synchronized(batchExtractionFailures) {
+                batchExtractionFailures.clear()
             }
             batchSessionId = null
         }
@@ -425,6 +451,13 @@ object ClassificationDebugLogger {
      * Log a specific case where merchant extraction failed completely.
      * Appends to a dedicated file extraction_failures.jsonl for easy analysis.
      */
+    // Batch logging for extraction failures
+    private val batchExtractionFailures = mutableListOf<Map<String, Any?>>()
+
+    /**
+     * Log a specific case where merchant extraction failed completely.
+     * Appends to a dedicated file extraction_failures.jsonl for easy analysis.
+     */
     suspend fun logExtractionFailure(
         context: Context,
         smsBody: String,
@@ -437,100 +470,107 @@ object ClassificationDebugLogger {
             "body" to smsBody,
             "reason" to "NO_MERCHANT_EXTRACTED"
         )
-        val json = jsonlGson.toJson(entry) + "\n"
         
-        try {
-            val path = appendToDownloadsFile(context, "extraction_failures.jsonl", json)
-            
-            if (path != null) {
-                Log.e(TAG, "EXTRACTION FAILURE LOGGED to: $path")
-                // Show toast on Main thread to alert user
-                withContext(Dispatchers.Main) {
-                    try {
-                         android.widget.Toast.makeText(context, "Logged to Downloads:\nextraction_failures.jsonl", android.widget.Toast.LENGTH_LONG).show()
-                    } catch (e: Exception) { }
-                }
-            } else {
-                Log.e(TAG, "Failed to append to log file in Downloads")
+        if (isBatchSessionActive) {
+            synchronized(batchExtractionFailures) {
+                batchExtractionFailures.add(entry)
             }
-             
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to log extraction failure", e)
+        } else {
+            // Direct write (Legacy/Individual mode) - Protected by Mutex internally
+            val json = jsonlGson.toJson(entry) + "\n"
+            try {
+                val path = appendToDownloadsFile(context, "extraction_failures.jsonl", json)
+                if (path != null) {
+                    Log.e(TAG, "EXTRACTION FAILURE LOGGED to: $path")
+                } else {
+                    Log.e(TAG, "Failed to append to log file in Downloads")
+                } 
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to log extraction failure", e)
+            }
         }
     }
+
+    private val fileMutex = kotlinx.coroutines.sync.Mutex()
 
     /**
      * Robustly append to a file in the public Downloads folder.
      * Handles Android 10+ MediaStore complexities (Read-Modify-Write if needed).
      */
     private suspend fun appendToDownloadsFile(context: Context, fileName: String, content: String): String? {
-        return withContext(Dispatchers.IO) {
-            try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    val resolver = context.contentResolver
-                    val contentCollection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                    
-                    // 1. Check if file exists
-                    val query = resolver.query(
-                        contentCollection,
-                        arrayOf(android.provider.MediaStore.Downloads._ID),
-                        "${android.provider.MediaStore.Downloads.DISPLAY_NAME} = ?",
-                        arrayOf(fileName),
-                        null
-                    )
-                    
-                    query?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            // File exists - Append
-                            val id = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Downloads._ID))
-                            val uri = android.content.ContentUris.withAppendedId(contentCollection, id)
-                            
-                            try {
-                                // Try "wa" (Write Append) mode first
-                                resolver.openOutputStream(uri, "wa")?.use { it.write(content.toByteArray()) }
-                                return@withContext "Downloads/$fileName (Appended)"
-                            } catch (e: Exception) {
-                                // Fallback: Read full, limit size if needed, then overwrite
-                                // Warning: This is heavy for large logs, but acceptable for debug text logs
-                                Log.w(TAG, "Append mode failed, trying read-rewrite", e)
+        // Use Mutex to prevent race conditions (T1 checks exists->false, T2 checks exists->false, T1 inserts, T2 crashes)
+        return fileMutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val resolver = context.contentResolver
+                        val contentCollection = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                        
+                        // 1. Check if file exists - Filter by local path effectively
+                        val selection = "${android.provider.MediaStore.Downloads.DISPLAY_NAME} = ? AND ${android.provider.MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+                        val selectionArgs = arrayOf(fileName, "Download/ExpenseTrackerLogs/%")
+
+                        val query = resolver.query(
+                            contentCollection,
+                            arrayOf(android.provider.MediaStore.Downloads._ID),
+                            selection,
+                            selectionArgs,
+                            null
+                        )
+                        
+                        query?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                // File exists - Append
+                                val id = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Downloads._ID))
+                                val uri = android.content.ContentUris.withAppendedId(contentCollection, id)
                                 
-                                val existingContent = try {
-                                    resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
-                                } catch (readErr: Exception) { "" }
-                                
-                                val newContent = existingContent + content
-                                resolver.openOutputStream(uri, "wt")?.use { it.write(newContent.toByteArray()) }
-                                return@withContext "Downloads/$fileName (Rewritten)"
+                                try {
+                                    // Try "wa" (Write Append) mode first
+                                    resolver.openOutputStream(uri, "wa")?.use { it.write(content.toByteArray()) }
+                                    return@withContext "Downloads/$fileName (Appended)"
+                                } catch (e: Exception) {
+                                    // Fallback: Read full, limit size if needed, then overwrite
+                                    // Warning: This is heavy for large logs, but acceptable for debug text logs
+                                    Log.w(TAG, "Append mode failed in mutex, trying read-rewrite", e)
+                                    
+                                    val existingContent = try {
+                                        resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                                    } catch (readErr: Exception) { "" }
+                                    
+                                    val newContent = existingContent + content
+                                    resolver.openOutputStream(uri, "wt")?.use { it.write(newContent.toByteArray()) }
+                                    return@withContext "Downloads/$fileName (Rewritten)"
+                                }
                             }
                         }
+                        
+                        // File does not exist - Create new
+                        val contentValues = android.content.ContentValues().apply {
+                            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json") // or text/plain
+                            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/ExpenseTrackerLogs")
+                        }
+                        
+                        val uri = resolver.insert(contentCollection, contentValues)
+                        if (uri != null) {
+                            resolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+                            return@withContext "Downloads/ExpenseTrackerLogs/$fileName (Created)"
+                        }
+                        return@withContext null
+                        
+                    } else {
+                        // Legacy Storage (Android 9 and below)
+                        val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                        val logDir = java.io.File(downloadsDir, "ExpenseTrackerLogs")
+                        if (!logDir.exists()) logDir.mkdirs()
+                        val file = java.io.File(logDir, fileName)
+                        file.appendText(content)
+                        return@withContext file.absolutePath
                     }
-                    
-                    // File does not exist - Create new
-                    val contentValues = android.content.ContentValues().apply {
-                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json") // or text/plain
-                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/ExpenseTrackerLogs")
-                    }
-                    
-                    val uri = resolver.insert(contentCollection, contentValues)
-                    if (uri != null) {
-                        resolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
-                        return@withContext "Downloads/ExpenseTrackerLogs/$fileName (Created)"
-                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error appending to Downloads file", e)
                     return@withContext null
-                    
-                } else {
-                    // Legacy Storage (Android 9 and below)
-                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                    val logDir = java.io.File(downloadsDir, "ExpenseTrackerLogs")
-                    if (!logDir.exists()) logDir.mkdirs()
-                    val file = java.io.File(logDir, fileName)
-                    file.appendText(content)
-                    return@withContext file.absolutePath
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error appending to Downloads file", e)
-                return@withContext null
             }
         }
     }

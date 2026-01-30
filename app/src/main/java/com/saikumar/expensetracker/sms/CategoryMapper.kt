@@ -15,6 +15,7 @@ object CategoryMapper {
 
     // Confidence score constants
     object Confidence {
+        const val MANUAL = 100         // Manually entered/verified
         const val USER_RULE = 95       // User-defined rule match
         const val MERCHANT_EXACT = 90  // Exact merchant name match
         const val SALARY_PATTERN = 90  // Salary company name match
@@ -250,6 +251,8 @@ object CategoryMapper {
         "ICCL ZERODHA" to "Mutual Funds",
         "INDIAN CLEARING" to "Mutual Funds",
         "INDIAN CLEARING CORPORATION" to "Mutual Funds",
+        "INDIAN CLEARING CORPORATION LIMITED" to "Mutual Funds",
+        "CLEARING CORPORATION" to "Mutual Funds",
         "ZERODHA" to "Mutual Funds",
         "ZERODHA BROKING" to "Mutual Funds",
 
@@ -362,13 +365,40 @@ object CategoryMapper {
         merchantMemories: Map<String, Long> = emptyMap(), // ADAPTIVE CATEGORIZATION
         trace: MutableList<String>? = null
     ): String {
+        // PRIORITY 0: Credit Card Bill Payment Check (HIGHEST PRIORITY)
+        // This must come BEFORE any other logic to prevent misclassification
+        val lowerBody = messageBody.lowercase()
+        if (counterparty.name != null) {
+            val upper = counterparty.name.uppercase()
+            val isCreditCardPayment = upper.contains("CRED CLUB") ||
+                upper.contains("CRED APP") ||
+                (upper.contains("CRED") && !upper.contains("CREDITED") && upper.split(" ").size <= 2) ||
+                upper.contains("AMEX") ||
+                upper.contains("ONE CARD") ||
+                upper.contains("ONECARD") ||
+                upper.contains("SBI CARD") ||
+                upper.contains("SBICARD") ||
+                upper.contains("HDFC CARD") ||
+                upper.contains("HDFCCARD") ||
+                upper.contains("AXIS CARD") ||
+                upper.contains("AXISCARD") ||
+                upper.contains("ICICI CARD") ||
+                upper.contains("ICICCARD") ||
+                upper.contains("BILLDESK")
+
+            if (isCreditCardPayment && transactionType == TransactionType.EXPENSE) {
+                trace?.add("OVERRIDE: Credit Card Payment Service detected -> Credit Bill Payments")
+                return AppConstants.Categories.CREDIT_BILL_PAYMENTS
+            }
+        }
+
         // NEFT Self-Transfer Check
         if (messageBody.contains("NEFT", ignoreCase = true)) {
             if (CounterpartyExtractor.isNeftSelfTransfer(messageBody)) {
                 trace?.add("Matched: NEFT Self Transfer pattern")
                 return AppConstants.Categories.SELF_TRANSFER
             }
-            
+
             // Known Salary Source Check
             if (salarySources.isNotEmpty()) {
                 val neftSource = CounterpartyExtractor.extractNeftSource(messageBody)
@@ -392,7 +422,6 @@ object CategoryMapper {
 
         // Interest Income Check (Body-based)
         if (transactionType == TransactionType.INCOME) {
-             val lowerBody = messageBody.lowercase()
              if (lowerBody.contains("interest") || 
                  lowerBody.contains("int. pd") || 
                  lowerBody.contains("int pd") ||
@@ -452,23 +481,26 @@ object CategoryMapper {
                     }
                     
                     if (key.length > maxMatchLength) {
-                        // Investment Redemption check
+                        // Investment Redemption check - for INCOME from investment entities
                         if (transactionType == TransactionType.INCOME) {
-                            if (defaultCategory == "Mutual Funds" || 
-                                key == "ICCL" || 
-                                key == "INDIAN CLEARING") {
-                                // Special handling return immediately or treat strings differently?
-                                // Let's just track it as the category
+                            if (defaultCategory == "Mutual Funds" ||
+                                key == "ICCL" ||
+                                key == "ICCL ZERODHA" ||
+                                key == "INDIAN CLEARING" ||
+                                key == "INDIAN CLEARING CORPORATION" ||
+                                key == "ZERODHA" ||
+                                key == "ZERODHA BROKING") {
                                 bestMatchCategory = "Investment Redemption"
                             } else {
                                 bestMatchCategory = defaultCategory
                             }
                         } else {
+                            // For expenses/debits, use the default category
                             bestMatchCategory = defaultCategory
                         }
-                        
-                        // Override for known redemption entities
-                        if (upper.contains("INDIAN CLEARING") || upper.contains("ICCL")) {
+
+                        // Additional override check (redundant but safe)
+                        if (upper.contains("INDIAN CLEARING") || upper.contains("ICCL") || upper.contains("ZERODHA")) {
                              if (transactionType == TransactionType.INCOME) bestMatchCategory = "Investment Redemption"
                         }
                         
@@ -487,8 +519,9 @@ object CategoryMapper {
         // Priority 2.5: Account Discovery matches (Self-Transfer / CC Bill)
         // Check this BEFORE Memory but AFTER Hardcoded Map (to allow explicit CC names to map to Credit Bills)
         if (counterparty.name != null) {
+            // IMPROVED: Better account number matching with validation
             val matchedAccount = userAccounts.find { myAccount ->
-                counterparty.name.contains(myAccount.accountNumberLast4, ignoreCase = true)
+                isAccountNumberInText(counterparty.name, myAccount.accountNumberLast4)
             }
             if (matchedAccount != null) {
                 trace?.add("Matched: Discovered Account ${matchedAccount.accountNumberLast4}")
@@ -498,36 +531,41 @@ object CategoryMapper {
                     AppConstants.Categories.SELF_TRANSFER // Transfer to my own Bank Account
                 }
             }
-            
+
+            // Check if user's own name appears in counterparty
             if (isUserOwnName(counterparty.name, userAccounts)) {
                 trace?.add("Matched: User Own Name detected (Self Transfer)")
                 return AppConstants.Categories.SELF_TRANSFER
             }
         }
 
+        // Check UPI VPA for self-transfer
+        if (!counterparty.upiId.isNullOrBlank()) {
+            val matchedVpaAccount = userAccounts.find { account ->
+                account.upiVpa != null && counterparty.upiId.equals(account.upiVpa, ignoreCase = true)
+            }
+            if (matchedVpaAccount != null) {
+                trace?.add("Matched: User Own UPI VPA ${counterparty.upiId} (Self Transfer)")
+                return AppConstants.Categories.SELF_TRANSFER
+            }
+        }
+
         // Recurring Deposit Check
-        val lowerBody = messageBody.lowercase()
         if (SmsConstants.RD_PATTERNS.any { lowerBody.contains(it) }) {
              trace?.add("Matched: Recurring Deposit pattern")
              return AppConstants.Categories.RECURRING_DEPOSITS
         }
 
         // Cashback Check
-        if (transactionType != TransactionType.EXPENSE && 
-            (messageBody.contains("cashback", ignoreCase = true) || 
+        if (transactionType != TransactionType.EXPENSE &&
+            (messageBody.contains("cashback", ignoreCase = true) ||
              messageBody.contains("reward", ignoreCase = true) ||
              (counterparty.name?.contains("cashback", ignoreCase = true) == true))) {
-            
+
             trace?.add("Matched: Cashback/Reward keyword (Non-Expense)")
             return AppConstants.Categories.CASHBACK
         }
-        
-        // UPI Self-Transfer Check
-        if (!counterparty.upiId.isNullOrBlank() && isUserOwnName(counterparty.upiId, userAccounts)) {
-             trace?.add("Matched: User Own UPI detected (Self Transfer)")
-             return "Self Transfer"
-        }
-        
+
         // Priority 3: ADAPTIVE MEMORY (Learned from User Corrections)
         if (!counterparty.name.isNullOrBlank()) {
             val normalized = counterparty.name.uppercase().trim()
@@ -554,50 +592,6 @@ object CategoryMapper {
         var mlCategory: String? = null
         var mlConfidence = 0
         
-        /*
-        // Strategy A: Classify Name
-        if (!counterparty.name.isNullOrBlank()) {
-             val mlResult = com.saikumar.expensetracker.ml.NaiveBayesClassifier.classify(counterparty.name)
-             if (mlResult != null) {
-                 mlCategory = mlResult.category
-                 mlConfidence = mlResult.confidence
-                 trace?.add("Matched: ML Classifier (Name) -> $mlCategory (Conf: $mlConfidence)")
-             }
-        }
-        
-        // Strategy B: Classify Body (Fallback)
-        if (mlCategory == null && messageBody.isNotBlank()) {
-            val cleanedBody = SmsConstants.cleanMessageBody(messageBody)
-            
-            if (cleanedBody.length > 3) {
-                val mlResult = com.saikumar.expensetracker.ml.NaiveBayesClassifier.classify(cleanedBody)
-                // Enforce higher threshold and specific guardrails
-                if (mlResult != null && mlResult.confidence >= 70) {
-                     val candidate = mlResult.category
-                     
-                     // GUARDRAIL: "Dining Out" is often a false positive in ML (overfitted).
-                     // Only accept it from Body ML if we see specific food keywords.
-                     if (candidate == "Dining Out") {
-                         val foodKeywords = setOf("food", "restaurant", "swiggy", "zomato", "hotel", "kitchen", "biryani", "pizza", "burger", "cafe", "coffee", "tea", "bakery", "cake", "sweet", "bar", "pub", "brewery", "diner", "mess")
-                         val hasFoodKeyword = foodKeywords.any { cleanedBody.contains(it, ignoreCase = true) }
-                         
-                         if (hasFoodKeyword) {
-                             mlCategory = candidate
-                             mlConfidence = mlResult.confidence
-                             trace?.add("Matched: ML Classifier (Body) -> $candidate (Validated with Food Keyword)")
-                         } else {
-                             trace?.add("Ignored: ML predicted 'Dining Out' but no food keywords found in body.")
-                         }
-                     } else {
-                         // Accept other categories normally
-                         mlCategory = candidate
-                         mlConfidence = mlResult.confidence
-                         trace?.add("Matched: ML Classifier (Body) -> $candidate (Conf: $mlConfidence)")
-                     }
-                }
-            }
-        }
-        */
         
         if (mlCategory != null) {
             return enforceCategoryTypeCompatibility(mlCategory, transactionType, trace)
@@ -623,7 +617,6 @@ object CategoryMapper {
         
         // Flag large unverified income
         if (defaultCategory == AppConstants.Categories.OTHER_INCOME && transactionType == TransactionType.INCOME) {
-            val lowerBody = messageBody.lowercase()
             val hasNoIdentifiedSource = !lowerBody.contains("neft") && 
                                         !lowerBody.contains("imps") && 
                                         !lowerBody.contains("upi") && 
@@ -648,27 +641,28 @@ object CategoryMapper {
         type: TransactionType,
         trace: MutableList<String>?
     ): String {
-        // REFUND and CASHBACK types can be assigned to any category (returning money for purchases)
+        // 1. Check strict overrides first
         if (type == TransactionType.REFUND || type == TransactionType.CASHBACK) return category
-
-        // If it's NOT Income, we generally trust the category (Expenses can be anything)
-        if (type != TransactionType.INCOME) return category
-
-        // List of categories that are strictly expenses and should NEVER be Income
-        // P2P Transfers and Self Transfer are excluded as they can be valid for incoming P2P returns
-        val strictExpenseCategories = setOf(
-            "Dining Out", "Groceries", "Fuel", "Utilities", "Shopping",
-            "Entertainment", "Travel", "Cab & Taxi", "Food Delivery",
-            "Medical", "Education", "Personal Care", "Furniture",
-            "Electronics", "Mobile + WiFi", "Insurance", "Service",
-            "Credit Bill Payments", "Miscellaneous", "Offline Merchant",
-            "Gym & Fitness", "Stocks", "Gold", "Parking & Tolls"
-            // Note: P2P Transfers and Self Transfer removed - valid for incoming transfers
-        )
-
-        if (category in strictExpenseCategories) {
-            trace?.add("Incompatibility detected: INCOME type cannot be '$category' -> Reverting to 'Other Income'")
-            return AppConstants.Categories.OTHER_INCOME
+        
+        // 2. Map string category to a type using DefaultCategories as a heuristic
+        // If the category matches a distinct expense type but the transaction is INCOME, flag conflict.
+        
+        if (type == TransactionType.INCOME) {
+            // Expenses cannot be Income.
+            // Check if this category is KNOWN to be an expense type or name
+            val isLikelyExpense = com.saikumar.expensetracker.data.common.DefaultCategories.ALL_CATEGORIES
+                .find { it.name.equals(category, ignoreCase = true) }
+                ?.type?.let { 
+                    it == CategoryType.FIXED_EXPENSE || 
+                    it == CategoryType.VARIABLE_EXPENSE || 
+                    it == CategoryType.VEHICLE ||
+                    it == CategoryType.LIABILITY
+                } ?: false
+                
+            if (isLikelyExpense) {
+                trace?.add("Incompatibility detected: INCOME type cannot be '$category' -> Reverting to 'Other Income'")
+                return AppConstants.Categories.OTHER_INCOME
+            }
         }
 
         return category
@@ -677,28 +671,110 @@ object CategoryMapper {
     /**
      * Check if the counterparty name matches the user's own name.
      * This helps detect self-transfers when money moves between user's accounts at different banks.
-     * 
-     * Uses account holder names discovered from NEFT/salary deposits.
+     *
+     * Uses account holder names discovered from NEFT/salary deposits and UPI VPAs.
      */
     private fun isUserOwnName(name: String, userAccounts: List<UserAccount>): Boolean {
         val lower = name.lowercase()
+
+        // Check against account holder names
         val holderNames = userAccounts.mapNotNull { it.accountHolderName }.distinct()
-        
-        if (holderNames.isEmpty()) return false
-        
         for (holderName in holderNames) {
-            val holderLower = holderName.lowercase()
-            
-            if (lower.contains(holderLower)) return true
-            
-            // Check inverted formats (e.g. "Last First" matches "First Last")
-            val holderParts = holderLower.split(" ").filter { it.length >= 3 }
-            if (holderParts.size >= 2) {
-                val matchCount = holderParts.count { part -> lower.contains(part) }
-                if (matchCount >= 2) return true
+            if (areNamesEquivalent(name, holderName)) {
+                return true
             }
         }
+
+        // Check against registered UPI VPAs (phone numbers, custom VPAs)
+        val userVpas = userAccounts.mapNotNull { it.upiVpa }.distinct()
+        for (vpa in userVpas) {
+            // Extract VPA prefix (before @)
+            val vpaPrefix = vpa.substringBefore("@").lowercase()
+            if (lower.contains(vpaPrefix) || vpaPrefix.contains(lower)) {
+                return true
+            }
+        }
+
         return false
+    }
+
+    /**
+     * Check if an account number (last 4 digits) appears in text with proper context.
+     * Validates that the digits are actually part of an account number pattern, not just random digits.
+     */
+    private fun isAccountNumberInText(text: String, last4: String): Boolean {
+        if (last4.length != 4 || !last4.all { it.isDigit() }) return false
+
+        val upper = text.uppercase()
+
+        // Pattern 1: "A/c XX1234", "A/c *1234", "Account XX1234"
+        if (Regex("(?:A/C|ACCT|ACCOUNT)\\s+[*X]*(${Regex.escape(last4)})").containsMatchIn(upper)) {
+            return true
+        }
+
+        // Pattern 2: "Card XX1234", "Card ending 1234"
+        if (Regex("(?:CARD|CREDIT CARD)\\s+(?:ENDING\\s+)?[*X]*(${Regex.escape(last4)})").containsMatchIn(upper)) {
+            return true
+        }
+
+        // Pattern 3: Just contains the 4 digits preceded by XX or **
+        if (Regex("[*X]{2,}(${Regex.escape(last4)})").containsMatchIn(upper)) {
+            return true
+        }
+
+        // Pattern 4: Four digits at the end of the text (common in merchant names)
+        if (Regex("(${Regex.escape(last4)})\\s*$").containsMatchIn(text)) {
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Improved name matching that handles various name formats.
+     * Similar to CounterpartyExtractor.areNamesEquivalent but for CategoryMapper context.
+     */
+    private fun areNamesEquivalent(name1: String, name2: String): Boolean {
+        val lower1 = name1.lowercase()
+        val lower2 = name2.lowercase()
+
+        // Exact match
+        if (lower1 == lower2) return true
+
+        // One contains the other (substring match)
+        if (lower1.contains(lower2) || lower2.contains(lower1)) return true
+
+        val parts1 = lower1.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val parts2 = lower2.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+
+        if (parts1.isEmpty() || parts2.isEmpty()) return false
+
+        // Extract significant parts (length >= 3)
+        val significantParts1 = parts1.filter { it.length >= 3 }
+        val significantParts2 = parts2.filter { it.length >= 3 }
+
+        // If at least 2 significant parts match, likely same person
+        val commonSignificant = significantParts1.intersect(significantParts2.toSet())
+        if (commonSignificant.size >= 2) {
+            return true
+        }
+
+        // Check if all parts of shorter name match parts in longer name
+        val (shorterParts, longerParts) = if (parts1.size <= parts2.size) {
+            parts1 to parts2
+        } else {
+            parts2 to parts1
+        }
+
+        val allShorterPartsMatched = shorterParts.all { shortPart ->
+            longerParts.any { longPart ->
+                shortPart == longPart ||
+                (shortPart.length == 1 && longPart.startsWith(shortPart)) ||
+                longPart.startsWith(shortPart)
+            }
+        }
+
+        return allShorterPartsMatched && shorterParts.size >= 2
     }
     
     fun calculateConfidence(category: String, wasUserRule: Boolean = false): Int {

@@ -38,6 +38,34 @@ class SettingsViewModel(
     val colorPalette: StateFlow<String> = preferencesManager.colorPalette
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "DYNAMIC")
 
+    // Security Settings
+    val appLockEnabled: StateFlow<Boolean> = preferencesManager.appLockEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val appLockPin: StateFlow<String> = preferencesManager.appLockPin
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+        
+    val biometricEnabled: StateFlow<Boolean> = preferencesManager.biometricEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setAppLockEnabled(enabled)
+        }
+    }
+
+    fun setAppLockPin(pin: String) {
+        viewModelScope.launch {
+            preferencesManager.setAppLockPin(pin)
+        }
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setBiometricEnabled(enabled)
+        }
+    }
+
     fun setSalaryDay(day: Int) {
         viewModelScope.launch {
             preferencesManager.setSalaryDay(day)
@@ -194,6 +222,39 @@ class SettingsViewModel(
     // Breach History
     val breachHistory: StateFlow<List<BudgetBreach>> = budgetBreachDao.getAllBreaches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Merchant Memory Backup
+    private val _backupInfo = kotlinx.coroutines.flow.MutableStateFlow<com.saikumar.expensetracker.util.MerchantMemoryBackupManager.BackupInfo?>(null)
+    val backupInfo: StateFlow<com.saikumar.expensetracker.util.MerchantMemoryBackupManager.BackupInfo?> = _backupInfo.asStateFlow()
+
+    fun loadBackupInfo(context: Context) {
+        viewModelScope.launch {
+            try {
+                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                val info = app.merchantBackupManager.getBackupInfo()
+                _backupInfo.value = info
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsViewModel", "Failed to load backup info", e)
+            }
+        }
+    }
+
+    fun backupMerchantMemory(context: Context) {
+        viewModelScope.launch {
+            try {
+                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                val success = app.merchantBackupManager.backupMerchantMemory()
+                if (success) {
+                    snackbarController.showSuccess("Category preferences backed up")
+                    loadBackupInfo(context) // Refresh backup info
+                } else {
+                    snackbarController.showError("Failed to backup category preferences")
+                }
+            } catch (e: Exception) {
+                snackbarController.showError("Backup failed: ${e.message}")
+            }
+        }
+    }
 
     class Factory(
         private val preferencesManager: PreferencesManager,

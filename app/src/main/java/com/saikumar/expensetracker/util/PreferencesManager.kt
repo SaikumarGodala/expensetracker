@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
+import java.security.MessageDigest
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -28,6 +29,11 @@ class PreferencesManager(val context: Context) {
         val SELECTED_ACCOUNTS = stringPreferencesKey("selected_accounts") // JSON array of account last4 digits
         val SMS_FILTER_ENABLED = booleanPreferencesKey("sms_filter_enabled")
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
+        
+        // Security Settings
+        val APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
+        val APP_LOCK_PIN = stringPreferencesKey("app_lock_pin")
+        val BIOMETRIC_ENABLED = booleanPreferencesKey("biometric_enabled")
         
         // Budget Settings
         val BUDGET_LIMIT_PAISE = longPreferencesKey("budget_limit_paise")
@@ -54,7 +60,7 @@ class PreferencesManager(val context: Context) {
     }
     
     val debugMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[DEBUG_MODE] ?: true
+        preferences[DEBUG_MODE] ?: false
     }
     
     /**
@@ -321,6 +327,44 @@ class PreferencesManager(val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[IS_AUTO_BUDGET_ENABLED] = enabled
         }
+    }
+
+    // Security Accessors
+    val appLockEnabled: Flow<Boolean> = context.dataStore.data.map { it[APP_LOCK_ENABLED] ?: false }
+    val appLockPin: Flow<String> = context.dataStore.data.map { it[APP_LOCK_PIN] ?: "" }
+    val biometricEnabled: Flow<Boolean> = context.dataStore.data.map { it[BIOMETRIC_ENABLED] ?: true }
+
+    suspend fun setAppLockEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[APP_LOCK_ENABLED] = enabled }
+    }
+
+    /**
+     * Store PIN as SHA-256 hash for security.
+     * Never store plain text PINs.
+     */
+    suspend fun setAppLockPin(pin: String) {
+        val hashedPin = hashPin(pin)
+        context.dataStore.edit { it[APP_LOCK_PIN] = hashedPin }
+    }
+
+    /**
+     * Verify PIN by comparing hashes.
+     */
+    fun verifyPin(inputPin: String, storedHash: String): Boolean {
+        if (storedHash.isEmpty()) return false
+        return hashPin(inputPin) == storedHash
+    }
+
+    private fun hashPin(pin: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        // Add a static salt for additional security
+        val saltedPin = "ExpenseTracker_" + pin + "_Salt"
+        val hashBytes = digest.digest(saltedPin.toByteArray(Charsets.UTF_8))
+        return hashBytes.joinToString("") { "%02x".format(it) }
+    }
+
+    suspend fun setBiometricEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[BIOMETRIC_ENABLED] = enabled }
     }
 }
 

@@ -131,26 +131,53 @@ fun FilteredTransactionsScreen(
                     )
                 }
                 
+                // Group transactions by date for better density
+                val groupedTransactions = remember(sortedTransactions) {
+                    sortedTransactions.groupBy { 
+                        java.time.Instant.ofEpochMilli(it.transaction.timestamp)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate()
+                    }
+                }
+                
                 // Transaction list with scrollbar
                 Box(modifier = Modifier.weight(1f)) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 24.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp) // Reduced spacing for density
                     ) {
-                        items(
-                            sortedTransactions, 
-                            key = { it.transaction.id }
-                        ) { transaction ->
-                            TransactionItem(
-                                transaction, 
-                                onClick = { editingTransaction = transaction },
-                                modifier = Modifier.animateItemPlacement()
-                            )
+                        groupedTransactions.forEach { (date, transactions) ->
+                            stickyHeader { 
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 1.dp,
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text(
+                                        text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM dd")),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                            
+                            items(
+                                transactions, 
+                                key = { it.transaction.id }
+                            ) { transaction ->
+                                TransactionItem(
+                                    transaction, 
+                                    onClick = { editingTransaction = transaction },
+                                    modifier = Modifier.animateItemPlacement().padding(horizontal = 16.dp)
+                                )
+                            }
                         }
                     }
-                    
                 }
             }
         }

@@ -26,7 +26,7 @@ object LedgerGate {
         // Standing Instruction confirmations (not actual transactions)
         "standing instruction", "recurring charges", "manage standing instructions",
         // Marketing / Spam
-        "presenting", "avail", "credit line", "congratulations", "pre-approved"
+        "presenting", "credit line", "congratulations", "pre-approved"
     )
 
     // 2. FUTURE/REMINDER EXCLUSIONS (Drop immediately)

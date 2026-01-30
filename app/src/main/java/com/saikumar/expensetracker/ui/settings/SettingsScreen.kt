@@ -32,12 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel, 
-    onNavigateBack: () -> Unit, 
-    onNavigateToSalaryHistory: () -> Unit, 
-    onNavigateToCategories: () -> Unit = {}, 
-    onNavigateToRetirement: () -> Unit = {},
-    onNavigateToInterestTransactions: () -> Unit = {},
+    viewModel: SettingsViewModel,
+    onNavigateBack: () -> Unit,
+    onNavigateToCategories: () -> Unit = {},
     onNavigateToAdvanced: () -> Unit = {},
     onNavigateToTransferCircle: () -> Unit = {}
 ) {
@@ -81,62 +78,57 @@ fun SettingsScreen(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // ============= PRIMARY ACTION - HERO BUTTON =============
-        Button(
-            onClick = {
-                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
-                app.applicationScope.launch(Dispatchers.IO) {
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, "Scanning Inbox...", android.widget.Toast.LENGTH_SHORT).show()
+        // ============= QUICK ACTIONS SECTION =============
+        var showReclassifyConfirmation by remember { mutableStateOf(false) }
+
+        if (showReclassifyConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showReclassifyConfirmation = false },
+                icon = { Icon(Icons.Default.Category, contentDescription = null) },
+                title = { Text("Reclassify All Transactions?") },
+                text = {
+                    Text("This will re-analyze all your transactions using the latest categorization rules. This may take a moment for large transaction histories.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showReclassifyConfirmation = false
+                            val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                            app.applicationScope.launch(Dispatchers.IO) {
+                                withContext(Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "Reclassifying...", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                try {
+                                    SmsProcessor.reclassifyTransactions(context)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Reclassification complete", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("SettingsScreen", "Reclassify failed", e)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Reclassify")
                     }
-                    try {
-                        SmsProcessor.scanInbox(context)
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context, "Scan Complete", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        Log.e("SettingsScreen", "Scan failed", e)
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context, "Scan failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                        }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReclassifyConfirmation = false }) {
+                        Text("Cancel")
                     }
                 }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(Icons.Default.Sync, contentDescription = null)
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Scan Inbox for Transactions", style = MaterialTheme.typography.titleMedium)
+            )
         }
 
-        // ============= QUICK ACTIONS SECTION =============
         SettingsSection(title = "Quick Actions") {
             SettingsItem(
                 icon = Icons.Default.Category,
                 title = "Reclassify Transactions",
                 subtitle = "Re-analyze all transactions",
-                onClick = {
-                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
-                    app.applicationScope.launch(Dispatchers.IO) {
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context, "Reclassifying...", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        try {
-                            SmsProcessor.reclassifyTransactions(context)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "Done", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            Log.e("SettingsScreen", "Reclassify failed", e)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "Failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                }
+                onClick = { showReclassifyConfirmation = true }
             )
             HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
             SettingsItem(
@@ -154,31 +146,7 @@ fun SettingsScreen(
             )
         }
 
-        // ============= DATA & INSIGHTS SECTION =============
-        SettingsSection(title = "Data & Insights") {
-            SettingsItem(
-                icon = Icons.Default.Payments,
-                title = "Salary History",
-                subtitle = "View your salary credits",
-                onClick = onNavigateToSalaryHistory
-            )
-            HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
-            SettingsItem(
-                icon = Icons.Default.Savings,
-                title = "Interest Earned",
-                subtitle = "Track interest from savings",
-                onClick = onNavigateToInterestTransactions
-            )
-            HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
-            SettingsItem(
-                icon = Icons.Default.AccountBalance,
-                title = "EPF / NPS Balances",
-                subtitle = "Retirement fund tracking",
-                onClick = onNavigateToRetirement
-            )
-        }
-        
-        // Breach History Dialog
+        // ============= BREACH HISTORY DIALOG =============
         var showBreachHistory by remember { mutableStateOf(false) }
         val breachHistory by viewModel.breachHistory.collectAsState()
         
@@ -289,8 +257,9 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    // TODO: Get actual salary from ViewModel if possible, for now phrasing it generically or based on known logic
                     Text(
-                        "Set to 50% of last month's salary",
+                        "Based on last credited salary (50%)", 
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -326,6 +295,160 @@ fun SettingsScreen(
              )
         }
 
+        // ============= SECURITY SECTION =============
+        val appLockEnabled by viewModel.appLockEnabled.collectAsState()
+        val appLockPin by viewModel.appLockPin.collectAsState()
+        val biometricEnabled by viewModel.biometricEnabled.collectAsState()
+        var showPinDialog by remember { mutableStateOf(false) }
+        var tempPin by remember { mutableStateOf("") }
+        var tempPinConfirm by remember { mutableStateOf("") }
+        var isSettingNewPin by remember { mutableStateOf(false) }
+
+        if (showPinDialog) {
+            AlertDialog(
+                onDismissRequest = { 
+                    showPinDialog = false 
+                    tempPin = ""
+                    tempPinConfirm = ""
+                },
+                title = { Text(if (isSettingNewPin) "Set New PIN" else "Change PIN") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = tempPin,
+                            onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) tempPin = it },
+                            label = { Text("Enter 4-digit PIN") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword)
+                        )
+                        if (tempPin.length == 4) {
+                             OutlinedTextField(
+                                value = tempPinConfirm,
+                                onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) tempPinConfirm = it },
+                                label = { Text("Confirm PIN") },
+                                singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (tempPin.length == 4 && tempPin == tempPinConfirm) {
+                                viewModel.setAppLockPin(tempPin)
+                                viewModel.setAppLockEnabled(true)
+                                showPinDialog = false
+                                tempPin = ""
+                                tempPinConfirm = ""
+                            } else {
+                                android.widget.Toast.makeText(context, "PINs do not match", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = tempPin.length == 4 && tempPinConfirm.length == 4
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPinDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        SettingsSection(title = "Security") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { 
+                        if (appLockEnabled) {
+                            viewModel.setAppLockEnabled(false) 
+                        } else {
+                            if (appLockPin.isEmpty()) {
+                                isSettingNewPin = true
+                                showPinDialog = true
+                            } else {
+                                viewModel.setAppLockEnabled(true)
+                            }
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "App Lock",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        if (appLockEnabled) "Locks on app open. No data leaves device." else "Protect app with biometrics or PIN",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (appLockEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = appLockEnabled,
+                    onCheckedChange = { checked ->
+                        if (checked) {
+                            if (appLockPin.isEmpty()) {
+                                isSettingNewPin = true
+                                showPinDialog = true
+                            } else {
+                                viewModel.setAppLockEnabled(true)
+                            }
+                        } else {
+                            viewModel.setAppLockEnabled(false)
+                        }
+                    }
+                )
+            }
+            
+            if (appLockEnabled) {
+                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                
+                SettingsItem(
+                    icon = Icons.Default.Lock,
+                    title = "Change PIN",
+                    subtitle = "Update your 4-digit PIN",
+                    onClick = {
+                        isSettingNewPin = false
+                        showPinDialog = true
+                    }
+                )
+                
+                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                
+                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Use Biometrics",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            "Fingerprint / Face Unlock",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = { viewModel.setBiometricEnabled(it) }
+                    )
+                }
+            }
+        }
+
         // ============= PREFERENCES SECTION =============
         SettingsSection(title = "Preferences") {
             SettingsItem(
@@ -337,51 +460,74 @@ fun SettingsScreen(
         }
 
         // ============= DANGER ZONE =============
+        var showResetConfirmation by remember { mutableStateOf(false) }
+
+        if (showResetConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showResetConfirmation = false },
+                icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                title = { Text("Reset All Data?") },
+                text = {
+                    Text(
+                        "This will permanently delete ALL your transactions, categories, and settings. This action cannot be undone.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showResetConfirmation = false
+                            val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                            app.applicationScope.launch(Dispatchers.IO) {
+                                try {
+                                    Log.d("SettingsScreen", "=== DATABASE RESET STARTED ===")
+
+                                    AppDatabase.clearInstance()
+                                    app.forceDatabaseReload()
+
+                                    val dbFile = context.getDatabasePath("expense_tracker_db")
+                                    dbFile.delete()
+                                    context.getDatabasePath("expense_tracker_db-wal").delete()
+                                    context.getDatabasePath("expense_tracker_db-shm").delete()
+
+                                    Log.d("SettingsScreen", "Database files deleted")
+
+                                    val newDb = app.database
+                                    val finalCount = newDb.categoryDao().getCount()
+
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Database Reset. $finalCount categories seeded.", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+
+                                    Log.d("SettingsScreen", "=== DATABASE RESET COMPLETED ===")
+                                } catch (e: Exception) {
+                                    Log.e("SettingsScreen", "Reset failed", e)
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Reset failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete Everything")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetConfirmation = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         SettingsSection(title = "Danger Zone", isDestructive = true) {
             SettingsItem(
                 icon = Icons.Default.DeleteForever,
                 title = "Reset Database",
-                subtitle = "Delete all data and start fresh",
+                subtitle = "Requires confirmation",
                 isDestructive = true,
-                onClick = {
-                    val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
-                    app.applicationScope.launch(Dispatchers.IO) {
-                        try {
-                            Log.d("SettingsScreen", "=== DATABASE RESET STARTED ===")
-                            
-                            // Step 1: Clear cached references FIRST
-                            AppDatabase.clearInstance()
-                            app.forceDatabaseReload()
-                            
-                            // Step 2: Delete database files (Room is no longer holding them)
-                            val dbFile = context.getDatabasePath("expense_tracker_db")
-                            dbFile.delete()
-                            context.getDatabasePath("expense_tracker_db-wal").delete()
-                            context.getDatabasePath("expense_tracker_db-shm").delete()
-                            
-                            Log.d("SettingsScreen", "Database files deleted")
-                            
-                            val newDb = app.database
-                            // Seeding happens automatically in AppDatabase.onCreate via DefaultCategories
-                            // We don't need to manually insert here.
-                            
-                            // DON'T manually insert - onCreate callback already seeds categories!
-                            // newDb.categoryDao().insertCategories(categoriesToSeed)
-                            val finalCount = newDb.categoryDao().getCount()
-                            
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "Database Reset. $finalCount categories seeded.", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                            
-                            Log.d("SettingsScreen", "=== DATABASE RESET COMPLETED ===")
-                        } catch (e: Exception) {
-                            Log.e("SettingsScreen", "Reset failed", e)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "Reset failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                }
+                onClick = { showResetConfirmation = true }
             )
         }
         

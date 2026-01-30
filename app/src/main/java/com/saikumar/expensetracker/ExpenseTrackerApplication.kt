@@ -52,11 +52,18 @@ class ExpenseTrackerApplication : Application() {
     
     val preferencesManager by lazy { PreferencesManager(this) }
 
-    val budgetManager by lazy { 
+    val budgetManager by lazy {
         com.saikumar.expensetracker.util.BudgetManager(
             database.transactionDao(),
             database.budgetBreachDao(),
             preferencesManager
+        )
+    }
+
+    val merchantBackupManager by lazy {
+        com.saikumar.expensetracker.util.MerchantMemoryBackupManager(
+            this,
+            database.merchantMemoryDao()
         )
     }
 
@@ -79,6 +86,16 @@ class ExpenseTrackerApplication : Application() {
             try {
                 database.query("SELECT 1", null).close()
                 Log.d("ExpenseTrackerApp", "Database pre-initialized successfully")
+
+                // Seed default categories (moved from ViewModel init for better performance)
+                repository.seedCategories()
+                Log.d("ExpenseTrackerApp", "Categories seeded")
+
+                // Restore merchant memory from backup if needed (handles destructive migration)
+                val restoredCount = merchantBackupManager.restoreMerchantMemoryIfNeeded()
+                if (restoredCount > 0) {
+                    Log.i("ExpenseTrackerApp", "Restored $restoredCount merchant memories from backup")
+                }
             } catch (e: Exception) {
                 Log.e("ExpenseTrackerApp", "Failed to pre-initialize database", e)
             }

@@ -30,15 +30,18 @@ import androidx.room.PrimaryKey
         )
     ],
     indices = [
-        Index(value = ["categoryId"]), 
-        Index(value = ["timestamp"]), 
+        Index(value = ["categoryId"]),
+        Index(value = ["timestamp"]),
         // CRITICAL FIX 2: UNIQUE constraint prevents duplicate SMS from creating duplicate transactions
         // Idempotency is enforced at the DB level - duplicate inserts are ignored
         Index(value = ["smsHash"], unique = true),
         Index(value = ["referenceNo"]),
         Index(value = ["amountPaisa", "timestamp"]), // P1 Performance: Composite index for fuzzy duplicate search
         Index(value = ["merchantName"]), // P1 Performance: For similar transaction lookup
-        Index(value = ["rawSmsId"]) // P1 Provenance: FK index
+        Index(value = ["rawSmsId"]), // P1 Provenance: FK index
+        Index(value = ["upiId"]), // Performance: For UPI-based similar transaction lookup
+        Index(value = ["status"]), // Performance: For filtering by transaction status
+        Index(value = ["transactionType"]) // Performance: For type-based filtering
     ]
 )
 data class Transaction(
@@ -106,7 +109,10 @@ data class Transaction(
     
     /** Last 4 digits of the bank account this transaction belongs to (from SMS) */
     val accountNumberLast4: String? = null,
-    
+
+    /** UPI Virtual Payment Address (VPA) of the counterparty (e.g., user@paytm) */
+    val upiId: String? = null,
+
     /** Timestamp when this transaction was soft-deleted (null if active) */
     val deletedAt: Long? = null,
     

@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,9 +45,10 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Spacer(modifier = Modifier.height(32.dp))
             
@@ -75,6 +78,64 @@ fun OnboardingScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
+                }
+            }
+            
+            // How it works
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn() + slideInVertically { 20 }
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                         Text(
+                             text = "🤖 Automatic Tracking", 
+                             style = MaterialTheme.typography.titleMedium,
+                             fontWeight = FontWeight.Bold,
+                             color = MaterialTheme.colorScheme.primary
+                         )
+                         Spacer(modifier = Modifier.height(8.dp))
+                         Text(
+                             text = "The app scans your SMS inbox to find bank and UPI transactions. No manual entry required!",
+                             style = MaterialTheme.typography.bodyMedium,
+                             color = MaterialTheme.colorScheme.onSurface
+                         )
+                    }
+                }
+            }
+
+            // Transfer Circle
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn() + slideInVertically { 30 }
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                         Text(
+                             text = "🔄 Transfer Circle", 
+                             style = MaterialTheme.typography.titleMedium,
+                             fontWeight = FontWeight.Bold,
+                             color = MaterialTheme.colorScheme.secondary
+                         )
+                         Spacer(modifier = Modifier.height(8.dp))
+                         Text(
+                             text = "Transfers between your own accounts and credit card bill payments are detected to prevent double counting.",
+                             style = MaterialTheme.typography.bodyMedium,
+                             color = MaterialTheme.colorScheme.onSurface
+                         )
+                    }
                 }
             }
             
@@ -124,6 +185,45 @@ fun OnboardingScreen(
                             title = "Needs Review",
                             subtitle = "Uncertain - please verify"
                         )
+                    }
+                }
+            }
+            
+            // Privacy & Security Info
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn() + slideInVertically { 50 }
+            ) {
+                 Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), // Add padding bottom for separation
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                         Row(verticalAlignment = Alignment.CenterVertically) {
+                             Icon(
+                                 imageVector = Icons.Default.Lock, 
+                                 contentDescription = null,
+                                 tint = MaterialTheme.colorScheme.primary,
+                                 modifier = Modifier.size(16.dp)
+                             )
+                             Spacer(modifier = Modifier.width(8.dp))
+                             Text(
+                                 text = "Privacy & Security",
+                                 style = MaterialTheme.typography.titleSmall,
+                                 fontWeight = FontWeight.Bold,
+                                 color = MaterialTheme.colorScheme.primary
+                             )
+                         }
+                         Spacer(modifier = Modifier.height(8.dp))
+                         Text(
+                             text = "• All transaction processing happens locally on your device.\n• App Lock is disabled by default. Enable it in Settings > Security for extra protection with PIN or Biometrics.",
+                             style = MaterialTheme.typography.bodySmall,
+                             color = MaterialTheme.colorScheme.onSurface,
+                             lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.2
+                         )
                     }
                 }
             }

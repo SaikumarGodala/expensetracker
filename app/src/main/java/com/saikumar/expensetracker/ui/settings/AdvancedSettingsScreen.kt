@@ -182,42 +182,6 @@ fun AdvancedSettingsScreen(
             }
 
 
-
-            // ML Mode Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("ML Inference", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Use Machine Learning for merchant extraction",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        }
-                        Switch(
-                            checked = viewModel.mlEnabled.collectAsState().value,
-                            onCheckedChange = { viewModel.setMlEnabled(it) }
-                        )
-                    }
-                    if (!viewModel.mlEnabled.collectAsState().value) {
-                         Text(
-                            "Currently using Regex (Rule-based) logic. Use this mode to gather training data.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                }
-            }
-
             // Salary Company Names Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -287,6 +251,130 @@ fun AdvancedSettingsScreen(
                     }
                 }
             }
+
+            // Category Preferences Backup Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Category Preferences Backup", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Your learned category preferences are automatically backed up when you edit transactions. This ensures they survive app updates.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+
+                    // Load backup info on screen composition
+                    LaunchedEffect(Unit) {
+                        viewModel.loadBackupInfo(context)
+                    }
+
+                    val backupInfo by viewModel.backupInfo.collectAsState()
+                    val scope = rememberCoroutineScope()
+
+                    // Display backup status
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            if (backupInfo != null) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Last Backup:",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        formatBackupDate(backupInfo!!.timestamp),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Preferences Saved:",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        "${backupInfo!!.count}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    "No backup found",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+
+                    // Manual backup button
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                viewModel.backupMerchantMemory(context)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Backup Now")
+                    }
+
+                    Text(
+                        "💡 Tip: Backups happen automatically when you edit transactions. Use this button for manual backups.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Format backup timestamp for display
+ */
+private fun formatBackupDate(timestamp: Long): String {
+    val instant = java.time.Instant.ofEpochMilli(timestamp)
+    val zonedDateTime = instant.atZone(java.time.ZoneId.systemDefault())
+
+    val now = java.time.LocalDateTime.now()
+    val backupDateTime = zonedDateTime.toLocalDateTime()
+
+    val daysDiff = java.time.temporal.ChronoUnit.DAYS.between(backupDateTime.toLocalDate(), now.toLocalDate())
+
+    return when {
+        daysDiff == 0L -> {
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("'Today at' HH:mm")
+            backupDateTime.format(formatter)
+        }
+        daysDiff == 1L -> {
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("'Yesterday at' HH:mm")
+            backupDateTime.format(formatter)
+        }
+        daysDiff < 7 -> {
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("EEEE 'at' HH:mm")
+            backupDateTime.format(formatter)
+        }
+        else -> {
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy")
+            backupDateTime.format(formatter)
         }
     }
 }

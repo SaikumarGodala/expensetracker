@@ -1,5 +1,6 @@
 package com.saikumar.expensetracker.ui.add
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,7 +28,9 @@ private const val MAX_AMOUNT_RUPEES = 10_00_00_000.0  // ₹10 crore max
 @Composable
 fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () -> Unit) {
     val categories by viewModel.categories.collectAsState()
-    
+    val saveResult by viewModel.saveResult.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var amount by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     var note by remember { mutableStateOf("") }
@@ -37,6 +40,24 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
     var amountError by remember { mutableStateOf<String?>(null) }
     var manualClassification by remember { mutableStateOf<String?>(null) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = timestamp)
+
+    // Handle save result
+    LaunchedEffect(saveResult) {
+        when (saveResult) {
+            is SaveResult.Success -> {
+                viewModel.resetSaveResult()
+                onNavigateBack()
+            }
+            is SaveResult.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = (saveResult as SaveResult.Error).message,
+                    duration = SnackbarDuration.Short
+                )
+                viewModel.resetSaveResult()
+            }
+            else -> {}
+        }
+    }
     
     // Validate amount input
     fun validateAmount(input: String): Pair<Long?, String?> {
@@ -57,10 +78,11 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
     }
     
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("New Transaction") },
-                navigationIcon = {97
+                navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
@@ -175,43 +197,56 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
                 modifier = Modifier.fillMaxWidth()
             )
             
-            // Manual Classification - allows user to override category-based type
-            Text(
-                text = "Classification (Optional):",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            var showAdvanced by remember { mutableStateOf(false) }
+
+            TextButton(
+                onClick = { showAdvanced = !showAdvanced },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                FilterChip(
-                    selected = manualClassification == "INCOME",
-                    onClick = { manualClassification = if (manualClassification == "INCOME") null else "INCOME" },
-                    label = { Text("Income", style = MaterialTheme.typography.labelSmall) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFFC8E6C9),
-                        selectedLabelColor = Color(0xFF2E7D32)
+                Text(if (showAdvanced) "Hide Advanced Options" else "Show Advanced Options")
+            }
+
+            AnimatedVisibility(visible = showAdvanced) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Manual Classification - allows user to override category-based type
+                    Text(
+                        text = "Classification (Optional):",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                )
-                FilterChip(
-                    selected = manualClassification == "EXPENSE",
-                    onClick = { manualClassification = if (manualClassification == "EXPENSE") null else "EXPENSE" },
-                    label = { Text("Expense", style = MaterialTheme.typography.labelSmall) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFFFFCDD2),
-                        selectedLabelColor = Color(0xFFC62828)
-                    )
-                )
-                FilterChip(
-                    selected = manualClassification == "NEUTRAL",
-                    onClick = { manualClassification = if (manualClassification == "NEUTRAL") null else "NEUTRAL" },
-                    label = { Text("Transfer", style = MaterialTheme.typography.labelSmall) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFFE1BEE7),
-                        selectedLabelColor = Color(0xFF6A1B9A)
-                    )
-                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = manualClassification == "INCOME",
+                            onClick = { manualClassification = if (manualClassification == "INCOME") null else "INCOME" },
+                            label = { Text("Income", style = MaterialTheme.typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFC8E6C9),
+                                selectedLabelColor = Color(0xFF2E7D32)
+                            )
+                        )
+                        FilterChip(
+                            selected = manualClassification == "EXPENSE",
+                            onClick = { manualClassification = if (manualClassification == "EXPENSE") null else "EXPENSE" },
+                            label = { Text("Expense", style = MaterialTheme.typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFFFCDD2),
+                                selectedLabelColor = Color(0xFFC62828)
+                            )
+                        )
+                        FilterChip(
+                            selected = manualClassification == "NEUTRAL",
+                            onClick = { manualClassification = if (manualClassification == "NEUTRAL") null else "NEUTRAL" },
+                            label = { Text("Transfer", style = MaterialTheme.typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFE1BEE7),
+                                selectedLabelColor = Color(0xFF6A1B9A)
+                            )
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -224,7 +259,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, onNavigateBack: () 
                     validatedPaisa?.let { paisa ->
                         selectedCategory?.let { category ->
                             viewModel.saveTransaction(paisa, category.id, timestamp, note, manualClassification)
-                            onNavigateBack()
+                            // Navigation handled by LaunchedEffect on SaveResult.Success
                         }
                     }
                 },

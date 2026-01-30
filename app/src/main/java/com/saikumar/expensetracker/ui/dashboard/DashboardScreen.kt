@@ -1,6 +1,7 @@
 package com.saikumar.expensetracker.ui.dashboard
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.clickable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,12 +20,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.filled.FilterList
 import com.saikumar.expensetracker.ui.theme.*
-import com.github.mikephil.charting.charts.PieChart
-import com.github.mikephil.charting.data.PieData
-import com.github.mikephil.charting.data.PieDataSet
-import com.github.mikephil.charting.data.PieEntry
+
 import com.saikumar.expensetracker.data.db.TransactionWithCategory
 import com.saikumar.expensetracker.data.entity.*
 import com.saikumar.expensetracker.util.CategoryIcons
@@ -51,7 +54,14 @@ private fun timestampToLocalDate(timestamp: Long): LocalDate {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, onCategoryClick: (CategoryType, Long, Long) -> Unit) {
+fun DashboardScreen(
+    viewModel: DashboardViewModel,
+    onNavigateToAdd: () -> Unit,
+    onCategoryClick: (CategoryType, Long, Long) -> Unit,
+    onNavigateToSearch: () -> Unit = {},
+    onScanInbox: () -> Unit = {},
+    onMenuClick: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var editingTransaction by remember { mutableStateOf<TransactionWithCategory?>(null) }
@@ -155,39 +165,30 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
         )
     }
 
-    val sortedTransactions = remember(uiState.transactions, sortOption) {
-        when (sortOption) {
-            com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC -> uiState.transactions.sortedByDescending { it.transaction.timestamp }
-            com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC -> uiState.transactions.sortedBy { it.transaction.timestamp }
-            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC -> uiState.transactions.sortedByDescending { it.transaction.amountPaisa }
-            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC -> uiState.transactions.sortedBy { it.transaction.amountPaisa }
+    // Use derivedStateOf for efficient sorting - only recomputes when inputs actually change
+    val sortedTransactions by remember(uiState.transactions, sortOption) {
+        derivedStateOf {
+            when (sortOption) {
+                com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC -> uiState.transactions.sortedByDescending { it.transaction.timestamp }
+                com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC -> uiState.transactions.sortedBy { it.transaction.timestamp }
+                com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC -> uiState.transactions.sortedByDescending { it.transaction.amountPaisa }
+                com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC -> uiState.transactions.sortedBy { it.transaction.amountPaisa }
+            }
         }
     }
     
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scanState by com.saikumar.expensetracker.util.ScanProgressManager.scanState.collectAsState()
     
+    // Only Add FAB, no Search
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+            FloatingActionButton(
+                onClick = onNavigateToAdd,
+                containerColor = MaterialTheme.colorScheme.primary
             ) {
-                // Search FAB (Left Edge)
-                FloatingActionButton(
-                    onClick = { showSearchDialog = true },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(Icons.Default.Search, contentDescription = "Search")
-                }
-                // Add Transaction FAB (Right Edge)
-                FloatingActionButton(
-                    onClick = onNavigateToAdd,
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
-                }
+                Icon(Icons.Default.Add, contentDescription = "Add")
             }
         }
     ) { padding ->
@@ -197,261 +198,432 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToAdd: () -> Unit, 
             if (scanState is com.saikumar.expensetracker.util.ScanState.Scanning) {
                 val scanning = scanState as com.saikumar.expensetracker.util.ScanState.Scanning
                 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(bottom = 8.dp)
-                        .zIndex(1f)
-                ) {
-                    LinearProgressIndicator(
-                        progress = scanning.progress,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = "Scanning SMS: ${scanning.current} / ${scanning.total}",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(top = 4.dp)
-                    )
                 }
+            // --- HEADER & FILTER ---
+            // Floating Top Bar with Actions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter) // Fix: Align to top
+                    .zIndex(1f) // Fix: Ensure it's on top of LazyColumn
+                    .background(MaterialTheme.colorScheme.background) // Fix: Opaque background
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                 // Left: Menu & Title
+                 Row(verticalAlignment = Alignment.CenterVertically) {
+                     IconButton(onClick = onMenuClick) {
+                         Icon(Icons.Filled.Menu, "Menu", tint = MaterialTheme.colorScheme.onSurface)
+                     }
+                 }
+                 
+                 // Right: Actions (Synced with Filter & Search)
+                 Row(verticalAlignment = Alignment.CenterVertically) {
+                     // Filter Icon (replaces big button)
+                     AccountFilterDropdown_IconOnly(
+                         accounts = uiState.detectedAccounts,
+                         selectedAccounts = uiState.selectedAccounts,
+                         onToggle = { viewModel.toggleAccountFilter(it) },
+                         onClearAll = { viewModel.clearAccountFilter() }
+                     )
+                     
+                     IconButton(onClick = onScanInbox) {
+                         Icon(Icons.Default.Sync, "Sync", tint = MaterialTheme.colorScheme.primary)
+                     }
+                     IconButton(onClick = onNavigateToSearch) {
+                         Icon(Icons.Default.Search, "Search", tint = MaterialTheme.colorScheme.primary)
+                     }
+                 }
             }
             
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(), 
-                contentPadding = PaddingValues(bottom = 80.dp, top = if (scanState is com.saikumar.expensetracker.util.ScanState.Scanning) 40.dp else 0.dp), // Adjust padding for progress bar
+                contentPadding = PaddingValues(bottom = 80.dp, top = 65.dp), // Reduced top padding
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+               
                 item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        if (searchQuery.isNotBlank()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+
+                        
+                        // Refined Month Selector
+                        Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.padding(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Results for \"$searchQuery\"",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear Search")
+                                IconButton(
+                                    onClick = { viewModel.previousCycle() },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.ChevronLeft, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                                }
+                                
+                                TextButton(onClick = { showDateRangePicker = true }) {
+                                    Icon(Icons.Default.CalendarMonth, null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        uiState.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMM yyyy")) ?: "...",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.nextCycle() },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
-                        } else {
-                            CycleSelector(uiState, onPrevious = { viewModel.previousCycle() }, onNext = { viewModel.nextCycle() }, onAdjust = { showDateRangePicker = true })
                         }
                         
-                        // Account Filter Dropdown
-                        AccountFilterDropdown(
-                            accounts = uiState.detectedAccounts,
-                            selectedAccounts = uiState.selectedAccounts,
-                            transactions = uiState.transactions,
-                            onToggle = { viewModel.toggleAccountFilter(it) },
-                            onClearAll = { viewModel.clearAccountFilter() }
-                        )
-                        
-                        HeroBalanceCard(uiState)
+                        // Hero Balance Card
+                        if (uiState.transactions.isNotEmpty()) {
+                            HeroBalanceCard(uiState)
+                        }
                     }
                 }
-                item { SummaryRowList(uiState) { type -> 
-                    uiState.cycleRange?.let { range ->
-                        val startMillis = range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val endMillis = range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        onCategoryClick(type, startMillis, endMillis)
-                    }
-                } }
-                // Removed spending breakdown chart - already have category breakdown in Overview
+
+                // Summary Chips
+                if (uiState.transactions.isNotEmpty()) {
+                    item { 
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SummaryRowList(uiState) { type ->
+                        uiState.cycleRange?.let { range ->
+                            val startMillis = range.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            val endMillis = range.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            onCategoryClick(type, startMillis, endMillis)
+                        }
+                    } }
+                }
                 
-                // STATEMENTS SECTION (Collapsible)
+                // --- RISKS & ACTIONS ---
+                
+                // STATEMENTS (Info - Collapsible)
                 if (uiState.statements.isNotEmpty()) {
                     item {
                         var statementsExpanded by remember { mutableStateOf(false) }
                         
-                        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                        ) {
+                            Column(modifier = Modifier.animateContentSize().padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable { statementsExpanded = !statementsExpanded },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Statements Available (${uiState.statements.size})", 
+                                            style = MaterialTheme.typography.labelLarge, 
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    Icon(
+                                        if (statementsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = "Expand",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                
+                                if (statementsExpanded) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                                    uiState.statements.forEach { stmt ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clickable { editingTransaction = stmt }.padding(vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                 Icon(Icons.AutoMirrored.Filled.ReceiptLong, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                 Spacer(modifier = Modifier.width(8.dp))
+                                                 Text("Credit Card Statement", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                            }
+                                            Text(formatAmount(stmt.transaction.amountPaisa), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // SYSTEM HYGIENE (Ignored Items)
+                if (uiState.ignoredCount > 0) {
+                     item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        ) {
                             Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "${uiState.ignoredCount} items hidden from view",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(onClick = { /* TODO: Navigate to Hidden Items Screen or Filter */ }) {
+                                    Text("Review")
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // EMPTY STATE or RECENT ACTIVITY
+                if (uiState.transactions.isEmpty()) {
+                    // Empty State Card
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 24.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { statementsExpanded = !statementsExpanded }
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Text(
-                                    "Statements (${uiState.statements.size})",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
                                 Icon(
-                                    if (statementsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                    contentDescription = if (statementsExpanded) "Collapse" else "Expand"
+                                    Icons.Default.Inbox,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                                 )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    "No Transactions Yet",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Get started by scanning your SMS inbox for bank and UPI transactions, or add transactions manually",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Info,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Supports major banks and UPI apps",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                // Prominent Scan Button
+                                Button(
+                                    onClick = onScanInbox,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Scan SMS Inbox", style = MaterialTheme.typography.labelLarge)
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedButton(
+                                    onClick = onNavigateToAdd,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Add Transaction Manually", style = MaterialTheme.typography.labelLarge)
+                                }
                             }
-                            
-                            if (statementsExpanded) {
-                                uiState.statements.forEach { stmt ->
-                                    TransactionItem(
-                                        item = stmt,
-                                        linkType = uiState.transactionLinks[stmt.transaction.id]?.type,
-                                        onClick = { editingTransaction = stmt }
+                        }
+                    }
+                } else {
+                    // TRANSACTIONS LIST (All transactions in cycle, grouped by date)
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Transactions (${uiState.transactions.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            // Sort toggle button
+                            Surface(
+                                onClick = {
+                                    sortOption = when (sortOption) {
+                                        com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC ->
+                                            com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC
+                                        com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC ->
+                                            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC
+                                        com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC ->
+                                            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC
+                                        com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC ->
+                                            com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC
+                                    }
+                                },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        when (sortOption) {
+                                            com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC,
+                                            com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC -> Icons.Default.CalendarMonth
+                                            else -> Icons.Default.AttachMoney
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        when (sortOption) {
+                                            com.saikumar.expensetracker.ui.components.SortOption.DATE_ASC,
+                                            com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC -> Icons.Default.ArrowUpward
+                                            else -> Icons.Default.ArrowDownward
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                 }
                             }
                         }
                     }
-                }
-                
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Transactions",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        com.saikumar.expensetracker.ui.components.TransactionSortSelector(
-                            currentSort = sortOption,
-                            onSortChange = { sortOption = it }
-                        )
-                    }
-                }
 
-
-                if (sortOption == com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_DESC || 
-                    sortOption == com.saikumar.expensetracker.ui.components.SortOption.AMOUNT_ASC) {
-                    // Flat list for Amount sort
-                    items(sortedTransactions, key = { it.transaction.id }) { transaction ->
-                        val linkDetail = uiState.transactionLinks[transaction.transaction.id]
-                        TransactionItem(
-                            transaction, 
-                            linkType = linkDetail?.type, 
-                            onClick = { editingTransaction = transaction },
-                            modifier = Modifier.animateItemPlacement()
-                        )
+                    // Group transactions by date
+                    val transactionsByDate = sortedTransactions.groupBy {
+                        timestampToLocalDate(it.transaction.timestamp)
                     }
-                } else {
-                    // Grouped list for Date sort
-                    val groupedTransactions = sortedTransactions.groupBy { timestampToLocalDate(it.transaction.timestamp) }
-                    groupedTransactions.forEach { (date, transactions) ->
-                        stickyHeader { DateHeader(date) }
-                        items(transactions, key = { it.transaction.id }) { transaction ->
+
+                    // Render grouped transactions with date headers
+                    transactionsByDate.forEach { (date, transactionsForDate) ->
+                        item(key = "header_$date") {
+                            // Date Header
+                            Text(
+                                text = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        items(transactionsForDate, key = { it.transaction.id }) { transaction ->
                             val linkDetail = uiState.transactionLinks[transaction.transaction.id]
                             TransactionItem(
-                                transaction, 
-                                linkType = linkDetail?.type, 
+                                transaction,
+                                linkType = linkDetail?.type,
                                 onClick = { editingTransaction = transaction },
-                                modifier = Modifier.animateItemPlacement()
+                                modifier = Modifier.animateItem()
                             )
                         }
                     }
                 }
-                
-
             }
-            
-
         }
     }
 }
 
-@Composable
-fun CycleSelector(state: DashboardUiState, onPrevious: () -> Unit, onNext: () -> Unit, onAdjust: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = MaterialTheme.colorScheme.onBackground) }
-        Text(
-            text = state.cycleRange?.endDate?.format(DateTimeFormatter.ofPattern("MMMM yyyy")) ?: "...", 
-            modifier = Modifier.clickable { onAdjust() }, 
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        IconButton(onClick = onNext) { Icon(Icons.Default.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onBackground) }
-    }
-}
+// ... CycleSelector removed in favor of integrated header ...
 
 @Composable
 fun HeroBalanceCard(state: DashboardUiState) {
     var showBreakdown by remember { mutableStateOf(false) }
     
-    Column {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { showBreakdown = !showBreakdown }
-        ) {
-            Text(
-                "Remaining Money", 
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                if (showBreakdown) Icons.Default.KeyboardArrowUp else Icons.Default.Info,
-                contentDescription = if (showBreakdown) "Hide breakdown" else "Show breakdown",
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-        }
+    // Determine Color and Context
+    val balanceColor = if (state.extraMoney >= 0) IncomeGreen else ExpenseRed
+    
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(
+            "Remaining Money", 
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
         Text(
             "₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", 
-            style = MaterialTheme.typography.displayMedium, 
+            style = MaterialTheme.typography.displayLarge, // Bigger
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
-        
-        // Expandable breakdown
-        if (showBreakdown) {
-            Spacer(modifier = Modifier.height(8.dp))
+        // Context Line (Larger now)
+        Text(
+            state.balanceContext,
+            style = MaterialTheme.typography.bodyLarge, // Increased size
+            color = if (state.extraMoney < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        // Cycle Date Range
+        if (state.cycleRange != null) {
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth()
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                modifier = Modifier.padding(top = 8.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    BreakdownRow("Income", state.totalIncome, IncomeGreen, isAddition = true)
-                    BreakdownRow("Fixed Expenses", state.totalFixedExpenses, ExpenseRed, isAddition = false)
-                    BreakdownRow("Variable Expenses", state.totalVariableExpenses, PendingOrange, isAddition = false)
-                    BreakdownRow("Investments", state.totalInvestments, TransferBlue, isAddition = false)
-                    BreakdownRow("Vehicle", state.totalVehicleExpenses, VehiclePurple, isAddition = false)
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Remaining", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}",
-                            fontWeight = FontWeight.Bold,
-                            color = if (state.extraMoney >= 0) IncomeGreen else ExpenseRed
-                        )
-                    }
-                }
+                Text(
+                    "${state.cycleRange.startDate.format(DateTimeFormatter.ofPattern("d MMM"))} - ${state.cycleRange.endDate.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun BreakdownRow(label: String, amount: Double, color: Color, isAddition: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            "${if (isAddition) "+" else "−"} $label",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            "₹${String.format(Locale.getDefault(), "%,.0f", amount)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = color
-        )
     }
 }
 
@@ -481,51 +653,37 @@ fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -> Unit
 }
 
 @Composable
-fun DateHeader(date: LocalDate) {
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(
-            date.format(DateTimeFormatter.ofPattern("EEEE, dd MMM")), 
-            style = MaterialTheme.typography.titleSmall, 
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
-}
-
-@Composable
-fun AccountFilterDropdown(
+fun AccountFilterDropdown_IconOnly(
     accounts: List<com.saikumar.expensetracker.data.entity.UserAccount>,
     selectedAccounts: Set<String>,
-    transactions: List<TransactionWithCategory> = emptyList(),
     onToggle: (String) -> Unit,
     onClearAll: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     
-    Box(modifier = Modifier.padding(bottom = 8.dp)) {
-        OutlinedButton(
-            onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.FilterList, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                if (selectedAccounts.isEmpty()) "Filter Accounts" 
-                else "${selectedAccounts.size} Account(s) Selected"
-            )
+    Box {
+        IconButton(onClick = { expanded = true }) {
+             val icon = if (selectedAccounts.isNotEmpty()) Icons.Filled.FilterList else Icons.Outlined.FilterList
+             val tint = if (selectedAccounts.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+             Icon(icon, contentDescription = "Filter Accounts", tint = tint)
         }
         
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth(0.9f)
+            onDismissRequest = { expanded = false }
         ) {
-            if (accounts.isEmpty()) {
+             if (accounts.isEmpty()) {
                 DropdownMenuItem(
                     text = { Text("No accounts detected yet", style = MaterialTheme.typography.bodySmall) },
                     onClick = { }
                 )
             } else {
+                 DropdownMenuItem(
+                    text = { Text(if (selectedAccounts.isEmpty()) "Filter Accounts" else "${selectedAccounts.size} Selected", fontWeight = FontWeight.Bold) },
+                    onClick = { }
+                )
+                HorizontalDivider()
+                
                 if (selectedAccounts.isNotEmpty()) {
                     DropdownMenuItem(
                         text = {
@@ -540,17 +698,11 @@ fun AccountFilterDropdown(
                             expanded = false
                         }
                     )
-                    HorizontalDivider()
                 }
                 
                 accounts.forEach { account ->
                     val typeLabel = if (account.accountType == com.saikumar.expensetracker.data.entity.AccountType.CREDIT_CARD) "CC" else "A/c"
-                    // Count transactions for this account
-                    val txnCount = transactions.count { txn ->
-                        txn.transaction.fullSmsBody?.contains(account.accountNumberLast4) == true ||
-                        txn.transaction.accountNumberLast4 == account.accountNumberLast4
-                    }
-                    val label = "${account.bankName} $typeLabel XX${account.accountNumberLast4} ($txnCount)"
+                    val label = "${account.bankName} $typeLabel XX${account.accountNumberLast4}"
                     
                     DropdownMenuItem(
                         text = {
@@ -566,57 +718,6 @@ fun AccountFilterDropdown(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun DashboardChart(state: DashboardUiState) {
-    val total = state.totalFixedExpenses + state.totalVariableExpenses + state.totalVehicleExpenses + state.totalInvestments
-    if (total <= 0) return
-    
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Spending Breakdown", style = MaterialTheme.typography.titleSmall)
-            Spacer(modifier = Modifier.height(8.dp))
-            AndroidView(
-                factory = { context ->
-                    PieChart(context).apply { 
-                        description.isEnabled = false
-                        legend.isEnabled = true
-                        setUsePercentValues(true)
-                        holeRadius = 40f
-                        transparentCircleRadius = 45f
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(220.dp),
-                update = { chart ->
-                    val entries = mutableListOf<PieEntry>()
-                    if (state.totalFixedExpenses > 0) entries.add(PieEntry(state.totalFixedExpenses.toFloat(), "Fixed"))
-                    if (state.totalVariableExpenses > 0) entries.add(PieEntry(state.totalVariableExpenses.toFloat(), "Variable"))
-                    if (state.totalVehicleExpenses > 0) entries.add(PieEntry(state.totalVehicleExpenses.toFloat(), "Vehicle"))
-                    if (state.totalInvestments > 0) entries.add(PieEntry(state.totalInvestments.toFloat(), "Invest"))
-                    
-                    val dataSet = PieDataSet(entries, "").apply { 
-                        colors = listOf(
-                            ExpenseRed.toArgb(),      // Fixed - Red
-                            PendingOrange.toArgb(),   // Variable - Orange
-                            VehiclePurple.toArgb(),   // Vehicle - Purple
-                            TransferBlue.toArgb()     // Investment - Blue
-                        )
-                        setDrawValues(true)
-                        valueTextSize = 12f
-                        valueTextColor = android.graphics.Color.WHITE
-                    }
-                    chart.data = PieData(dataSet)
-                    chart.invalidate()
-                }
-            )
         }
     }
 }
@@ -690,8 +791,8 @@ fun TransactionItem(
         isIgnored -> Icons.Default.VisibilityOff
         isPending -> Icons.Default.Schedule
         needsReview -> Icons.Default.Warning // Warning icon for needs review
-        isStatement -> Icons.Default.ReceiptLong
-        isInvestment -> Icons.Default.TrendingUp
+        isStatement -> Icons.AutoMirrored.Filled.ReceiptLong
+        isInvestment -> Icons.AutoMirrored.Filled.TrendingUp
         isTransfer -> Icons.Default.SwapHoriz
         isLiabilityPayment -> Icons.Default.CreditCard
         isRefund -> Icons.Default.Refresh
@@ -750,7 +851,7 @@ fun TransactionItem(
                     color = contentColor
                 )
                 Text(
-                    item.transaction.merchantName ?: item.transaction.note ?: item.category.name, 
+                    item.transaction.merchantName ?: item.transaction.upiId ?: item.transaction.note ?: item.category.name,
                     style = MaterialTheme.typography.bodySmall,
                     color = subtitleColor,
                     maxLines = 1

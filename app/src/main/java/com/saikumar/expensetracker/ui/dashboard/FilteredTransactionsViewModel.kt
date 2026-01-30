@@ -62,7 +62,17 @@ class FilteredTransactionsViewModel(
                 }
             }
             
-            if (categoryName != null) {
+            if (categoryName == "Needs Review") {
+                 list.filter { 
+                     val name = it.category.name
+                     it.transaction.status == TransactionStatus.COMPLETED && (
+                         name.equals("Uncategorized", ignoreCase = true) || 
+                         name.equals("Unknown Expense", ignoreCase = true) ||
+                         name.equals("Spam", ignoreCase = true) ||
+                         name.equals("Miscellaneous", ignoreCase = true)
+                     )
+                 }.sortedByDescending { it.transaction.timestamp }
+            } else if (categoryName != null) {
                  baseFiltered.filter { it.category.name == categoryName }
                      .sortedByDescending { it.transaction.timestamp }
             } else {
@@ -123,6 +133,10 @@ class FilteredTransactionsViewModel(
                     transactionType = newTransactionType.name,
                     timestamp = System.currentTimeMillis()
                 )
+
+                // Backup merchant memory after user confirmation (preserves across app updates)
+                val app = com.saikumar.expensetracker.ExpenseTrackerApplication.instance
+                app.merchantBackupManager.backupMerchantMemory()
             }
             
             // Log override for debug analysis

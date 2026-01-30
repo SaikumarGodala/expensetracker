@@ -16,7 +16,6 @@ import com.saikumar.expensetracker.util.PreferencesManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import java.time.*
 import java.time.format.DateTimeFormatter
 
@@ -44,7 +43,8 @@ data class DashboardUiState(
     // Account filter
     val detectedAccounts: List<UserAccount> = emptyList(),
     val selectedAccounts: Set<String> = emptySet(),
-
+    val balanceContext: String = "",
+    val ignoredCount: Int = 0
 )
 
 data class Quadruple<A, B, C, D>(
@@ -54,6 +54,14 @@ data class Quadruple<A, B, C, D>(
     val fourth: D
 )
 
+data class Quintuple<A, B, C, D, E>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E
+)
+
 class DashboardViewModel(
     private val repository: ExpenseRepository,
     private val preferencesManager: PreferencesManager,
@@ -61,11 +69,7 @@ class DashboardViewModel(
     private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
 ) : ViewModel() {
 
-    init {
-        viewModelScope.launch {
-            repository.seedCategories()
-        }
-    }
+    // Note: Category seeding moved to ExpenseTrackerApplication.onCreate() for better performance
 
     val snackbarController = SnackbarController()
 
@@ -111,26 +115,87 @@ class DashboardViewModel(
         _searchQuery.value = query
     }
 
+    // Cache for salary day detection to avoid repeated DB queries
+    private var cachedSalaryDay: Int? = null
+    private var cachedSalaryDayMonth: String? = null
+
+    /**
+     * Detect salary day from actual salary transactions.
+     * Returns the day of month if salary found, otherwise 0 (use last working day).
+     * Performance: Cached per month to avoid repeated DB queries.
+     */
+    private suspend fun detectSalaryDay(): Int {
+        // Check if we have a cached value for current month
+        val currentMonth = LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
+        if (cachedSalaryDay != null && cachedSalaryDayMonth == currentMonth) {
+            return cachedSalaryDay!!
+        }
+
+        try {
+            val categories = repository.allEnabledCategories.first()
+            val salaryCategory = categories.find { it.name == "Salary" } ?: return 0
+
+            // Look back 4 months to find salary transactions
+            val now = LocalDate.now()
+            val fourMonthsAgo = now.minusMonths(4)
+            val startTs = fourMonthsAgo.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val endTs = now.atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+            // Query salary transactions
+            val salaryAmount = repository.transactionDao.getSalaryForPeriod(startTs, endTs)
+
+            // If salary exists, get the most recent salary transaction to extract the day
+            if (salaryAmount != null && salaryAmount > 0) {
+                val transactions = repository.transactionDao.getTransactionsByCategoryId(salaryCategory.id)
+                val recentSalary = transactions
+                    .filter { it.timestamp >= startTs }
+                    .maxByOrNull { it.timestamp }
+
+                if (recentSalary != null) {
+                    val salaryDate = Instant.ofEpochMilli(recentSalary.timestamp)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDate()
+                    val detectedDay = salaryDate.dayOfMonth
+
+                    // Cache the result for this month
+                    cachedSalaryDay = detectedDay
+                    cachedSalaryDayMonth = currentMonth
+                    return detectedDay
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DashboardViewModel", "Failed to detect salary day: ${e.message}")
+        }
+
+        // Cache fallback value too
+        cachedSalaryDay = 0
+        cachedSalaryDayMonth = currentMonth
+        return 0 // Fallback to last working day
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<DashboardUiState> = combine(
-        combine(
-            _referenceDate,
-            repository.allEnabledCategories,
-            _searchQuery,
-            preferencesManager.salaryDay
-        ) { refDate, categories, query, salaryDay ->
-            Quadruple(refDate, categories, query, salaryDay)
-        },
+        _referenceDate,
+        repository.allEnabledCategories,
+        _searchQuery,
         selectedAccounts,
         detectedAccounts,
-    ) { quad, selectedAccts, accounts ->
-        FilterParams(
-            CycleUtils.getCurrentCycleRange(quad.first),
-            quad.second,
-            quad.third,
-            selectedAccts,
-            accounts
-        )
+    ) { refDate, categories, query, selectedAccts, accounts ->
+        Quintuple(refDate, categories, query, selectedAccts, accounts)
+    }
+    .flatMapLatest { params ->
+        flow {
+            // Detect salary day dynamically from actual transactions
+            val salaryDay = detectSalaryDay()
+
+            emit(FilterParams(
+                CycleUtils.getCurrentCycleRange(params.first, salaryDay),
+                params.second,
+                params.third,
+                params.fourth,
+                params.fifth
+            ))
+        }
     }
     .flatMapLatest { params ->
         val refDate = LocalDate.now().withMonth(params.range.startDate.monthValue)
@@ -158,41 +223,48 @@ class DashboardViewModel(
         
         combine(
             transactionsFlow,
-            repository.allTransactionLinks
-        ) { transactions, links ->
+            repository.getTransactionLinksInPeriod(startTimestamp, endTimestamp),
+            repository.getStatementsInPeriod(startTimestamp, endTimestamp)
+        ) { transactions, links, statements ->
                 val sortedTransactions = transactions.sortedByDescending { it.transaction.timestamp }
-                
+
                 // Build map of linked transaction IDs to their Details
                 val linkMap = links
                     .flatMap { l -> listOf(
-                        l.primaryTxnId to LinkDetail(l.secondaryTxnId, l.linkType), 
+                        l.primaryTxnId to LinkDetail(l.secondaryTxnId, l.linkType),
                         l.secondaryTxnId to LinkDetail(l.primaryTxnId, l.linkType)
                     )}
                     .toMap()
-                
-                // Separate Statements
-                val (statements, otherTransactions) = sortedTransactions.partition { 
-                    it.transaction.transactionType == TransactionType.STATEMENT 
-                }
+
+                // Statements are now fetched separately via dedicated query
+                val otherTransactions = sortedTransactions
                 
                 // Filter by selected accounts
                 val accountFilteredTransactions = if (params.selectedAccounts.isEmpty()) {
                     otherTransactions
                 } else {
+                    // Performance: Check indexed accountNumberLast4 field first before falling back to fullSmsBody search
                     otherTransactions.filter { txn ->
-                        val smsBody = txn.transaction.fullSmsBody ?: ""
-                        params.selectedAccounts.any { last4 -> smsBody.contains(last4) }
+                        val accountLast4 = txn.transaction.accountNumberLast4
+                        if (accountLast4 != null) {
+                            // Fast path: Direct field comparison
+                            params.selectedAccounts.contains(accountLast4)
+                        } else {
+                            // Fallback: String search in SMS body for transactions without extracted account number
+                            val smsBody = txn.transaction.fullSmsBody ?: ""
+                            params.selectedAccounts.any { last4 -> smsBody.contains(last4) }
+                        }
                     }
                 }
 
                 // Filter for active/completed transactions only
-                val activeTransactions = accountFilteredTransactions.filter { 
+                // Note: STATEMENT transactions are already filtered by query
+                val activeTransactions = accountFilteredTransactions.filter {
                     it.transaction.status == TransactionStatus.COMPLETED &&
                     it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT &&
                     it.transaction.transactionType != TransactionType.TRANSFER &&
                     it.transaction.transactionType != TransactionType.PENDING &&
-                    it.transaction.transactionType != TransactionType.IGNORE &&
-                    it.transaction.transactionType != TransactionType.STATEMENT
+                    it.transaction.transactionType != TransactionType.IGNORE
                 }
                 
                 // Calculate Total Income (Excluding P2P Transfers)
@@ -236,7 +308,20 @@ class DashboardViewModel(
                 val totalExpenses = (fixed + variable) - refundAmount
 
                 val filteredTransactions = accountFilteredTransactions
-                
+                // Count ignored transactions from pre-filtered list (before type exclusions)
+                val ignoredCount = accountFilteredTransactions.count { it.transaction.transactionType == TransactionType.IGNORE }
+                // Calculate Context for Hero Card
+                val balanceContext = when {
+                    income - (totalExpenses + vehicle + investment) < 0 -> {
+                        when {
+                            investment > income * 0.5 -> "High investment month"
+                            variable > income * 0.4 -> "High variable spending"
+                            else -> "Expenses exceed income"
+                        }
+                    }
+                    else -> "On track for savings"
+                }
+
                 DashboardUiState(
                     cycleRange = if (params.query.isNotBlank()) null else params.range,
                     categories = params.categories,
@@ -251,7 +336,9 @@ class DashboardViewModel(
                     statements = statements,
                     transactionLinks = linkMap,
                     detectedAccounts = params.accounts,
-                    selectedAccounts = params.selectedAccounts
+                    selectedAccounts = params.selectedAccounts,
+                    balanceContext = balanceContext,
+                    ignoredCount = ignoredCount
                 )
         }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
@@ -322,13 +409,17 @@ class DashboardViewModel(
                     timestamp = System.currentTimeMillis()
                 )
                 android.util.Log.d("DashboardViewModel", "MERCHANT_MEMORY: User confirmed mapping '$trainingKey' → '${newCategory.name}'")
-                
+
+                // Backup merchant memory after user confirmation (preserves across app updates)
+                val app = preferencesManager.context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                app.merchantBackupManager.backupMerchantMemory()
+
                 // --- ML TRAINING LOGGING (GOLD LABEL) ---
                 if (!transaction.fullSmsBody.isNullOrBlank()) {
                     com.saikumar.expensetracker.util.TrainingDataLogger.logSample(
                         context = preferencesManager.context, // Use context from PrefManager
                         smsBody = transaction.fullSmsBody,
-                        merchantName = transaction.merchantName, 
+                        merchantName = transaction.merchantName,
                         confidence = 1.0f, // GOLD Label (User confirmed)
                         isUserCorrection = true
                     )
@@ -373,6 +464,11 @@ class DashboardViewModel(
         viewModelScope.launch {
             try {
                 SmsProcessor.reclassifyTransactions(context)
+
+                // Backup merchant memory after reclassification (preserves learned patterns)
+                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                app.merchantBackupManager.backupMerchantMemory()
+
                 snackbarController.showSuccess("Reclassification complete")
             } catch (e: Exception) {
                 android.util.Log.e("DashboardViewModel", "Reclassify failed", e)

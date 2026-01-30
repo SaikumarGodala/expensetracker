@@ -57,57 +57,7 @@ object SmsConstants {
         "towards rd",
         "credit to rd"
     )
-    
-    /**
-     * Data class to hold invariant check inputs for transaction type resolution.
-     */
-    data class InvariantContext(
-        val isDebit: Boolean?,
-        val category: String,
-        val upiId: String?,
-        val counterpartyType: String, // "PERSON", "MERCHANT", "UNKNOWN"
-        val isUntrustedP2P: Boolean = false
-    )
-    
-    /**
-     * Apply transaction type invariants.
-     * 
-     * Invariants:
-     * 1. Credit transactions cannot be expenses -> convert to INCOME
-     * 2. Cashback VPA patterns + credit -> CASHBACK
-     * 3. P2P/Person entities (trusted) must be TRANSFER
-     * 
-     * @param currentType The current transaction type
-     * @param ctx Context containing all fields needed for invariant checks
-     * @return The corrected transaction type after applying invariants
-     */
-    @Deprecated("Use TransactionRuleEngine.resolveTransactionType instead")
-
-    
-    
-    fun mapInitialTransactionType(
-        parsedType: com.saikumar.expensetracker.data.entity.TransactionType,
-        category: String,
-        isUntrustedP2P: Boolean
-    ): com.saikumar.expensetracker.data.entity.TransactionType {
-        if (isUntrustedP2P) {
-            return com.saikumar.expensetracker.data.entity.TransactionType.EXPENSE
-        }
         
-        return when {
-            parsedType == com.saikumar.expensetracker.data.entity.TransactionType.STATEMENT -> 
-                com.saikumar.expensetracker.data.entity.TransactionType.STATEMENT
-            category == AppConstants.Categories.CREDIT_BILL_PAYMENTS -> 
-                com.saikumar.expensetracker.data.entity.TransactionType.LIABILITY_PAYMENT
-            category == AppConstants.Categories.CASHBACK || category == AppConstants.Keywords.CASHBACK_REWARDS -> 
-                com.saikumar.expensetracker.data.entity.TransactionType.CASHBACK
-            category == AppConstants.Categories.RECURRING_DEPOSITS ->
-                com.saikumar.expensetracker.data.entity.TransactionType.INVESTMENT_OUTFLOW
-            else -> parsedType // Pass through as-is
-        }
-    }
-    
-    
     data class NormalizedMerchant(
         val raw: String?,
         val normalized: String?,

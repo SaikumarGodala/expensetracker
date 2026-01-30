@@ -7,7 +7,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -15,6 +14,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,11 +27,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.saikumar.expensetracker.data.db.CategorySpending
+import com.saikumar.expensetracker.data.db.MonthlySpending
+import com.saikumar.expensetracker.data.db.YearlySpending
 import com.saikumar.expensetracker.data.entity.Category
 import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import com.saikumar.expensetracker.ui.components.BarChart
 import com.saikumar.expensetracker.ui.components.LineChart
 import com.saikumar.expensetracker.ui.components.PieChart
+import com.saikumar.expensetracker.ui.components.getCategoryColor
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -39,7 +43,6 @@ import java.util.Locale
 @Composable
 fun AnalyticsScreen(
     repository: ExpenseRepository,
-    onNavigateBack: () -> Unit,
     onCategoryClick: (Category, Long, Long) -> Unit
 ) {
     val viewModel: AnalyticsViewModel = viewModel(
@@ -49,17 +52,22 @@ fun AnalyticsScreen(
     
     // Calculate Summary Metrics
     val totalSpend = state.categorySpending.sumOf { it.totalAmount }
-    
-    // Calculate actual number of months for averaging
+
+    // Calculate actual number of months with data
     val currentYear = java.time.LocalDate.now().year
     val currentMonth = java.time.LocalDate.now().monthValue
-    val monthsForAverage = when {
-        state.selectedYear < currentYear -> 12 // Past year: full 12 months
-        state.selectedYear == currentYear -> currentMonth // Current year: months elapsed
-        else -> 0 // Future year: no data yet
+    val monthsWithData = state.monthlyTrends.count { it.totalAmount > 0 }
+    val monthsElapsed = when {
+        state.selectedYear < currentYear -> 12
+        state.selectedYear == currentYear -> currentMonth
+        else -> 0
     }
-    val avgMonthlySpend = if (monthsForAverage > 0 && totalSpend > 0) totalSpend / monthsForAverage else 0L
-    
+
+    // Use actual months with data for more accurate average
+    val avgMonthlySpend = if (monthsWithData > 0 && totalSpend > 0) {
+        totalSpend / monthsWithData
+    } else 0L
+
     val topCategory = state.categorySpending.maxByOrNull { it.totalAmount }
 
     Scaffold(
@@ -67,11 +75,6 @@ fun AnalyticsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Financial Insights", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
@@ -85,64 +88,142 @@ fun AnalyticsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // YEAR SELECTOR
-            YearSelector(
-                selectedYear = state.selectedYear,
-                onPrevious = { viewModel.setYear(state.selectedYear - 1) },
-                onNext = { viewModel.setYear(state.selectedYear + 1) }
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
+            // YEAR SELECTOR (Conditional)
+            // Always show in Overview mode, only show in Trends mode if there's multi-year data
+            val shouldShowYearSelector = state.viewMode == AnalyticsViewMode.OVERVIEW ||
+                                        (state.viewMode == AnalyticsViewMode.TRENDS && state.yearlySpending.size > 1)
 
-            // SUMMARY CARDS
+            if (shouldShowYearSelector) {
+                YearSelector(
+                    selectedYear = state.selectedYear,
+                    onPrevious = { viewModel.setYear(state.selectedYear - 1) },
+                    onNext = { viewModel.setYear(state.selectedYear + 1) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                // Add minimal top spacing when year selector is hidden
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // SUMMARY & HERO
             if (!state.isLoading) {
-                var showMaxMonth by remember { mutableStateOf(false) }
-                val maxMonthEntry = state.monthlyTrends.maxByOrNull { it.totalAmount }
-                
+                // Growth calculation
+                val growthPercent = if (state.previousYearTotal > 0) {
+                    ((totalSpend - state.previousYearTotal).toDouble() / state.previousYearTotal.toDouble()) * 100
+                } else null
+
+                // Hero Card (Total Spent)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Total Spent in ${state.selectedYear}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = formatCurrency(totalSpend),
+                            style = MaterialTheme.typography.displayMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        
+                        if (growthPercent != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val icon = if (growthPercent >= 0) "↑" else "↓"
+                                    val color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    Text(
+                                        text = "$icon ${"%.1f".format(kotlin.math.abs(growthPercent))}% vs last year",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = color
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Secondary Stats Row (Avg + Highest)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SummaryStatCard(
-                        title = "Total Spent",
-                        value = formatCurrency(totalSpend),
-                        icon = Icons.Default.ShoppingCart,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
+                    // Highest Month Logic
+                    val maxMonthEntry = state.monthlyTrends.maxByOrNull { it.totalAmount }
+                    val maxMonthName = if (maxMonthEntry != null) {
+                        val m = java.time.YearMonth.parse(maxMonthEntry.month)
+                        m.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)
+                    } else "-"
+                    
+                    SecondaryStatCard(
+                        label = "Highest Month",
+                        value = if (maxMonthEntry != null) formatCurrencyCompact(maxMonthEntry.totalAmount) else "-",
+                        subtitle = maxMonthName,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.secondary
                     )
                     
-                    val avgTitle = if (showMaxMonth) "Highest Month" else "Monthly Avg"
-                    val avgValue = if (showMaxMonth && maxMonthEntry != null) {
-                         formatCurrency(maxMonthEntry.totalAmount)
-                    } else {
-                         formatCurrency(avgMonthlySpend)
+                    // Avg Logic - show meaningful info based on data availability
+                    val avgLabel = when {
+                        monthsWithData == 0 -> "Monthly Avg"
+                        monthsWithData == 1 -> "Total (1 month)"
+                        else -> "Monthly Avg"
                     }
-                    val avgSubtitle = if (showMaxMonth && maxMonthEntry != null) {
-                         // Format 2024-05 -> May
-                         val m = java.time.YearMonth.parse(maxMonthEntry.month)
-                         m.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)
-                    } else null
-                    
-                    SummaryStatCard(
-                        title = avgTitle,
-                        value = avgValue,
-                        subtitle = avgSubtitle,
-                        icon = Icons.Default.DateRange,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { showMaxMonth = !showMaxMonth },
-                        showToggleIcon = true
+                    val displayAvg = if (monthsWithData == 0) "-" else formatCurrencyCompact(avgMonthlySpend)
+                    val subtitle = when {
+                        monthsWithData == 0 -> null
+                        monthsWithData == 1 -> null
+                        else -> "$monthsWithData months"
+                    }
+
+                    SecondaryStatCard(
+                        label = avgLabel,
+                        value = displayAvg,
+                        subtitle = subtitle,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.tertiary
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                if (topCategory != null) {
-                    val topCategoryObj = state.allCategories.find { it.name == topCategory.categoryName }
-                    Card(
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Smart Insight Card (Actionable)
+                // Smart Insight Card (Actionable)
+                // Smart Insight Card (Actionable)
+                 if (state.viewMode == AnalyticsViewMode.OVERVIEW && topCategory != null && totalSpend > 0) {
+                     val topCategoryObj = state.allCategories.find { it.name == topCategory.categoryName }
+                     val percent = (topCategory.totalAmount.toDouble() / totalSpend.toDouble()) * 100
+                     
+                     // Detect if the top category is "bad" (needs action)
+                     val isNeedsAttention = topCategory.categoryName.lowercase(Locale.ROOT) in listOf("uncategorized", "miscellaneous", "general", "other")
+                     val cardColor = if (isNeedsAttention) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                     val contentColor = if (isNeedsAttention) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
+                     val icon = if (isNeedsAttention) Icons.Default.Warning else Icons.Default.Star
+                     val iconTint = if (isNeedsAttention) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                     
+                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
@@ -153,51 +234,58 @@ fun AnalyticsScreen(
                                     onCategoryClick(topCategoryObj, start, end)
                                 }
                             },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        )
+                        colors = CardDefaults.cardColors(containerColor = cardColor)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Star, 
-                                contentDescription = null, 
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text(
-                                    "Top Spending Category", 
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    topCategory.categoryName, 
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(iconTint.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(icon, contentDescription = null, tint = iconTint)
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        if (isNeedsAttention) "Needs Attention" else "Insight",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = iconTint
+                                    )
+                                    Text(
+                                        "${topCategory.categoryName} is %.1f%% of your spending".format(percent),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = contentColor
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.weight(1f))
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    formatCurrency(topCategory.totalAmount),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    "Tap to view",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
-                                )
+                            
+                            if (isNeedsAttention) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { 
+                                         if (topCategoryObj != null) {
+                                            val start = java.time.LocalDate.of(state.selectedYear, 1, 1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                            val end = java.time.LocalDate.of(state.selectedYear, 12, 31).atTime(23, 59, 59).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                            onCategoryClick(topCategoryObj, start, end)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Analyze & Categorize")
+                                }
                             }
                         }
                     }
                 }
+
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -217,7 +305,6 @@ fun AnalyticsScreen(
                             Text(
                                 when(mode) {
                                     AnalyticsViewMode.OVERVIEW -> "Overview"
-                                    AnalyticsViewMode.YEAR_COMP -> "Comparison"
                                     AnalyticsViewMode.TRENDS -> "Trends"
                                 },
                                 style = MaterialTheme.typography.labelSmall
@@ -228,7 +315,47 @@ fun AnalyticsScreen(
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            
+
+            // PROMINENT CATEGORY FILTER (Trends Mode Only)
+            if (state.viewMode == AnalyticsViewMode.TRENDS) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Filter by Category",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = state.selectedCategory?.name ?: "Showing all categories",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        CategorySelector(
+                            categories = state.allCategories,
+                            selectedCategory = state.selectedCategory,
+                            onCategorySelected = { viewModel.setSelectedCategory(it) }
+                        )
+                    }
+                }
+            }
+
             // MAIN CHART CONTENT
             if (state.isLoading) {
                 Box(
@@ -250,47 +377,16 @@ fun AnalyticsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         // Header for Chart Section
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = when (state.viewMode) {
-                                    AnalyticsViewMode.OVERVIEW -> "Category Breakdown"
-                                    AnalyticsViewMode.YEAR_COMP -> {
-                                        val catName = state.comparisonCategory?.name
-                                        if (catName != null) {
-                                            "$catName - Yearly Comparison"
-                                        } else {
-                                            "Total Spending - Yearly Comparison"
-                                        }
-                                    }
-                                    AnalyticsViewMode.TRENDS -> "Spending Trends"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            // Category Filter (For Trends and Year Comparison)
-                            if (state.viewMode == AnalyticsViewMode.TRENDS) {
-                                CategorySelector(
-                                    categories = state.allCategories,
-                                    selectedCategory = state.selectedCategory,
-                                    onCategorySelected = { viewModel.setSelectedCategory(it) }
-                                )
-                            }
-                            if (state.viewMode == AnalyticsViewMode.YEAR_COMP) {
-                                CategorySelector(
-                                    categories = state.allCategories,
-                                    selectedCategory = state.comparisonCategory,
-                                    onCategorySelected = { viewModel.setComparisonCategory(it) }
-                                )
-                            }
-                        }
-                        
-                        Divider(modifier = Modifier.padding(vertical = 16.dp))
+                        Text(
+                            text = when (state.viewMode) {
+                                AnalyticsViewMode.OVERVIEW -> "Category Breakdown"
+                                AnalyticsViewMode.TRENDS -> "Monthly Trends"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
                         // Chart Render
                         when (state.viewMode) {
@@ -309,29 +405,85 @@ fun AnalyticsScreen(
                                     }
                                 )
                             }
-                            AnalyticsViewMode.YEAR_COMP -> {
-                                Column {
-                                    BarChart(
-                                        data = state.yearlySpending,
-                                        modifier = Modifier.fillMaxWidth().height(280.dp)
-                                    )
-                                    if (state.yearlySpending.isNotEmpty()) {
-                                        val years = state.yearlySpending.map { it.year }
-                                        val categoryText = state.comparisonCategory?.name ?: "All Expenses"
+                            AnalyticsViewMode.TRENDS -> {
+                                val currentMonVal = java.time.LocalDate.now().monthValue
+                                val isCurYear = state.selectedYear == currentYear
+                                
+                                // Filter data: remove future months if current year
+                                val activeData = if (isCurYear) {
+                                    state.monthlyTrends.filter { 
+                                        try {
+                                            val m = java.time.YearMonth.parse(it.month).monthValue
+                                            m <= currentMonVal
+                                        } catch(e: Exception) { true }
+                                    }.sortedBy { it.month }
+                                } else {
+                                     state.monthlyTrends.sortedBy { it.month }
+                                }
+                                
+                                val nonZeroCount = activeData.count { it.totalAmount > 0 }
+                                
+                                if (nonZeroCount < 2) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp),
+                                        verticalArrangement = Arrangement.Center,
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            Icons.Default.DateRange, 
+                                            contentDescription = null, 
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
                                         Text(
-                                            "$categoryText across: ${years.joinToString(", ")}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(top = 8.dp)
+                                            "Not enough monthly data yet.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                } else {
+                                    // Trends Insight
+                                    val trendMsg = remember(activeData) { 
+                                        generateTrendInsight(activeData, state.selectedCategory) 
+                                    }
+                                    
+                                    val categoryName = state.selectedCategory?.name ?: "Overall"
+                                    val tColor = if (state.selectedCategory != null) getCategoryColor(categoryName) else MaterialTheme.colorScheme.tertiary
+                                    
+                                    // Insight Card
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                             Icon(
+                                                Icons.Default.ShoppingCart, // Or a generic 'Trend' icon if available
+                                                contentDescription = null,
+                                                tint = tColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Text(
+                                                text = trendMsg,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+
+                                    LineChart(
+                                        data = activeData,
+                                        modifier = Modifier.fillMaxWidth().height(260.dp)
+                                    )
                                 }
-                            }
-                            AnalyticsViewMode.TRENDS -> {
-                                LineChart(
-                                    data = state.monthlyTrends,
-                                    modifier = Modifier.fillMaxWidth().height(300.dp)
-                                )
                             }
                         }
                     }
@@ -372,6 +524,98 @@ fun YearSelector(
         IconButton(onClick = onNext) {
             Icon(Icons.Default.KeyboardArrowRight, "Next Year", tint = MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+@Composable
+fun SecondaryStatCard(
+    label: String,
+    value: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+    color: Color
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+// Helper for compact currency (avoid duplication if possible, but localized here is safer)
+private fun formatCurrencyCompact(paisa: Long): String {
+    val amount = paisa / 100.0
+    return when {
+        amount >= 10000000 -> "₹%.1fCr".format(amount / 10000000)
+        amount >= 100000 -> "₹%.1fL".format(amount / 100000)
+        amount >= 1000 -> "₹%.1fK".format(amount / 1000)
+        else -> "₹%.0f".format(amount)
+    }
+}
+
+private fun generateTrendInsight(trends: List<MonthlySpending>, category: Category?): String {
+    val activeMonths = trends.filter { it.totalAmount > 0 }.sortedBy { it.month }
+    if (activeMonths.size < 2) return "Not enough data to analyze trends."
+
+    val lastMonth = activeMonths.last()
+    val prevMonth = activeMonths[activeMonths.size - 2]
+    
+    // 1. Check for sharp changes (last 2 active months)
+    val change = lastMonth.totalAmount - prevMonth.totalAmount
+    val percentChange = if (prevMonth.totalAmount > 0) (change.toDouble() / prevMonth.totalAmount) * 100 else 0.0
+    
+    val catName = category?.name ?: "Spending"
+    
+    if (kotlin.math.abs(percentChange) > 20) {
+        val direction = if (percentChange > 0) "jumped" else "dropped"
+        return "$catName $direction by ${"%.0f".format(kotlin.math.abs(percentChange))}% in ${monthName(lastMonth.month)} vs ${monthName(prevMonth.month)}."
+    }
+    
+    // 2. Check for consistency (Expense consistency)
+    val values = activeMonths.map { it.totalAmount }
+    val avg = values.average()
+    val maxDev = values.maxOf { kotlin.math.abs(it - avg) }
+    if (avg > 0 && (maxDev / avg) < 0.15) {
+         return "Your $catName expenses are very consistent month-to-month."
+    }
+
+    // 3. Fallback: Highest month
+    val curMax = activeMonths.maxByOrNull { it.totalAmount }
+    return if (curMax != null) {
+        "Highest $catName spending was in ${monthName(curMax.month)}."
+    } else {
+        "Spending habits are varying."
+    }
+}
+
+private fun monthName(yyyymm: String): String {
+    return try {
+        val m = java.time.YearMonth.parse(yyyymm)
+        m.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)
+    } catch (e: Exception) {
+        yyyymm
     }
 }
 

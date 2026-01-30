@@ -15,7 +15,7 @@ detekt {
 
 android {
     namespace = "com.saikumar.expensetracker"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.saikumar.expensetracker"
@@ -41,10 +41,17 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
+        @Suppress("DEPRECATION")
         jvmTarget = "17"
     }
     buildFeatures {
         compose = true
+    }
+    
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     
     // Enable returnDefaultValues for Android framework mocking in unit tests
@@ -98,8 +105,4 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     
     detektPlugins(libs.detekt.formatting)
-
-    // TensorFlow Lite
-    implementation("org.tensorflow:tensorflow-lite:2.14.0")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 }

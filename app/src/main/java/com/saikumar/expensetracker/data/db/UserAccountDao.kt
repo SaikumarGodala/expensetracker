@@ -30,4 +30,7 @@ interface UserAccountDao {
     
     @Query("UPDATE user_accounts SET accountHolderName = :holderName WHERE accountNumberLast4 = :last4")
     suspend fun updateAccountHolderName(last4: String, holderName: String)
+
+    @Query("UPDATE user_accounts SET upiVpa = :vpa WHERE accountNumberLast4 = :last4")
+    suspend fun updateUpiVpa(last4: String, vpa: String)
 }

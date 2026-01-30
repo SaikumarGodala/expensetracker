@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 class ExpenseRepository(
     private val categoryDao: CategoryDao,
-    private val transactionDao: TransactionDao,
+    val transactionDao: TransactionDao,  // Made public for salary day detection
     private val accountDao: AccountDao? = null,
     private val merchantPatternDao: MerchantPatternDao? = null,
     private val merchantMemoryDao: MerchantMemoryDao? = null,
@@ -25,12 +25,24 @@ class ExpenseRepository(
     val allTransactionLinks: Flow<List<TransactionLink>> = transactionLinkDao.getAllLinks()
 
     /**
+     * Get transaction links within a specific time period
+     * Performance optimization: Filters links to match transaction period
+     */
+    fun getTransactionLinksInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionLink>> {
+        return transactionLinkDao.getLinksInPeriod(startTimestamp, endTimestamp)
+    }
+
+    /**
      * Get transactions within a time range.
      * @param startTimestamp UTC epoch millis for range start
      * @param endTimestamp UTC epoch millis for range end
      */
     fun getTransactionsInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionWithCategory>> {
         return transactionDao.getTransactionsInPeriod(startTimestamp, endTimestamp)
+    }
+
+    fun getStatementsInPeriod(startTimestamp: Long, endTimestamp: Long): Flow<List<TransactionWithCategory>> {
+        return transactionDao.getStatementsInPeriod(startTimestamp, endTimestamp)
     }
 
     fun getTransactionsPaged(startTimestamp: Long, endTimestamp: Long, limit: Int, offset: Int): Flow<List<TransactionWithCategory>> {
@@ -41,8 +53,8 @@ class ExpenseRepository(
         return transactionDao.getTransactionSummary(startTimestamp, endTimestamp)
     }
 
-    fun searchTransactions(query: String): Flow<List<TransactionWithCategory>> {
-        return transactionDao.searchTransactions(query)
+    fun searchTransactions(query: String, limit: Int = 500): Flow<List<TransactionWithCategory>> {
+        return transactionDao.searchTransactions(query, limit)
     }
 
     /**
@@ -229,20 +241,43 @@ class ExpenseRepository(
     /**
      * Find transactions similar to the given transaction for batch categorization.
      * Centralized logic to avoid duplication in ViewModels.
+     *
+     * Priority:
+     * 1. Match by merchant name (highest confidence)
+     * 2. Match by UPI ID (medium confidence, fallback when merchant missing)
+     * 3. Empty list (no matches)
      */
     suspend fun findSimilarTransactions(transaction: Transaction): com.saikumar.expensetracker.sms.SimilarityResult {
         val merchantName = transaction.merchantName
-        val matches = if (!merchantName.isNullOrBlank()) {
-             transactionDao.getTransactionsByMerchant(merchantName)
-                 .filter { it.id != transaction.id }
-        } else {
-             emptyList()
+        val upiId = transaction.upiId
+
+        // Priority 1: Match by merchant name
+        if (!merchantName.isNullOrBlank()) {
+            val matches = transactionDao.getTransactionsByMerchant(merchantName)
+                .filter { it.id != transaction.id }
+            return com.saikumar.expensetracker.sms.SimilarityResult(
+                matchedTransactions = matches,
+                matchType = "MERCHANT_NAME",
+                confidence = 0.9f
+            )
         }
-        
+
+        // Priority 2: Match by UPI ID (fallback)
+        if (!upiId.isNullOrBlank()) {
+            val matches = transactionDao.getTransactionsByUpiId(upiId)
+                .filter { it.id != transaction.id }
+            return com.saikumar.expensetracker.sms.SimilarityResult(
+                matchedTransactions = matches,
+                matchType = "UPI_ID",
+                confidence = 0.85f
+            )
+        }
+
+        // No matches
         return com.saikumar.expensetracker.sms.SimilarityResult(
-            matchedTransactions = matches,
-            matchType = "MERCHANT_NAME",
-            confidence = 0.8f
+            matchedTransactions = emptyList(),
+            matchType = "NO_MATCH",
+            confidence = 0.0f
         )
     }
 

@@ -6,5 +6,6 @@ enum class AccountType {
     CURRENT,
     CREDIT_CARD,
     WALLET,
+    UPI,        // For UPI-only accounts (VPA without linked bank account)
     UNKNOWN
 }

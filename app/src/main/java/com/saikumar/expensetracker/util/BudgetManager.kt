@@ -61,7 +61,8 @@ class BudgetManager(
         val currentMonthStr = YearMonth.now().toString()
 
         // Use billing cycle instead of calendar month for consistency with Dashboard
-        val cycleRange = CycleUtils.getCurrentCycleRange(now)
+        val salaryDay = preferencesManager.salaryDay.first()
+        val cycleRange = CycleUtils.getCurrentCycleRange(now, salaryDay)
         val startTs = cycleRange.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endTs = cycleRange.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 

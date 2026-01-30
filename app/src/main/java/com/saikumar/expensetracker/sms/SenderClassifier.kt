@@ -10,7 +10,7 @@ object SenderClassifier {
         // HDFC Bank
         "HDFCBK", "HDFCBN", "HDFCCC", "HDFCNB",
         // ICICI Bank
-        "ICICIB", "ICICIT", "ICICIS", "ICICIW",
+        "ICICIB", "ICICIT", "ICICIS", "ICICIW", "ICIBNK", "ICICI",
         // SBI
         "SBIUPI", "SBIPSG", "SBIINB", "SCISMS", "ATMSBI", "CBSSBI", "SBICRD",
         // Union Bank

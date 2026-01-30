@@ -108,19 +108,36 @@ fun TransactionEditDialog(
                     }
                 }
                 
-                // Show merchant if available
-                if (merchantKeyword != null) {
+                // Show counterparty (merchant/sender/receiver) if available
+                // Use UPI ID as fallback when merchant name is missing
+                val counterpartyName = merchantKeyword ?: transaction.transaction.upiId
+                if (counterpartyName != null) {
+                    // Dynamic label based on transaction type
+                    val label = when (transaction.transaction.transactionType) {
+                        TransactionType.INCOME, TransactionType.CASHBACK, TransactionType.REFUND -> "From"
+                        TransactionType.EXPENSE, TransactionType.LIABILITY_PAYMENT -> "To"
+                        else -> "Counterparty"
+                    }
+
                     Surface(
                         color = MaterialTheme.colorScheme.secondaryContainer,
                         shape = MaterialTheme.shapes.small,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "Merchant: $merchantKeyword",
-                            modifier = Modifier.padding(8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = counterpartyName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                     }
                 }
                 
@@ -424,27 +441,23 @@ fun TransactionEditDialog(
                 // Classification is now auto-derived from category (no manual buttons needed)
                 // The derivedClassification is computed when saving based on selectedCategory
                 // Apply to similar transactions option - with smart matching
-                // Show if: merchant keyword exists AND (category changed OR has matchable pattern)
+                // Determine match pattern based on available transaction data (priority order)
+                val storedUpiId = transaction.transaction.upiId
+
+                // Extract NEFT bank code from SMS (e.g., DEUTN52025... → DEUT)
                 val smsContent = transaction.transaction.smsSnippet ?: ""
-                
-                // Extract UPI ID
-                val upiId = if (smsContent.contains("@") && !smsContent.contains("@gmail") && !smsContent.contains("@yahoo")) {
-                    val regex = Regex("([a-zA-Z0-9._-]+@[a-zA-Z]+)")
-                    regex.find(smsContent)?.value?.lowercase(Locale.getDefault())
-                } else null
-                
-                // Extract NEFT bank code (e.g., DEUTN52025... → DEUT)
                 val neftBankCode = if (smsContent.contains("NEFT", ignoreCase = true)) {
                     val neftRefRegex = Regex("(?i)NEFT[\\s-]+(?:Cr[\\s-]+)?([A-Z0-9]+)")
                     val neftRef = neftRefRegex.find(smsContent)?.groupValues?.getOrNull(1)
                     neftRef?.take(4)?.uppercase(Locale.getDefault()) // First 4 letters = bank code
                 } else null
-                
-                val matchPattern = upiId ?: neftBankCode ?: merchantKeyword?.uppercase(Locale.getDefault()) ?: ""
+
+                // Priority: Merchant > UPI ID > NEFT > Nothing
+                val matchPattern = merchantKeyword ?: storedUpiId ?: neftBankCode ?: ""
                 val matchType = when {
-                    upiId != null -> "UPI ID"
-                    neftBankCode != null -> "NEFT Source"
                     merchantKeyword != null -> "Merchant"
+                    storedUpiId != null -> "UPI ID"
+                    neftBankCode != null -> "NEFT Source"
                     else -> "Amount + Date"  // Fallback for transactions without clear pattern
                 }
                 

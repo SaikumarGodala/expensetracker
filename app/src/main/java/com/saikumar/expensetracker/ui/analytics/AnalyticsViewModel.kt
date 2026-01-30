@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import com.saikumar.expensetracker.ui.dashboard.Quadruple
 import java.time.LocalDate
 import java.time.YearMonth
@@ -21,18 +22,18 @@ import java.time.ZoneId
 
 enum class AnalyticsViewMode {
     OVERVIEW,   // Pie chart of categories for selected year
-    YEAR_COMP,  // Bar chart comparing years
-    TRENDS      // Line chart of monthly trends (Total or Category specific)
+    TRENDS      // Line chart of monthly trends + Bar chart of yearly history
 }
 
 data class AnalyticsUiState(
     val selectedYear: Int = LocalDate.now().year,
     val viewMode: AnalyticsViewMode = AnalyticsViewMode.OVERVIEW,
     val selectedCategory: Category? = null,
-    val comparisonCategory: Category? = null, // For YoY category comparison
+    // comparisonCategory removed
     val categorySpending: List<CategorySpending> = emptyList(),
     val yearlySpending: List<YearlySpending> = emptyList(),
     val monthlyTrends: List<MonthlySpending> = emptyList(),
+    val previousYearTotal: Long = 0L,
     val availableYears: List<Int> = listOf(2024, 2025, 2026), // Should be dynamic ideally
     val allCategories: List<Category> = emptyList(),
     val isLoading: Boolean = false
@@ -51,7 +52,8 @@ class AnalyticsViewModel(
     private val _categorySpending = MutableStateFlow<List<CategorySpending>>(emptyList())
     private val _yearlySpending = MutableStateFlow<List<YearlySpending>>(emptyList())
     private val _monthlyTrends = MutableStateFlow<List<MonthlySpending>>(emptyList())
-    private val _comparisonCategory = MutableStateFlow<Category?>(null)
+    private val _previousYearTotal = MutableStateFlow(0L)
+    // _comparisonCategory removed
     
     // Available Categories for selector
     val allCategories = repository.allEnabledCategories
@@ -72,24 +74,26 @@ class AnalyticsViewModel(
         _categorySpending,
         _yearlySpending,
         _monthlyTrends,
+        _previousYearTotal,
         allCategories
-    ) { catSpending, yearSpending, trends, categories ->
-        Quadruple(catSpending, yearSpending, trends, categories)
+    ) { catSpending, yearSpending, trends, prevTotal, categories ->
+        Quadruple(catSpending, yearSpending, trends, Pair(prevTotal, categories))
     }
 
     val uiState: StateFlow<AnalyticsUiState> = combine(
         inputState,
-        dataState,
-        _comparisonCategory
-    ) { (year, mode, category, loading), (catSpending, yearSpending, trends, categories), compCategory ->
+        dataState
+    ) { (year, mode, category, loading), (catSpending, yearSpending, trends, pair) ->
+        val (prevTotal, categories) = pair // Unpack the Quadruple/Pair hack
         AnalyticsUiState(
             selectedYear = year,
             viewMode = mode,
             selectedCategory = category,
-            comparisonCategory = compCategory,
+            // comparisonCategory = null,
             categorySpending = catSpending,
             yearlySpending = yearSpending,
             monthlyTrends = trends,
+            previousYearTotal = prevTotal,
             allCategories = categories,
             isLoading = loading
         )
@@ -115,32 +119,34 @@ class AnalyticsViewModel(
         if (_viewMode.value == AnalyticsViewMode.TRENDS) {
             viewModelScope.launch {
                 fetchMonthlyTrends()
-            }
-        }
-    }
-
-    fun setComparisonCategory(category: Category?) {
-        _comparisonCategory.value = category
-        if (_viewMode.value == AnalyticsViewMode.YEAR_COMP) {
-            viewModelScope.launch {
                 fetchYearlySpending()
             }
         }
     }
 
+    // setComparisonCategory removed
+
     private fun refreshData() {
         viewModelScope.launch {
             _isLoading.value = true
-            // Always fetch category spending for the summary cards (Total, Avg, Top Category)
-            fetchCategorySpending()
-            // Always fetch monthly trends for the "Highest Month" toggle
-            fetchMonthlyTrends()
-            
-            // Fetch specific chart data based on mode
+
+            // Performance: Run all data fetches in parallel using async
+            val categorySpendingDeferred = async { fetchCategorySpending() }
+            val monthlyTrendsDeferred = async { fetchMonthlyTrends() }
+            val previousYearDeferred = async { fetchPreviousYearTotal() }
+
+            // Await base data
+            categorySpendingDeferred.await()
+            monthlyTrendsDeferred.await()
+            previousYearDeferred.await()
+
+            // Fetch mode-specific data
             when (_viewMode.value) {
                 AnalyticsViewMode.OVERVIEW -> { /* Already fetched above */ }
-                AnalyticsViewMode.YEAR_COMP -> fetchYearlySpending()
-                AnalyticsViewMode.TRENDS -> { /* Already fetched above */ }
+                AnalyticsViewMode.TRENDS -> {
+                    // Fetch yearly spending for the unified Trends view
+                    fetchYearlySpending()
+                }
             }
             _isLoading.value = false
         }
@@ -155,12 +161,28 @@ class AnalyticsViewModel(
     }
 
     private suspend fun fetchYearlySpending() {
-        val compCategory = _comparisonCategory.value
-        _yearlySpending.value = if (compCategory != null) {
-            repository.getYearlySpendingForCategory(compCategory.id)
+        val category = _selectedCategory.value
+        _yearlySpending.value = if (category != null) {
+            repository.getYearlySpendingForCategory(category.id)
         } else {
             repository.getYearlySpending()
         }
+    }
+
+    private suspend fun fetchPreviousYearTotal() {
+        // Only needed for Overview mode Hero Card context
+        val currentSelectedYear = _selectedYear.value
+        val prevYear = currentSelectedYear - 1
+        
+        // Optimize: We could use getYearlySpending() but that scans all years.
+        // Let's just do a specific range query or reuse existing DAO method if cheap.
+        // actually getYearlySpending() is what we have.
+        // Let's just use getCategorySpending for previous year to sum it up.
+        val start = LocalDate.of(prevYear, 1, 1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val end = LocalDate.of(prevYear, 12, 31).atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        
+        val prevYearCatSpending = repository.getCategorySpending(start, end)
+        _previousYearTotal.value = prevYearCatSpending.sumOf { it.totalAmount }
     }
 
     private suspend fun fetchMonthlyTrends() {
