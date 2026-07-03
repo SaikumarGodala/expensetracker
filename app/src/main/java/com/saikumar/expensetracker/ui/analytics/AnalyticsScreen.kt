@@ -70,17 +70,10 @@ fun AnalyticsScreen(
 
     val topCategory = state.categorySpending.maxByOrNull { it.totalAmount }
 
+    // No top bar: the screen title is provided by InsightsHubScreen, which hosts
+    // this content behind its "Over Time" segmented tab.
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Financial Insights", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier

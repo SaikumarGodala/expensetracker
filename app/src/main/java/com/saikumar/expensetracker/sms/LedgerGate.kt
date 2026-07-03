@@ -31,14 +31,33 @@ object LedgerGate {
 
     // 2. FUTURE/REMINDER EXCLUSIONS (Drop immediately)
     private val FUTURE_PHRASES = listOf(
-        "amount due", "total due", "min due", "minimum due", 
-        "due by", "will be debited", "to be debited", "is due"
+        "amount due", "total due", "min due", "minimum due",
+        "due by", "will be debited", "to be debited", "is due",
+        // Pending reversal/refund promises - nothing has settled yet, so there's nothing
+        // to record. The eventual settlement SMS (if the bank sends one) will be caught by
+        // the SETTLED_REVERSAL_KEYWORDS check below instead.
+        "will be reversed", "will be refunded", "will be credited back",
+        "to be refunded", "to be reversed"
     )
 
     // 3. POSITIVE CONFIRMATION VERBS (One MUST be present)
     private val CONFIRMATION_VERBS = listOf(
-        "debited", "credited", "received", "paid", "sent", 
+        "debited", "credited", "received", "paid", "sent",
         "processed", "spent", "withdrawn", "deposited", "txn"
+    )
+
+    // 4. FAILURE / DECLINE KEYWORDS - a notice about a transaction that never actually
+    // settled. Dropped unless the SMS also confirms the money has already been credited
+    // back (a completed reversal), in which case it's let through to be recorded as a
+    // REFUND instead of silently discarded.
+    private val FAILURE_KEYWORDS = listOf(
+        "declined", "txn failed", "transaction failed", "payment failed",
+        "could not be processed", "was not successful", "unsuccessful transaction",
+        "not been processed"
+    )
+
+    private val SETTLED_REVERSAL_KEYWORDS = listOf(
+        "reversed", "reversal", "refunded", "refund of", "refund for", "credited back", "chargeback"
     )
 
     /**
@@ -96,6 +115,17 @@ object LedgerGate {
             return LedgerDecision.Drop("Future/Reminder Event", "FILTER_FUTURE")
         }
 
+        // RULE 3: Failed/Declined Transaction Filter
+        // A decline/failure notice where no settled reversal is confirmed means no money
+        // actually moved - inserting it would create a phantom expense (or, worse, a
+        // phantom expense that later has no matching reversal SMS to cancel it out).
+        val hasFailureKeyword = FAILURE_KEYWORDS.any { lowerBody.contains(it) }
+        val hasSettledReversal = lowerBody.contains("credited") &&
+            SETTLED_REVERSAL_KEYWORDS.any { lowerBody.contains(it) }
+        if (hasFailureKeyword && !hasSettledReversal) {
+            return LedgerDecision.Drop("Failed/Declined Transaction - No Settlement", "FILTER_DECLINED")
+        }
+
         // RULE 4: Positive Confirmation Invariant
         val hasConfirmation = CONFIRMATION_VERBS.any { lowerBody.contains(it) }
         if (!isStatement && !hasConfirmation) {
@@ -103,9 +133,13 @@ object LedgerGate {
         }
 
         // RULE 5: Economic Reality Check (Infer Type and Eligibility)
-        
+
         // 5a. Card Spend Invariant
-        if (lowerBody.contains("card") && 
+        // FINANCIAL ACCURACY: must NOT fire for statements. A credit card statement SMS like
+        // "ICICI Bank Credit Card XX0006 Statement is sent to xx@email. Total of Rs 39,114 due"
+        // contains "card" + "sent", which previously forced it to EXPENSE - recording the whole
+        // statement balance as a fresh expense and double-counting every card swipe in it.
+        if (!isStatement && lowerBody.contains("card") &&
            (lowerBody.contains("spent") || lowerBody.contains("txn") || lowerBody.contains("transaction") || lowerBody.contains("sent") || lowerBody.contains("used")) &&
            !lowerBody.contains("payment received") && !lowerBody.contains("credited")) {
             

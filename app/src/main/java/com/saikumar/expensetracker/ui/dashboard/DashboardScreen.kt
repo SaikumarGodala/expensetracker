@@ -40,10 +40,8 @@ import java.util.Locale
 /**
  * Format paisa amount to rupee display string
  */
-private fun formatAmount(paisa: Long): String {
-    val rupees = paisa / 100.0
-    return "₹${String.format(Locale.getDefault(), "%,.0f", rupees)}"
-}
+private fun formatAmount(paisa: Long): String =
+    com.saikumar.expensetracker.util.CurrencyFormatter.formatPaisa(paisa)
 
 /**
  * Convert timestamp to LocalDate for grouping
@@ -59,11 +57,9 @@ fun DashboardScreen(
     onNavigateToAdd: () -> Unit,
     onCategoryClick: (CategoryType, Long, Long) -> Unit,
     onNavigateToSearch: () -> Unit = {},
-    onScanInbox: () -> Unit = {},
-    onMenuClick: () -> Unit = {}
+    onScanInbox: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     var editingTransaction by remember { mutableStateOf<TransactionWithCategory?>(null) }
     var sortOption by remember { mutableStateOf(com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC) }
     var showDateRangePicker by remember { mutableStateOf(false) }
@@ -134,36 +130,8 @@ fun DashboardScreen(
         ) { DateRangePicker(state = dateRangePickerState) }
     }
     
-    var showSearchDialog by remember { mutableStateOf(false) }
-    
-    if (showSearchDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showSearchDialog = false },
-            title = { Text("Search Transactions") },
-            text = {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Enter search term...") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showSearchDialog = false }) {
-                    Text("Close")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { 
-                    viewModel.onSearchQueryChanged("")
-                    showSearchDialog = false
-                }) {
-                    Text("Clear")
-                }
-            }
-        )
-    }
+    // NOTE: a local "Search Transactions" AlertDialog used to live here - dead code, its
+    // trigger flag was never set to true (search goes through the global SearchScreen).
 
     // Use derivedStateOf for efficient sorting - only recomputes when inputs actually change
     val sortedTransactions by remember(uiState.transactions, sortOption) {
@@ -184,21 +152,23 @@ fun DashboardScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = onNavigateToAdd,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
-            }
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Add") },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                expanded = !listState.canScrollBackward
+            )
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            
+
             // Scan Progress Indicator
             if (scanState is com.saikumar.expensetracker.util.ScanState.Scanning) {
                 val scanning = scanState as com.saikumar.expensetracker.util.ScanState.Scanning
                 LinearProgressIndicator(
-                    progress = scanning.progress,
+                    progress = { scanning.progress },
                     modifier = Modifier.fillMaxWidth().height(4.dp),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -216,13 +186,15 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                 // Left: Menu & Title
-                 Row(verticalAlignment = Alignment.CenterVertically) {
-                     IconButton(onClick = onMenuClick) {
-                         Icon(Icons.Filled.Menu, "Menu", tint = MaterialTheme.colorScheme.onSurface)
-                     }
-                 }
-                 
+                 // Left: Screen title (drawer removed - navigation lives in the bottom bar)
+                 Text(
+                     "Home",
+                     style = MaterialTheme.typography.titleLarge,
+                     color = MaterialTheme.colorScheme.onSurface,
+                     modifier = Modifier.padding(start = 4.dp)
+                 )
+
+
                  // Right: Actions (Synced with Filter & Search)
                  Row(verticalAlignment = Alignment.CenterVertically) {
                      // Filter Icon (replaces big button)
@@ -245,8 +217,8 @@ fun DashboardScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(), 
-                contentPadding = PaddingValues(bottom = 80.dp, top = 65.dp), // Reduced top padding
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(bottom = 96.dp, top = 65.dp), // Reduced top padding
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                
                 item {
@@ -560,11 +532,10 @@ fun DashboardScreen(
                         item(key = "header_$date") {
                             // Date Header
                             Text(
-                                text = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                text = date.format(DateTimeFormatter.ofPattern("EEE, d MMM")).uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
                             )
                         }
 
@@ -588,44 +559,90 @@ fun DashboardScreen(
 
 @Composable
 fun HeroBalanceCard(state: DashboardUiState) {
-    var showBreakdown by remember { mutableStateOf(false) }
-    
-    // Determine Color and Context
-    val balanceColor = if (state.extraMoney >= 0) IncomeGreen else ExpenseRed
-    
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(
-            "Remaining Money", 
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-        Text(
-            "₹${String.format(Locale.getDefault(), "%,.0f", state.extraMoney)}", 
-            style = MaterialTheme.typography.displayLarge, // Bigger
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        // Context Line (Larger now)
-        Text(
-            state.balanceContext,
-            style = MaterialTheme.typography.bodyLarge, // Increased size
-            color = if (state.extraMoney < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+    val isNegative = state.extraMoney < 0
 
-        // Cycle Date Range
-        if (state.cycleRange != null) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                modifier = Modifier.padding(top = 8.dp)
+    // Salary typically arrives at the END of a cycle, so "Remaining Money" spends most of
+    // the month as a meaningless scary negative. Until income lands, show what was actually
+    // spent instead - a number that IS meaningful mid-cycle.
+    val awaitingIncome = state.totalIncome <= 0.0
+    val spentSoFar = state.totalExpenses + state.totalVehicleExpenses
+    val heroLabel = if (awaitingIncome) "Spent This Cycle" else "Remaining Money"
+    val heroValue = if (awaitingIncome) spentSoFar else state.extraMoney
+
+    // Subtle vertical gradient over the primary container so the hero reads as a
+    // distinct surface without resorting to hardcoded brand colors (keeps working
+    // across all five palettes + dynamic color).
+    val gradient = androidx.compose.ui.graphics.Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        )
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+        color = Color.Transparent
+    ) {
+        Column(
+            modifier = Modifier
+                .background(gradient)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "${state.cycleRange.startDate.format(DateTimeFormatter.ofPattern("d MMM"))} - ${state.cycleRange.endDate.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    heroLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                )
+                if (state.cycleRange != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            "${state.cycleRange.startDate.format(DateTimeFormatter.ofPattern("d MMM"))} – ${state.cycleRange.endDate.format(DateTimeFormatter.ofPattern("d MMM"))}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                // Sign before the currency symbol: −₹50,372, not ₹-50,372
+                (if (heroValue < 0) "−" else "") +
+                    "₹${String.format(Locale.getDefault(), "%,.0f", kotlin.math.abs(heroValue))}",
+                style = MaterialTheme.typography.displayMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!awaitingIncome) {
+                    Icon(
+                        if (isNegative) Icons.Default.ArrowDownward else Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (isNegative) MaterialTheme.colorScheme.error else IncomeGreen
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(
+                    state.balanceContext,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (!awaitingIncome && isNegative) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -645,14 +662,31 @@ fun SummaryRowList(state: DashboardUiState, onCategoryClick: (CategoryType) -> U
 
 @Composable
 fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -> Unit) {
-    Surface(shape = MaterialTheme.shapes.medium, color = color.copy(alpha = 0.15f), modifier = Modifier.clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        color = color.copy(alpha = 0.12f)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).widthIn(min = 80.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(color, androidx.compose.foundation.shape.CircleShape)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                label, 
-                style = MaterialTheme.typography.labelMedium,
+                "₹${String.format(Locale.getDefault(), "%,.0f", amount)}",
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text("₹${String.format(Locale.getDefault(), "%,.0f", amount)}", fontWeight = FontWeight.Bold, color = color)
         }
     }
 }
@@ -757,112 +791,173 @@ fun TransactionItem(
     val isUnverifiedIncome = item.category.name == "Unverified Income"
     val needsReview = isUncategorized || isUnverifiedIncome
 
-    val categoryIcon = CategoryIcons.getIcon(item.category.name)
-    
     // Use app's theme state, not just system setting
     val isDarkTheme = LocalIsDarkTheme.current
-    
-    // Complete TransactionType handling with distinct colors - DARK MODE AWARE
-    // IMPORTANT: isInvestment checked BEFORE isTransfer so investments show as blue
+
+    // ============ CATEGORY-FIRST DESIGN ============
+    // The category is what users scan the list for, so it drives the row's visual identity:
+    // - the icon avatar is tinted with the category's stable color (CategoryColors)
+    // - the category name renders as a colored chip on the second line
+    // Transaction *state* (pending, needs review, refund...) is layered on top as a second
+    // chip + container tint for attention states, and money *direction* colors the amount.
+    // Curated colors are mid/deep tones tuned for light surfaces; lighten them in dark
+    // theme so chips and icons stay readable on dark containers.
+    val rawCategoryColor = com.saikumar.expensetracker.util.CategoryColors.getColor(item.category.name)
+    val categoryColor = if (isDarkTheme) {
+        androidx.compose.ui.graphics.lerp(rawCategoryColor, Color.White, 0.35f)
+    } else rawCategoryColor
+    val categoryIcon = CategoryIcons.getIcon(item.category.name)
+
+    // Attention/state accent for the secondary chip
+    val stateChip: Pair<String, Color>? = when {
+        needsReview -> "Needs Review" to (if (isDarkTheme) Color(0xFFFFB74D) else Color(0xFFE65100))
+        isPending -> "Pending" to PendingOrange
+        isIgnored -> "Ignored" to MaterialTheme.colorScheme.onSurfaceVariant
+        isStatement -> "Statement" to MaterialTheme.colorScheme.primary
+        isSelfTransferLinked -> "Self Transfer" to MaterialTheme.colorScheme.onSurfaceVariant
+        isRefund -> "Refund" to (if (isDarkTheme) Color(0xFF81C784) else UndoGreen)
+        isCashback -> "Cashback" to (if (isDarkTheme) Color(0xFFFFD54F) else CashbackText)
+        // "Not spend" is the message here; short label so it doesn't truncate.
+        // Skipped when the category already says Credit Bill Payments (redundant).
+        isLiabilityPayment && item.category.name != com.saikumar.expensetracker.core.AppConstants.Categories.CREDIT_BILL_PAYMENTS ->
+            "CC Bill" to (if (isDarkTheme) Color(0xFFB39DDB) else VehiclePurple)
+        else -> null
+    }
+
     val containerColor = when {
-        isIgnored -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        isPending -> if (isDarkTheme) HighlightBackgroundDark else HighlightBackground
-        needsReview -> if (isDarkTheme) Color(0xFF664400) else Color(0xFFFFF3CD) // Amber warning
-        isStatement -> MaterialTheme.colorScheme.surface
-        isInvestment -> if (isDarkTheme) InvestmentBlueDark else InvestmentBlueLight
-        isTransfer -> MaterialTheme.colorScheme.surfaceVariant
-        isLiabilityPayment -> if (isDarkTheme) LiabilityPurpleDark else MaterialTheme.colorScheme.tertiaryContainer
-        isRefund -> if (isDarkTheme) RefundGreenDark else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-        isCashback -> if (isDarkTheme) CashbackGoldDark else CashbackGold
+        isIgnored -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f)
+        needsReview -> if (isDarkTheme) Color(0xFF4A3800) else Color(0xFFFFF3CD)
+        isPending -> if (isDarkTheme) HighlightBackgroundDark.copy(alpha = 0.5f) else HighlightBackground
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
-    
-    // Amount color - must be visible on containerColor background
-    val amountColor = when {
-        isIgnored -> Color.Gray.copy(alpha = 0.5f)
-        isPending -> if (isDarkTheme) Color.White else PendingText
-        needsReview -> if (isDarkTheme) Color(0xFFFFB74D) else Color(0xFFE65100) // Amber/Orange
-        isStatement -> MaterialTheme.colorScheme.primary
-        isInvestment -> if (isDarkTheme) Color.White else InvestmentBlueText
-        isTransfer -> Color.Gray
-        isLiabilityPayment -> if (isDarkTheme) Color.White else MaterialTheme.colorScheme.tertiary
-        isRefund -> if (isDarkTheme) Color.White else UndoGreen
-        isCashback -> if (isDarkTheme) Color.White else CashbackText
-        isIncome -> IncomeGreen
-        else -> ExpenseRedLight
+
+    // Avatar carries category identity except when a state demands attention
+    val avatarColor = when {
+        needsReview -> if (isDarkTheme) Color(0xFFFFB74D) else Color(0xFFE65100)
+        isIgnored -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        else -> categoryColor
     }
-    
-    val icon = when {
+    val avatarIcon = when {
+        needsReview -> Icons.Default.Warning
         isIgnored -> Icons.Default.VisibilityOff
         isPending -> Icons.Default.Schedule
-        needsReview -> Icons.Default.Warning // Warning icon for needs review
         isStatement -> Icons.AutoMirrored.Filled.ReceiptLong
-        isInvestment -> Icons.AutoMirrored.Filled.TrendingUp
-        isTransfer -> Icons.Default.SwapHoriz
-        isLiabilityPayment -> Icons.Default.CreditCard
+        isSelfTransferLinked -> Icons.Default.SwapHoriz
         isRefund -> Icons.Default.Refresh
         isCashback -> Icons.Default.CardGiftcard
+        isLiabilityPayment -> Icons.Default.CreditCard
+        isInvestment -> Icons.AutoMirrored.Filled.TrendingUp
         else -> categoryIcon
     }
-    
-    val displayName = when {
-        isIgnored -> "Ignored"
-        isPending -> "Pending"
-        needsReview -> "Needs Review ⚠️" // Clear call-to-action
-        isStatement -> "CC Statement"
-        isSelfTransferLinked -> "Self Transfer"  // Show "Self Transfer" for linked transactions
-        isInvestment -> item.category.name  // Show actual category (Mutual Funds, RD, etc.)
-        isTransfer -> item.category.name // Show actual category (P2P Transfers, etc.)
-        isLiabilityPayment -> "CC Payment"
-        isRefund -> "Refund / Reversal"
-        isCashback -> "Cashback"
-        else -> item.category.name
+
+    // Money direction: + in (green), − out (red), unsigned neutral moves (grey).
+    // FINANCIAL ACCURACY (display): CC bill payments are NEUTRAL - the card swipes were
+    // already recorded as expenses when they happened, and the aggregations correctly
+    // exclude LIABILITY_PAYMENT. Showing the bill payment with a red minus made it look
+    // like the money was being counted twice.
+    val isMoneyIn = isIncome || isRefund || isCashback
+    val isNeutral = isIgnored || isStatement || isTransfer || isLiabilityPayment
+    val amountColor = when {
+        isIgnored -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        isNeutral -> MaterialTheme.colorScheme.onSurfaceVariant
+        // Investments are asset transfers, not losses - blue, not expense-red
+        isInvestment -> if (isDarkTheme) Color(0xFF64B5F6) else InvestmentBlueText
+        isMoneyIn -> IncomeGreen
+        else -> ExpenseRedLight
     }
-    
-    // Text color for content inside the card - must contrast with containerColor
-    val contentColor = when {
-        // For custom colored backgrounds, use appropriate contrast
-        isIgnored -> MaterialTheme.colorScheme.onSurfaceVariant
-        isPending -> if (isDarkTheme) Color.White else Color(0xFF5D4037) // Brown text on amber
-        needsReview -> if (isDarkTheme) Color.White else Color(0xFF5D4037) // Brown text on amber
-        isStatement -> MaterialTheme.colorScheme.onSurface
-        isInvestment -> if (isDarkTheme) Color.White else Color(0xFF0D47A1) // Blue text
-        isTransfer -> MaterialTheme.colorScheme.onSurfaceVariant
-        isLiabilityPayment -> if (isDarkTheme) Color.White else Color(0xFF4A1259) // Purple text
-        isRefund -> if (isDarkTheme) Color.White else Color(0xFF1B5E20) // Green text
-        isCashback -> if (isDarkTheme) Color.White else Color(0xFF5D4037) // Brown/gold text
-        else -> MaterialTheme.colorScheme.onSurface
+    val amountPrefix = when {
+        isNeutral -> ""
+        isMoneyIn -> "+"
+        else -> "−"
     }
-    
-    val subtitleColor = when {
-        isIgnored || isPending || needsReview || isInvestment || isLiabilityPayment || isRefund || isCashback -> 
-            contentColor.copy(alpha = 0.7f)
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    
-    Card(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
+    val merchantLabel = item.transaction.merchantName
+        ?: item.transaction.upiId
+        ?: item.transaction.note
+        ?: item.category.name
+    val timeLabel = Instant.ofEpochMilli(item.transaction.timestamp)
+        .atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("h:mm a"))
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        color = containerColor,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
     ) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = amountColor)
-            Spacer(modifier = Modifier.width(16.dp))
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Category-colored avatar (rounded square reads more "category tile" than a circle)
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(avatarColor.copy(alpha = 0.15f), androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(avatarIcon, contentDescription = null, tint = avatarColor, modifier = Modifier.size(22.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    displayName, 
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor
+                    merchantLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                Text(
-                    item.transaction.merchantName ?: item.transaction.upiId ?: item.transaction.note ?: item.category.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = subtitleColor,
-                    maxLines = 1
-                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Category chip - the color-coded identity. Skipped when the title line
+                    // is already the category name (no merchant extracted) - repeating the
+                    // same text as both title and chip looked broken.
+                    if (merchantLabel != item.category.name) {
+                        LabelChip(text = item.category.name, color = categoryColor)
+                    }
+                    // Skip the state chip when it would just repeat the category name
+                    // (e.g. category "Cashback" + state "Cashback")
+                    stateChip?.takeIf { it.first != item.category.name }?.let { (label, color) ->
+                        if (merchantLabel != item.category.name) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        LabelChip(text = label, color = color)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        timeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        maxLines = 1
+                    )
+                }
             }
-            Text(formatAmount(item.transaction.amountPaisa), color = amountColor, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                amountPrefix + formatAmount(item.transaction.amountPaisa),
+                style = MaterialTheme.typography.titleSmall,
+                color = amountColor,
+                fontWeight = FontWeight.Bold
+            )
         }
+    }
+}
+
+/**
+ * Small tinted pill used for category identity and transaction state on list rows.
+ */
+@Composable
+private fun LabelChip(text: String, color: Color) {
+    Surface(
+        color = color.copy(alpha = 0.14f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }

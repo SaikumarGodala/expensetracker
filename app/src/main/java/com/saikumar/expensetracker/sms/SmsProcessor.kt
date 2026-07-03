@@ -117,41 +117,11 @@ object SmsProcessor {
 
     /**
      * Check if two names are equivalent, handling variations.
+     * Delegates to the shared [com.saikumar.expensetracker.util.NameMatcher] so this
+     * logic has a single source of truth (previously duplicated in 3 places).
      */
-    private fun areNamesEquivalent(name1: String, name2: String): Boolean {
-        val lower1 = name1.lowercase()
-        val lower2 = name2.lowercase()
-
-        if (lower1 == lower2) return true
-        if (lower1.contains(lower2) || lower2.contains(lower1)) return true
-
-        val parts1 = lower1.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-        val parts2 = lower2.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-
-        if (parts1.isEmpty() || parts2.isEmpty()) return false
-
-        val significantParts1 = parts1.filter { it.length >= 3 }
-        val significantParts2 = parts2.filter { it.length >= 3 }
-
-        val commonSignificant = significantParts1.intersect(significantParts2.toSet())
-        if (commonSignificant.size >= 2) return true
-
-        val (shorterParts, longerParts) = if (parts1.size <= parts2.size) {
-            parts1 to parts2
-        } else {
-            parts2 to parts1
-        }
-
-        val allShorterPartsMatched = shorterParts.all { shortPart ->
-            longerParts.any { longPart ->
-                shortPart == longPart ||
-                (shortPart.length == 1 && longPart.startsWith(shortPart)) ||
-                longPart.startsWith(shortPart)
-            }
-        }
-
-        return allShorterPartsMatched && shorterParts.size >= 2
-    }
+    private fun areNamesEquivalent(name1: String, name2: String): Boolean =
+        com.saikumar.expensetracker.util.NameMatcher.areNamesEquivalent(name1, name2)
 
     /**
      * Resolves category and transaction type based on P2P trust, invariants, etc.
@@ -210,7 +180,8 @@ object SmsProcessor {
             isDebit = parsed.isDebit,
             counterpartyType = parsed.counterparty.type.name,
             isUntrustedP2P = isUntrustedP2P,
-            upiId = parsed.counterparty.upiId
+            upiId = parsed.counterparty.upiId,
+            existingType = parsed.transactionType
         )
         
         // MERCHANT NORMALIZATION
@@ -336,17 +307,11 @@ object SmsProcessor {
             counterparty = counterparty.copy(trace = currentTrace)
         }
         
-        // Log as Silver Label if valid
-        if (counterparty.name != null && context != null) {
-            // Auto-Training Log
-             com.saikumar.expensetracker.util.TrainingDataLogger.logSample(
-                context = context,
-                smsBody = body,
-                merchantName = counterparty.name,
-                confidence = 1.0f, // Regex is high confidence rule
-                isUserCorrection = false
-            )
-        }
+        // NOTE: Training-data logging (Silver Label) happens once, after a successful DB
+        // insert in resolveAndInsert() - not here. It used to also fire at this point, which
+        // meant every inserted transaction was logged to ml_training_data.jsonl twice, and
+        // messages that later turned out to be duplicates were logged even though nothing was
+        // saved.
 
         // 5. Classification
         val classificationTrace = mutableListOf<String>()
@@ -383,27 +348,28 @@ object SmsProcessor {
         db: com.saikumar.expensetracker.data.db.AppDatabase,
         merchantName: String?,
         timestamp: Long,
-        amountPaisa: Long?,
         history: List<TransactionWithCategory>? = null
     ): Boolean {
         if (merchantName.isNullOrBlank()) return false
-        
+
         try {
-            val historyList = if (history != null) {
-                history
-            } else {
-                // Fallback to DB query if no history provided
-                // Window: 20 to 60 days
-                val oneDayMillis = 24 * 60 * 60 * 1000L
-                val endRange = timestamp - (20 * oneDayMillis)
-                val startRange = timestamp - (60 * oneDayMillis)
-                db.transactionDao().getTransactionsInPeriod(startRange, endRange).first()
-            }
-            
-            // Check for match
-            val match = historyList.find { 
+            // Salary recurrence window: a prior credit from the same source 20-60 days
+            // BEFORE this message (roughly "last month's salary").
+            val oneDayMillis = 24 * 60 * 60 * 1000L
+            val windowEnd = timestamp - (20 * oneDayMillis)
+            val windowStart = timestamp - (60 * oneDayMillis)
+
+            val historyList = history
+                ?: db.transactionDao().getTransactionsInPeriod(windowStart, windowEnd).first()
+
+            // Check for match. The window filter applies to pre-loaded history too -
+            // previously only the DB-fallback path enforced it, so bulk scans matched any
+            // same-merchant income in the pre-loaded set regardless of when it occurred
+            // relative to THIS message.
+            val match = historyList.find {
                 it.transaction.transactionType == TransactionType.INCOME &&
-                it.transaction.merchantName.equals(merchantName, ignoreCase = true)
+                it.transaction.merchantName.equals(merchantName, ignoreCase = true) &&
+                it.transaction.timestamp in windowStart..windowEnd
             }
             
             if (match != null) {
@@ -446,7 +412,7 @@ object SmsProcessor {
         
         // RECURRENCE CHECK FOR SALARY (specific post-processing)
         if (parsed.category == AppConstants.Categories.OTHER_INCOME && parsed.transactionType == TransactionType.INCOME) {
-             if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amountPaisa, salaryHistory)) {
+             if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, salaryHistory)) {
                  val salaryId = categoryMap[AppConstants.Categories.SALARY]?.id ?: resolved.categoryId
                  resolved = resolved.copy(categoryId = salaryId)
              }
@@ -530,7 +496,11 @@ object SmsProcessor {
     suspend fun scanInbox(context: Context) = withContext(Dispatchers.IO) {
         Log.d(TAG, "Scanning inbox - Optimized Mode")
         ClassificationDebugLogger.startBatchSession()
-        
+        // Buffer ML training samples in memory for the whole scan instead of opening/closing
+        // the training-data file for every matched message - on a large inbox (thousands of
+        // historical SMS) that per-message file I/O was the dominant cost of a full scan.
+        com.saikumar.expensetracker.util.TrainingDataLogger.startBatch()
+
         val app = context.applicationContext as ExpenseTrackerApplication
         val db = app.database
 
@@ -565,13 +535,12 @@ object SmsProcessor {
         // Also pre-loading existing salary transactions for N+1 fix
         val existingHashes = db.transactionDao().getAllSmsHashes().toMutableSet()
 
-        // Performance Fix: Only load last 60 days for salary recurrence detection instead of all history
-        // Salary is typically monthly/bi-monthly, so 60 days is sufficient for pattern detection
-        val sixtyDaysAgo = System.currentTimeMillis() - (60L * 24 * 60 * 60 * 1000)
-        val recentHistory = db.transactionDao().getTransactionsInPeriod(sixtyDaysAgo, Long.MAX_VALUE).first()
-
-        // Filter for only income transactions (used for salary recurrence detection)
-        val salaryCheckHistory = recentHistory.filter {
+        // Salary recurrence detection needs income history relative to EACH scanned message's
+        // timestamp (bulk scans process months of old SMS), so load all income transactions -
+        // checkSalaryRecurrence applies its own 20-60-day window per message. Income rows are
+        // a small fraction of the table, so this stays cheap.
+        val allHistory = db.transactionDao().getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
+        val salaryCheckHistory = allHistory.filter {
             it.transaction.transactionType == TransactionType.INCOME
         }
         
@@ -759,6 +728,7 @@ object SmsProcessor {
         } finally {
             com.saikumar.expensetracker.util.ScanProgressManager.finish()
             ClassificationDebugLogger.endBatchSession(context)
+            com.saikumar.expensetracker.util.TrainingDataLogger.endBatch(context)
             Log.d(TAG, "Scan complete: inserted=$inserted, skipped=$skipped, epf/nps=$epfNps")
         }
         
@@ -1094,7 +1064,7 @@ object SmsProcessor {
                         // RECURRENCE CHECK FOR SALARY (uses DB fallback, no allTxns needed)
                         var finalCategoryId = resolved.categoryId
                         if (parsed.category == "Other Income" && parsed.transactionType == TransactionType.INCOME) {
-                             if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, parsed.amountPaisa, null)) {
+                             if (checkSalaryRecurrence(db, parsed.counterparty.name, parsed.timestamp, null)) {
                                  finalCategoryId = categoryMap[AppConstants.Categories.SALARY]?.id ?: finalCategoryId
                                  resolved = resolved.copy(categoryId = finalCategoryId)
                              }

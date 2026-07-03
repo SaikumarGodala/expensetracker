@@ -310,17 +310,21 @@ fun SearchTransactionItem(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Category chip
+                    // Category chip - color-coded identity, consistent with the dashboard rows
+                    val rawCategoryColor = com.saikumar.expensetracker.util.CategoryColors.getColor(category.name)
+                    val categoryColor = if (com.saikumar.expensetracker.ui.theme.LocalIsDarkTheme.current) {
+                        androidx.compose.ui.graphics.lerp(rawCategoryColor, Color.White, 0.35f)
+                    } else rawCategoryColor
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(categoryColor.copy(alpha = 0.14f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = category.name,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = categoryColor
                         )
                     }
 

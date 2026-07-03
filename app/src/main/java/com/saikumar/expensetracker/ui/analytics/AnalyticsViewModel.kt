@@ -70,14 +70,24 @@ class AnalyticsViewModel(
     }
 
     // Combine data flows
+    // NOTE: combine() with exactly 5 flow arguments + a 5-param lambda is ambiguous between
+    // kotlinx.coroutines' fixed 5-arity overload and its reified vararg overload (Flow is
+    // covariant, so any 5 Flow<X> args also satisfy the vararg Flow<T> signature). This produces
+    // confusing "SuspendFunctionN vs SuspendFunction1<Array<T>, R>" compile errors - see the same
+    // fix applied in DashboardViewModel.uiState. Nesting two smaller combine() calls avoids it.
     private val dataState = combine(
-        _categorySpending,
-        _yearlySpending,
-        _monthlyTrends,
+        combine(_categorySpending, _yearlySpending, _monthlyTrends) { catSpending, yearSpending, trends ->
+            Triple(catSpending, yearSpending, trends)
+        },
         _previousYearTotal,
         allCategories
-    ) { catSpending, yearSpending, trends, prevTotal, categories ->
-        Quadruple(catSpending, yearSpending, trends, Pair(prevTotal, categories))
+    ) { catSpendingYearlyTrends, prevTotal, categories ->
+        Quadruple(
+            catSpendingYearlyTrends.first,
+            catSpendingYearlyTrends.second,
+            catSpendingYearlyTrends.third,
+            Pair(prevTotal, categories)
+        )
     }
 
     val uiState: StateFlow<AnalyticsUiState> = combine(

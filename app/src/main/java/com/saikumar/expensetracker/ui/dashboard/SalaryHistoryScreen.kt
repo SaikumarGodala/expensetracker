@@ -21,10 +21,8 @@ import java.util.Locale
 /**
  * Format paisa amount to rupee display string
  */
-private fun formatAmount(paisa: Long): String {
-    val rupees = paisa / 100.0
-    return "₹${String.format(Locale.getDefault(), "%,.0f", rupees)}"
-}
+private fun formatAmount(paisa: Long): String =
+    com.saikumar.expensetracker.util.CurrencyFormatter.formatPaisa(paisa)
 
 /**
  * Convert timestamp to formatted date string

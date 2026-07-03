@@ -171,9 +171,10 @@ fun FilteredTransactionsScreen(
                                 key = { it.transaction.id }
                             ) { transaction ->
                                 TransactionItem(
-                                    transaction, 
+                                    transaction,
                                     onClick = { editingTransaction = transaction },
-                                    modifier = Modifier.animateItemPlacement().padding(horizontal = 16.dp)
+                                    // Horizontal padding comes from TransactionItem itself now
+                                    modifier = Modifier.animateItemPlacement()
                                 )
                             }
                         }

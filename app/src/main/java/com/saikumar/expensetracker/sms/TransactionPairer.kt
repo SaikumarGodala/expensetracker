@@ -34,6 +34,50 @@ object TransactionPairer {
     )
 
     /**
+     * FINANCIAL ACCURACY: a confirmed self-transfer is money moving between the user's own
+     * accounts - neither income nor expense. Every aggregation in the app (dashboard totals,
+     * budget SQL, analytics SQL) filters by transactionType and knows nothing about links,
+     * so leaving the legs typed EXPENSE/INCOME inflates BOTH sides by the transferred amount.
+     *
+     * Retype conservatively: only plain EXPENSE/INCOME legs are flipped to TRANSFER.
+     * Deliberate classifications (INVESTMENT_*, LIABILITY_PAYMENT, REFUND, CASHBACK) are left
+     * alone - if one of those got linked, the link is informational and the type still carries
+     * the correct financial meaning.
+     */
+    private suspend fun retypeSelfTransferLegs(
+        db: AppDatabase,
+        myAccountNumbers: Set<String>,
+        debitId: Long,
+        creditId: Long
+    ): Int {
+        val debit = db.transactionDao().getById(debitId) ?: return 0
+        val credit = db.transactionDao().getById(creditId) ?: return 0
+
+        // GUARD: the pairer's confidence score can reach the link threshold on
+        // amount + time-window + different-sender alone, which is enough to *display* the
+        // pair as a probable self-transfer but NOT enough to rewrite the ledger (a salary
+        // credit and an unrelated same-amount payment a day apart would qualify). Only
+        // retype when both legs are provably on the user's own, distinct accounts.
+        val debitAcct = debit.accountNumberLast4
+        val creditAcct = credit.accountNumberLast4
+        val accountsVerified = debitAcct != null && creditAcct != null &&
+            debitAcct != creditAcct &&
+            debitAcct in myAccountNumbers && creditAcct in myAccountNumbers
+        if (!accountsVerified) return 0
+
+        var updated = 0
+        for (txn in listOf(debit, credit)) {
+            if (txn.transactionType == TransactionType.EXPENSE || txn.transactionType == TransactionType.INCOME) {
+                db.transactionDao().updateTransaction(
+                    txn.copy(transactionType = TransactionType.TRANSFER, isExpenseEligible = false)
+                )
+                updated++
+            }
+        }
+        return updated
+    }
+
+    /**
      * Auto-pair self-transfers: Detect when ₹X leaves Account A and ₹X arrives in Account B on same day.
      * Creates TransactionLink records with LinkType.SELF_TRANSFER.
      */
@@ -49,6 +93,22 @@ object TransactionPairer {
 
         val userAccounts = db.userAccountDao().getAllAccounts()
         val myAccountNumbers = userAccounts.map { it.accountNumberLast4 }.toSet()
+
+        // REPAIR PASS: reclassifyTransactions() re-derives types from the raw SMS and can flip
+        // already-linked self-transfer legs back to EXPENSE/INCOME (it has no link awareness).
+        // Since the matching loop below skips already-linked transactions, those legs would
+        // never be retyped again - so heal them here every run. Idempotent: legs already
+        // TRANSFER (or unverified pairs) are untouched.
+        try {
+            val existingSelfTransferLinks = linkDao.getLinksByType(LinkType.SELF_TRANSFER)
+            var healed = 0
+            for (link in existingSelfTransferLinks) {
+                healed += retypeSelfTransferLegs(db, myAccountNumbers, link.primaryTxnId, link.secondaryTxnId)
+            }
+            if (healed > 0) Log.d(TAG, "Repair pass: retyped $healed previously-linked self-transfer legs to TRANSFER")
+        } catch (e: Exception) {
+            Log.e(TAG, "Self-transfer repair pass failed: ${e.message}")
+        }
         if (com.saikumar.expensetracker.BuildConfig.DEBUG) {
             val redactedAccounts = myAccountNumbers.map { "****" } // Redact all for safety
             Log.d(TAG, "Detected user accounts: ${myAccountNumbers.size} - $redactedAccounts")
@@ -115,6 +175,10 @@ object TransactionPairer {
                         // Add to set to prevent re-linking in this same run
                         linkedTxnIds.add(debit.id)
                         linkedTxnIds.add(credit.id)
+                        // Retype EXPENSE/INCOME legs to TRANSFER so aggregations stop
+                        // counting this internal move as spending + income (only applies
+                        // when both accounts are verified as the user's own - see guard)
+                        retypeSelfTransferLegs(db, myAccountNumbers, debit.id, credit.id)
                         if (com.saikumar.expensetracker.BuildConfig.DEBUG) {
                             Log.d(TAG, "PAIRED: ₹${debitAmount / 100.0} | ${debitSender} → ${creditSender} | Confidence: $confidence%")
                         }

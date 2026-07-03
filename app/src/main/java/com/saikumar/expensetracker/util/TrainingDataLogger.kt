@@ -12,9 +12,36 @@ import java.util.Locale
 object TrainingDataLogger {
     private const val TAG = "TrainingDataLogger"
     private const val FILE_NAME = "ml_training_data.jsonl"
-    
+
     // Log format version to handle schema evolution
     private const val VERSION = 1
+
+    // While a batch is active, logSample() appends to this in-memory buffer instead of
+    // opening/closing the training-data file on every call. Bulk inbox scans can process
+    // thousands of messages in one pass; without batching each one paid the cost of a
+    // separate file open+append+close.
+    private val batchLock = Any()
+    private var batchBuffer: StringBuilder? = null
+
+    fun startBatch() {
+        synchronized(batchLock) { batchBuffer = StringBuilder() }
+    }
+
+    /** Flush any buffered samples to disk in a single write and stop batching. */
+    fun endBatch(context: Context) {
+        val buffered = synchronized(batchLock) {
+            val current = batchBuffer
+            batchBuffer = null
+            current
+        }
+        if (!buffered.isNullOrEmpty()) {
+            try {
+                appendToFile(context, buffered.toString())
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to flush batched training samples", e)
+            }
+        }
+    }
 
     fun logSample(
         context: Context,
@@ -53,19 +80,25 @@ object TrainingDataLogger {
                 put("label_merchant", merchantName) 
             }
             
-            appendToFile(context, json.toString())
-            
+            val line = json.toString() + "\n"
+            val activeBuffer = synchronized(batchLock) { batchBuffer }
+            if (activeBuffer != null) {
+                synchronized(batchLock) { activeBuffer.append(line) }
+            } else {
+                appendToFile(context, line)
+            }
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to log training sample", e)
         }
     }
-    
-    private fun appendToFile(context: Context, line: String) {
+
+    private fun appendToFile(context: Context, content: String) {
         // Use internal storage / files dir
         val file = File(context.filesDir, FILE_NAME)
-        
+
         FileOutputStream(file, true).use { output ->
-            output.write((line + "\n").toByteArray())
+            output.write(content.toByteArray())
         }
     }
     

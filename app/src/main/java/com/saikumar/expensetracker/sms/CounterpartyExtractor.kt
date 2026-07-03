@@ -56,14 +56,14 @@ object CounterpartyExtractor {
     
     // HDFC "Spent Rs.XXX At <MERCHANT>" pattern (Credit Card POS)
     private val HDFC_SPENT_AT_PATTERN = Pattern.compile(
-        "Spent\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*At\\s+([A-Z][A-Za-z0-9\\s]{2,50}?)(?:\\s+(?:Gur|new|On\\s+\\d))",
+        "Spent\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*?At\\s+([A-Z][A-Za-z0-9\\s]{2,50}?)(?:\\s+(?:Gur|new|On\\s+\\d))",
         Pattern.CASE_INSENSITIVE
     )
-    
+
     // HDFC "Txn Rs.XXX On HDFC Bank Card At <VPA>" pattern (Card via UPI)
     // Captures full VPA prefix including merchant names like "svmbowling.67079608"
     private val HDFC_CARD_UPI_PATTERN = Pattern.compile(
-        "Txn\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*At\\s+([a-zA-Z][a-zA-Z0-9._-]*)@[a-zA-Z]+",
+        "Txn\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*?At\\s+([a-zA-Z][a-zA-Z0-9._-]*)@[a-zA-Z]+",
         Pattern.CASE_INSENSITIVE
     )
     
@@ -75,14 +75,53 @@ object CounterpartyExtractor {
     )
 
     // SBI Credit Card "Rs.XXX spent on your SBI Credit Card at <MERCHANT>" pattern
+    // BUGFIX: the greedy `[^\n]*at\s+` here (and in ICICI_SPENT_AT below) matched the LAST
+    // "at " in the message - which in real SBI/ICICI SMS is the dispute link ("Report at
+    // https://sbicard.com/...", "Know more ... at icici.co/..."), so the captured "merchant"
+    // was "https" or "icici" and the real merchant was lost. Lazy `[^\n]*?` stops at the
+    // first "at " after the card phrase, which is the merchant.
     private val SBI_SPENT_AT_PATTERN = Pattern.compile(
-        "Rs\\.?[\\d,\\.]+\\s+spent\\s+on\\s+your\\s+SBI\\s+Credit\\s+Card[^\\n]*at\\s+([A-Z][A-Za-z0-9\\s]{2,30})",
+        "Rs\\.?[\\d,\\.]+\\s+spent\\s+on\\s+your\\s+SBI\\s+Credit\\s+Card[^\\n]*?at\\s+([A-Z][A-Za-z0-9\\s]{2,30})",
         Pattern.CASE_INSENSITIVE
     )
-    
+
     // ICICI "Rs X,XXX spent on ICICI Bank Card XX... on DD-Mon-YY at <MERCHANT>" pattern
     private val ICICI_SPENT_AT_PATTERN = Pattern.compile(
-        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*at\\s+([A-Z][A-Za-z0-9\\s\\.]+?)\\.",
+        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*?at\\s+([A-Z][A-Za-z0-9\\s\\.]+?)\\.",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Generic "spent on your <ANY BANK> Credit Card ending XX1234 at <MERCHANT> on <DATE>"
+    // Covers IDFC FIRST ("Happy Shopping! INR 508.00 spent on your IDFC FIRST Bank Credit
+    // Card ending XX4969 at SWIGGY IN on 22 JUN 2026...") and similar formats from banks
+    // without a dedicated template. Anchored on "ending XXnnnn at ... on <digit>" so the
+    // merchant capture can't run into the trailing date or dispute text.
+    private val GENERIC_CARD_ENDING_AT_PATTERN = Pattern.compile(
+        // '*' included in the capture class for gateway-prefixed merchants like "RAZ*Swiggy"
+        "(?:INR|Rs\\.?)\\s*[\\d,\\.]+\\s+spent\\s+on\\s+your\\s+[A-Za-z][A-Za-z\\s]{1,30}Card\\s+ending\\s+(?:XX)?\\d{4}\\s+at\\s+([A-Za-z][A-Za-z0-9\\s&\\.\\*-]{2,40}?)\\s+on\\s+\\d",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Axis slash-separated format:
+    // "Spent / Card no. XX8887 / INR 670.35 / 17-08-25 19:30:23 / ZOMATO / Avl Lmt INR ..."
+    // Merchant is the 5th slash-separated field.
+    private val AXIS_SLASH_PATTERN = Pattern.compile(
+        "Spent\\s*/\\s*Card\\s+no\\.\\s*XX\\d{4}\\s*/\\s*[A-Z]{3}\\s*[\\d,\\.]+\\s*/\\s*[^/]*?/\\s*([^/]{2,40}?)\\s*/",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // FASTag toll payment: "Rs.70 paid at Shamshabad for TG07AP7269 on ... with ICICI Bank FASTag"
+    // Captures the toll plaza name; CategoryMapper routes FASTag bodies to Parking & Tolls.
+    private val FASTAG_PAID_AT_PATTERN = Pattern.compile(
+        "Rs\\.?\\s*[\\d,\\.]+\\s+paid\\s+at\\s+([A-Za-z][A-Za-z0-9\\s]{2,30}?)\\s+for\\s+[A-Z]{2}\\s?\\d{2}",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // ATM withdrawal (HDFC format): "Withdrawn Rs.10000 From HDFC Bank Card x5454 At
+    // +SERILINGAMPALLY On 2026-03-29..." - the existing WITHDRAWN_AT pattern only handles
+    // "withdrawn at <X> from", not this From-then-At ordering.
+    private val WITHDRAWN_FROM_AT_PATTERN = Pattern.compile(
+        "Withdrawn\\s+Rs\\.?\\s*[\\d,\\.]+\\s+From\\s+[^\\n]*?At\\s+\\+?([A-Za-z][A-Za-z0-9\\s]{2,30}?)\\s+On",
         Pattern.CASE_INSENSITIVE
     )
     
@@ -180,10 +219,13 @@ object CounterpartyExtractor {
                 val merchantName = extractMerchantFromVpa(vpaPrefix)
                 return if (merchantName != null && isValidName(merchantName)) {
                     trace.add("Extracted Merchant from VPA prefix: $vpaPrefix -> $merchantName")
-                    Counterparty(merchantName, null, CounterpartyType.MERCHANT, trace)
+                    Counterparty(merchantName, extractUpiId(body), CounterpartyType.MERCHANT, trace)
                 } else {
                     trace.add("VPA prefix '$vpaPrefix' deemed junk/invalid")
-                    Counterparty(null, null, CounterpartyType.UNKNOWN, trace)
+                    // Keep the raw VPA even when the prefix is a junk gateway handle
+                    // (bharatpe.../gpay-123...): CategoryMapper uses it to classify these
+                    // QR payments as Offline Merchant instead of Uncategorized.
+                    Counterparty(null, extractUpiId(body), CounterpartyType.UNKNOWN, trace)
                 }
             }
         }
@@ -230,6 +272,30 @@ object CounterpartyExtractor {
                 val rawName = m.group(1) ?: return@let
                 trace.add("Matched Template: SBI_SPENT_AT")
                 val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
+        // 5d. Generic "<BANK> Credit Card ending XXNNNN at <MERCHANT> on <DATE>" (IDFC etc.)
+        GENERIC_CARD_ENDING_AT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: GENERIC_CARD_ENDING_AT")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
+        // 5e. Axis slash-separated "Spent / Card no. XXNNNN / INR X / <date> / <MERCHANT> /"
+        AXIS_SLASH_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: AXIS_SLASH")
+                val name = cleanName(rawName.trim(), trace)
                 if (isValidName(name)) {
                     return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
                 } else trace.add("Invalid name rejected: $name")
@@ -316,6 +382,32 @@ object CounterpartyExtractor {
                 }
             }
         }
+
+        // 8.6 ATM "Withdrawn Rs.X From <BANK> Card xNNNN At <LOCATION> On" (HDFC ordering)
+        WITHDRAWN_FROM_AT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: WITHDRAWN_FROM_AT")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                }
+            }
+        }
+
+        // 8.7 FASTag toll: "Rs.X paid at <PLAZA> for <VEHICLE_NO> ... FASTag"
+        if (body.contains("FASTag", ignoreCase = true)) {
+            FASTAG_PAID_AT_PATTERN.matcher(body).let { m ->
+                if (m.find()) {
+                    val rawName = m.group(1) ?: return@let
+                    trace.add("Matched Template: FASTAG_PAID_AT")
+                    val name = cleanName(rawName, trace)
+                    if (isValidName(name)) {
+                        return Counterparty("FASTag $name", null, CounterpartyType.MERCHANT, trace)
+                    }
+                }
+            }
+        }
         
         // 9. Credit Alert VPA
         CREDIT_ALERT_VPA_PATTERN.matcher(body).let { m ->
@@ -356,46 +448,9 @@ object CounterpartyExtractor {
 
     // --- UTILITIES ---
 
-    /**
-     * Split camelCase/PascalCase into separate words
-     * "svmbowling" -> "svm bowling"
-     * "lastHouseCoffee" -> "last House Coffee"
-     */
-    private fun splitCamelCase(input: String): String {
-        // Insert space before uppercase letters
-        return input
-            .replace(Regex("([a-z])([A-Z])"), "$1 $2")
-            .replace(Regex("([A-Z]+)([A-Z][a-z])"), "$1 $2")
-    }
-
-    /**
-     * Extract readable merchant name from VPA-style strings
-     * "svmbowling.67079608" -> "Svm Bowling"
-     * "lasthousecoffee.96120121" -> "Last House Coffee"
-     */
-    private fun cleanVpaMerchantName(vpaPart: String): String? {
-        // Remove numbers and dots to get base name
-        var cleaned = vpaPart
-            .substringBefore(".")
-            .replace(Regex("[0-9]"), "")
-            .trim()
-
-        if (cleaned.length < 3) return null
-
-        // Check if it's a known merchant
-        for ((pattern, name) in KNOWN_MERCHANT_VPAS) {
-            if (cleaned.lowercase().contains(pattern)) return name
-        }
-
-        // Try to split camelCase
-        cleaned = splitCamelCase(cleaned)
-
-        // Title case each word
-        return cleaned.split(" ")
-            .filter { it.isNotBlank() && it.length > 1 }
-            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
-            .takeIf { it.length >= 3 }
-    }
+    // NOTE: cleanVpaMerchantName/splitCamelCase were removed here - they were dead code
+    // (only referenced each other, never called from the extraction flow, which uses
+    // extractMerchantFromVpa instead).
 
     private fun extractUpiId(body: String): String? {
         val m = UPI_PATTERN.matcher(body)
@@ -537,7 +592,20 @@ object CounterpartyExtractor {
         "microsoft" to "Microsoft",
         "apple" to "Apple",
         "youtube" to "YouTube",
-        "claude" to "Claude AI"
+        "claude" to "Claude AI",
+        "anthropic" to "Anthropic",
+        "openai" to "OpenAI",
+        "jiomart" to "JioMart",
+        "pharmeasy" to "PharmEasy",
+        "netmeds" to "Netmeds",
+        "eatsure" to "EatSure",
+        "sonyliv" to "SonyLIV",
+        "urbancompany" to "Urban Company",
+        "lenskart" to "Lenskart",
+        "firstcry" to "FirstCry",
+        "snapdeal" to "Snapdeal",
+        "ixigo" to "Ixigo",
+        "easemytrip" to "EaseMyTrip"
     )
     
     private fun extractMerchantFromVpa(vpaPrefix: String): String? {
@@ -645,8 +713,8 @@ object CounterpartyExtractor {
                 val prefix = parts[0].uppercase()
                 val suffix = parts[1]
                 
-                // Known gateway prefixes
-                if (prefix in listOf("PYU", "CAS", "RAZORPAY", "PAYU", "CCAVENUE", "HDFC", "AXIS", "ICICI", "AIRTEL", "PAYTM")) {
+                // Known gateway prefixes ("RAZ" = Razorpay's short code on IDFC card SMS)
+                if (prefix in listOf("PYU", "CAS", "RAZ", "RAZORPAY", "PAYU", "CCAVENUE", "HDFC", "AXIS", "ICICI", "AIRTEL", "PAYTM")) {
                     cleaned = suffix
                     trace?.add("Stripped Gateway Prefix: $prefix")
                 }
@@ -748,22 +816,10 @@ object CounterpartyExtractor {
     private fun classifyDebitedCreditedName(name: String): CounterpartyType {
         val upper = name.uppercase()
 
-        // Credit Card Payment Services - these are MERCHANTS, not PERSON
-        if (upper.contains("CRED CLUB") ||
-            upper.contains("CRED APP") ||
-            upper.contains("CRED") && upper.split(" ").size <= 2 ||
-            upper.contains("AMEX") ||
-            upper.contains("ONE CARD") ||
-            upper.contains("ONECARD") ||
-            upper.contains("SBI CARD") ||
-            upper.contains("SBICARD") ||
-            upper.contains("HDFC CARD") ||
-            upper.contains("HDFCCARD") ||
-            upper.contains("AXIS CARD") ||
-            upper.contains("AXISCARD") ||
-            upper.contains("ICICI CARD") ||
-            upper.contains("ICICCARD") ||
-            upper.contains("BILLDESK") ||
+        // Credit Card Payment Services / payment apps - these are MERCHANTS, not PERSON.
+        // Core issuer/service list is shared via SmsConstants.isCreditCardServiceName
+        // (word-boundary "CRED" matching); payment-app names are specific to this check.
+        if (SmsConstants.isCreditCardServiceName(upper) ||
             upper.contains("BILL DESK") ||
             upper.contains("PAYTM") ||
             upper.contains("PHONEPE") ||
@@ -774,20 +830,23 @@ object CounterpartyExtractor {
 
         // Known Merchants that might appear in this pattern
         for ((pattern, _) in KNOWN_MERCHANT_VPAS) {
-            if (upper.contains(pattern.uppercase())) {
+            if (SmsConstants.containsToken(upper, pattern.uppercase())) {
                 return CounterpartyType.MERCHANT
             }
         }
 
         // Check for company/business indicators
+        // BUGFIX: "INC" and "CORP" as raw substrings matched inside ordinary names/words
+        // (e.g. "INC" inside "PRINCE", "CORP" inside "CORPUS"). Word-boundary matching avoids
+        // misclassifying a person named e.g. "Prince Kumar" as a business.
         if (upper.contains("TECHNOLOGIES") ||
             upper.contains("PRIVATE") ||
             upper.contains("LIMITED") ||
             upper.contains("BROKING") ||
             upper.contains("PVT LTD") ||
-            upper.contains("LLC") ||
-            upper.contains("INC") ||
-            upper.contains("CORP")) {
+            SmsConstants.containsToken(upper, "LLC") ||
+            SmsConstants.containsToken(upper, "INC") ||
+            SmsConstants.containsToken(upper, "CORP")) {
             return CounterpartyType.MERCHANT
         }
 
@@ -959,60 +1018,13 @@ object CounterpartyExtractor {
      * - Partial names: "GODALA S REDDY" matches "GODALA SAIKUMAR REDDY"
      * - Word order variations: "KUMAR SAIKUMAR" matches "SAIKUMAR KUMAR"
      * - Middle name variations: "GODALA SAIKUMAR" matches "GODALA SAIKUMAR REDDY"
+     *
+     * Delegates to the shared [com.saikumar.expensetracker.util.NameMatcher] so this
+     * logic has a single source of truth (previously duplicated in 3 places).
      */
-    private fun areNamesEquivalent(name1: String, name2: String): Boolean {
-        val parts1 = name1.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-        val parts2 = name2.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+    private fun areNamesEquivalent(name1: String, name2: String): Boolean =
+        com.saikumar.expensetracker.util.NameMatcher.areNamesEquivalent(name1, name2)
 
-        if (parts1.isEmpty() || parts2.isEmpty()) return false
-
-        // Extract significant parts (length >= 3 and mostly letters)
-        val significantParts1 = parts1.filter { it.length >= 3 && it.count { c -> c.isLetter() } >= 2 }
-        val significantParts2 = parts2.filter { it.length >= 3 && it.count { c -> c.isLetter() } >= 2 }
-
-        // If at least 2 significant parts match (regardless of order), likely same person
-        val commonSignificant = significantParts1.intersect(significantParts2.toSet())
-        if (commonSignificant.size >= 2) {
-            return true
-        }
-
-        // Check if single significant part matches AND has initials that match
-        if (commonSignificant.size == 1) {
-            val initials1 = parts1.filter { it.length == 1 }.toSet()
-            val initials2 = parts2.filter { it.length == 1 }.toSet()
-
-            // Check if initials from one name match the first letters of parts in other name
-            val matches1to2 = initials1.any { initial ->
-                significantParts2.any { it.startsWith(initial) }
-            }
-            val matches2to1 = initials2.any { initial ->
-                significantParts1.any { it.startsWith(initial) }
-            }
-
-            if (matches1to2 || matches2to1) {
-                return true
-            }
-        }
-
-        // Check if all parts of shorter name are contained in longer name
-        val (shorterParts, longerParts) = if (parts1.size <= parts2.size) {
-            parts1 to parts2
-        } else {
-            parts2 to parts1
-        }
-
-        val allShorterPartsMatched = shorterParts.all { shortPart ->
-            longerParts.any { longPart ->
-                // Exact match or one is prefix of other
-                shortPart == longPart ||
-                (shortPart.length == 1 && longPart.startsWith(shortPart)) ||
-                (longPart.length == 1 && shortPart.startsWith(longPart))
-            }
-        }
-
-        return allShorterPartsMatched && shorterParts.size >= 2
-    }
-    
     /**
      * Extract NEFT source information (IFSC + sender) for salary pattern tracking.
      * 

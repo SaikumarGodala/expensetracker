@@ -5,9 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,10 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.draw.clip
-import com.github.mikephil.charting.charts.PieChart
-import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.utils.ColorTemplate
 import com.saikumar.expensetracker.data.entity.CategoryType
 import com.saikumar.expensetracker.util.CategoryIcons
@@ -35,10 +29,8 @@ import java.util.Locale
 /**
  * Format paisa amount to rupee display string
  */
-private fun formatAmount(paisa: Long): String {
-    val rupees = paisa / 100.0
-    return "₹${String.format(Locale.getDefault(), "%,.0f", rupees)}"
-}
+private fun formatAmount(paisa: Long): String =
+    com.saikumar.expensetracker.util.CurrencyFormatter.formatPaisa(paisa)
 
 /**
  * Convert timestamp to formatted date string
@@ -132,6 +124,7 @@ fun MonthlyOverviewScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Compact Header: [Filter] [Date] [Search]
+                // (Screen title lives in InsightsHubScreen, which hosts this content)
                 item {
                     Column {
                         Row(

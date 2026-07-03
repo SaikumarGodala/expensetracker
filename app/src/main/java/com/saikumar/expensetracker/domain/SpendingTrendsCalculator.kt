@@ -27,8 +27,18 @@ class SpendingTrendsCalculator(
         // Use existing getTransactionsInPeriod and filter, or add specific query.
         // Let's use getTransactionsInPeriod which returns Flow<List<TransactionWithCategory>>
         val allTransactions = transactionDao.getTransactionsInPeriod(startMillis, endMillis).first()
-        
-        val categoryTransactions = allTransactions.filter { it.transaction.categoryId == categoryId }
+
+        // FINANCIAL ACCURACY: only settled, real spending counts toward the "typical spend"
+        // baseline. Previously this summed every transaction in the category regardless of
+        // type - a TRANSFER or PENDING row sitting in a spending category inflated the ghost
+        // budget for that category.
+        val categoryTransactions = allTransactions.filter {
+            it.transaction.categoryId == categoryId &&
+            it.transaction.status == com.saikumar.expensetracker.data.entity.TransactionStatus.COMPLETED &&
+            (it.transaction.transactionType == com.saikumar.expensetracker.data.entity.TransactionType.EXPENSE ||
+             it.transaction.transactionType == com.saikumar.expensetracker.data.entity.TransactionType.INVESTMENT_OUTFLOW ||
+             it.transaction.transactionType == com.saikumar.expensetracker.data.entity.TransactionType.INVESTMENT_CONTRIBUTION)
+        }
         
         if (categoryTransactions.isEmpty()) return 0L
 

@@ -205,15 +205,37 @@ interface TransactionDao {
     """)
     suspend fun getSalaryForPeriod(categoryId: Long, start: Long, end: Long): Long?
 
+    /**
+     * FINANCIAL ACCURACY: filtered to settled EXPENSE transactions only. The previous version
+     * summed *any* transaction sitting in a FIXED/VARIABLE category - so TRANSFER (self-transfer
+     * legs), PENDING, IGNORE and REFUND typed transactions all silently inflated the budget's
+     * expense figure relative to what the dashboard shows.
+     */
     @Query("""
-        SELECT SUM(t.amountPaisa) 
-        FROM transactions t 
-        INNER JOIN categories c ON t.categoryId = c.id 
-        WHERE c.type IN ('FIXED_EXPENSE', 'VARIABLE_EXPENSE') 
-        AND t.timestamp BETWEEN :start AND :end 
+        SELECT SUM(t.amountPaisa)
+        FROM transactions t
+        INNER JOIN categories c ON t.categoryId = c.id
+        WHERE c.type IN ('FIXED_EXPENSE', 'VARIABLE_EXPENSE')
+        AND t.transactionType = 'EXPENSE'
+        AND t.status = 'COMPLETED'
+        AND t.timestamp BETWEEN :start AND :end
         AND t.deletedAt IS NULL
     """)
     suspend fun getTotalExpenseForPeriod(start: Long, end: Long): Long?
+
+    /**
+     * Total settled refunds/reversals in a period. Consumers net this against expenses so a
+     * refunded purchase doesn't stay counted as spend (matches the dashboard's netting).
+     */
+    @Query("""
+        SELECT SUM(amountPaisa)
+        FROM transactions
+        WHERE transactionType = 'REFUND'
+        AND status = 'COMPLETED'
+        AND timestamp BETWEEN :start AND :end
+        AND deletedAt IS NULL
+    """)
+    suspend fun getTotalRefundForPeriod(start: Long, end: Long): Long?
 
     @Query("""
         SELECT c.name as categoryName, c.icon as categoryIcon, SUM(t.amountPaisa) as totalAmount

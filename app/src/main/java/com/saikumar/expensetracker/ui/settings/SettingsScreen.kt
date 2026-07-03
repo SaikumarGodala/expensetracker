@@ -80,6 +80,12 @@ fun SettingsScreen(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
+        Text(
+            "Settings",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
         // ============= QUICK ACTIONS SECTION =============
         var showReclassifyConfirmation by remember { mutableStateOf(false) }
 

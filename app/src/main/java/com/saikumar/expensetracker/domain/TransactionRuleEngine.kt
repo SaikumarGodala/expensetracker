@@ -98,9 +98,16 @@ object TransactionRuleEngine {
         isDebit: Boolean? = null,
         counterpartyType: String? = null, // "PERSON", "MERCHANT"
         isUntrustedP2P: Boolean = false,
-        upiId: String? = null
+        upiId: String? = null,
+        // Type already determined upstream from the raw SMS wording (e.g. TransactionExtractor
+        // detecting a reversal/refund keyword). Category-based resolution below only knows the
+        // merchant/category (e.g. a refund from an Amazon purchase resolves to the "Shopping"
+        // category), which would otherwise silently re-derive TransactionType.EXPENSE and
+        // double-count the refund as fresh spend. Only REFUND is treated as authoritative here -
+        // it's a hard, unambiguous signal from explicit reversal/refund wording in the SMS.
+        existingType: TransactionType? = null
     ): TransactionType {
-        
+
         // 1. HARD OVERRIDES (Self Transfer)
         if (isSelfTransfer) return TransactionType.TRANSFER
 
@@ -108,6 +115,9 @@ object TransactionRuleEngine {
         if (manualClassification != null) {
             return mapManualString(manualClassification)
         }
+
+        // 2b. REFUND HARD SIGNAL (see existingType doc above)
+        if (existingType == TransactionType.REFUND) return TransactionType.REFUND
 
         // 3. FINANCE-FIRST INVARIANTS (From SmsConstants)
         // If we have specific context, apply invariants *before* category defaults if possible, 

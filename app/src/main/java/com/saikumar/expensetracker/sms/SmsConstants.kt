@@ -5,7 +5,78 @@ package com.saikumar.expensetracker.sms
  */
 import com.saikumar.expensetracker.core.AppConstants
 object SmsConstants {
-    
+
+    // =====================================================
+    // WORD-BOUNDARY TEXT MATCHING
+    // =====================================================
+    //
+    // BUGFIX: Plain `String.contains(key)` checks throughout the categorization
+    // pipeline caused systematic false positives because short/generic keys
+    // matched as substrings of unrelated words. For example, with a naive
+    // `contains` check:
+    //   - "IND"   matched inside "INDIA", "INDIAN CLEARING", "INDUSIND BANK"
+    //   - "CASH"  matched inside "CASHBACK", "CASHFREE"
+    //   - "GOLD"  matched inside "GOLDEN DRAGON RESTAURANT"
+    //   - "SPA"   matched inside a person's name like "SPARSH"
+    //   - "CRED"  matched inside "CREDIT" (not just "CREDITED")
+    // `containsToken` treats a match as valid only when it is not directly
+    // adjacent to another letter, i.e. it behaves like a word-boundary match
+    // but still allows adjacency to digits/punctuation (common in merchant
+    // codes like "BPCL0091234").
+
+    /**
+     * Returns true if [token] appears in [text] as a standalone word/phrase -
+     * i.e. not embedded inside a longer alphabetic word.
+     *
+     * Both [text] and [token] should already be normalized to the same case
+     * (this function does not itself change case).
+     */
+    fun containsToken(text: String, token: String): Boolean {
+        if (token.isEmpty()) return false
+        var fromIndex = 0
+        while (true) {
+            val idx = text.indexOf(token, fromIndex)
+            if (idx == -1) return false
+
+            val beforeOk = idx == 0 || !text[idx - 1].isLetter()
+            val afterIdx = idx + token.length
+            val afterOk = afterIdx >= text.length || !text[afterIdx].isLetter()
+
+            if (beforeOk && afterOk) return true
+            fromIndex = idx + 1
+        }
+    }
+
+    /** True if any of [tokens] appears in [text] as a standalone word/phrase. */
+    fun containsAnyToken(text: String, tokens: Collection<String>): Boolean =
+        tokens.any { containsToken(text, it) }
+
+    /**
+     * Credit-card bill payment services / card issuers as they appear in counterparty
+     * names. Shared by CategoryMapper (Priority-0 CC override) and CounterpartyExtractor
+     * (debited-credited classification) - previously duplicated in both.
+     *
+     * [text] must already be uppercase. "CRED" uses word-boundary matching so it doesn't
+     * fire inside "CREDIT"/"CREDITED".
+     */
+    fun isCreditCardServiceName(text: String): Boolean {
+        return text.contains("CRED CLUB") ||
+            text.contains("CRED APP") ||
+            containsToken(text, "CRED") ||
+            text.contains("AMEX") ||
+            text.contains("ONE CARD") ||
+            text.contains("ONECARD") ||
+            text.contains("SBI CARD") ||
+            text.contains("SBICARD") ||
+            text.contains("HDFC CARD") ||
+            text.contains("HDFCCARD") ||
+            text.contains("AXIS CARD") ||
+            text.contains("AXISCARD") ||
+            text.contains("ICICI CARD") ||
+            text.contains("ICICCARD") ||
+            text.contains("BILLDESK")
+    }
+
     /**
      * Pattern to extract last 4 digits of bank account number.
      * Matches: "A/c XX1234", "Acct XX1234", "Account *1234"

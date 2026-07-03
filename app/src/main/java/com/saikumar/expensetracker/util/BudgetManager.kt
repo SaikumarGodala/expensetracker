@@ -73,8 +73,13 @@ class BudgetManager(
         val startTs = cycleRange.startDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endTs = cycleRange.endDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        // 1. Get Current Expenses (Fixed + Variable)
-        val expenses = transactionDao.getTotalExpenseForPeriod(startTs, endTs) ?: 0L
+        // 1. Get Current Expenses (Fixed + Variable), net of settled refunds so a refunded
+        // purchase doesn't keep counting against the budget (mirrors dashboard netting).
+        // Floored at 0: a refund landing in a later cycle than its purchase can exceed the
+        // cycle's raw spend, and a negative expense figure would make budget math nonsensical.
+        val grossExpenses = transactionDao.getTotalExpenseForPeriod(startTs, endTs) ?: 0L
+        val refunds = transactionDao.getTotalRefundForPeriod(startTs, endTs) ?: 0L
+        val expenses = (grossExpenses - refunds).coerceAtLeast(0L)
         
         // 2. Get Limit
         var limit = preferencesManager.budgetLimitPaise.first()

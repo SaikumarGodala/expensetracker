@@ -37,27 +37,13 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
-// Semantic Colors Mapping
-fun getCategoryColor(name: String): Color {
-    return when (name.lowercase(Locale.ROOT)) {
-        "food", "dining" -> Color(0xFFFF7043) // Orange
-        "groceries" -> Color(0xFF66BB6A) // Green
-        "transport", "taxi", "fuel" -> Color(0xFF42A5F5) // Blue
-        "rent", "housing" -> Color(0xFFEF5350) // Red
-        "shopping", "clothing" -> Color(0xFFEC407A) // Pink
-        "entertainment", "movies" -> Color(0xFFAB47BC) // Purple
-        "utilities", "bills" -> Color(0xFFFFA726) // Amber
-        "health", "medical" -> Color(0xFF26C6DA) // Cyan
-        "salary", "income" -> Color(0xFF43A047) // Dark Green
-        "investment" -> Color(0xFF5C6BC0) // Indigo
-        else -> {
-            // Deterministic fallback based on hash
-            val hash = name.hashCode()
-            val hue = kotlin.math.abs(hash % 360).toFloat()
-            Color.hsv(hue, 0.6f, 0.8f)
-        }
-    }
-}
+// Semantic Colors Mapping - delegates to the single app-wide category color source so
+// pie/bar chart slices match the category chips on transaction rows exactly.
+// (The old local mapping here used different colors AND its keys required exact lowercase
+// matches - "Dining Out" missed the "dining" key and fell into a random HSV hash, so the
+// same category could render differently between the chart and the list.)
+fun getCategoryColor(name: String): Color =
+    com.saikumar.expensetracker.util.CategoryColors.getColor(name)
 
 @Composable
 fun PieChart(

@@ -38,6 +38,7 @@ object CategoryMapper {
         "CASH WDL" to "Cash Withdrawal",
         "WDL" to "Cash Withdrawal",
         "CASH WITHDRAWAL" to "Cash Withdrawal",
+        "WITHDRAWN" to "Cash Withdrawal",
 
         // Cashback
         "BHIMCASHBACK" to "Cashback",
@@ -103,7 +104,10 @@ object CategoryMapper {
         "SWIGGYDINEIN" to "Dining Out",
 
         // Education
-        "UDEMY" to "Education",
+        // NOTE: must be "Education / Fees" - a category named just "Education" does not exist
+        // in DefaultCategories, so this mapping previously resolved to a dead name and every
+        // Udemy purchase silently fell back to Uncategorized.
+        "UDEMY" to "Education / Fees",
 
         // Education / Fees
         "BYJU" to "Education / Fees",
@@ -133,7 +137,9 @@ object CategoryMapper {
         "DREAM11" to "Entertainment",
         "GAMEON" to "Entertainment",
         "GAMES" to "Entertainment",
-        "GOOGLEPLAY" to "Entertainment",
+        // Consistent with "GOOGLE PLAY" -> Subscriptions below; previously this spelling
+        // mapped to Entertainment so the same store landed in two categories.
+        "GOOGLEPLAY" to "Subscriptions",
         "NINTENDO" to "Entertainment",
         "PLAYSTATION" to "Entertainment",
         "PRASADS" to "Entertainment",
@@ -282,9 +288,9 @@ object CategoryMapper {
         "OPEN TEXT" to AppConstants.Categories.SALARY,
         "OPEN TEXT TECHNOLOGIES" to AppConstants.Categories.SALARY,
 
-        // Service
-        "SIVAM AUTO" to "Service",
-        "SRI MOTORS" to "Service",
+        // Services ("Service" singular is not a real category name)
+        "SIVAM AUTO" to "Services",
+        "SRI MOTORS" to "Services",
 
         // Shopping
         "AMAZON" to "Shopping",
@@ -293,7 +299,9 @@ object CategoryMapper {
         "DIVERSE RETAIL" to "Shopping",
         "FLIPKART" to "Shopping",
         "FLIPKART PAYMENTS" to "Shopping",
-        "IND" to "Shopping",
+        // REMOVED: "IND" -> "Shopping" was a dangerously generic 3-letter key that, even with
+        // word-boundary matching, is a common standalone token in bank/NEFT text ("SOUTH IND",
+        // employer/entity names, country-code fragments) unrelated to any real "Shopping" merchant.
         "INFINITI LIMITEMUM" to "Shopping",
         "RELIANCE" to "Shopping",
         "SOUTH JEW" to "Shopping",
@@ -341,6 +349,162 @@ object CategoryMapper {
         "ELECTRICITY" to "Utilities",
         "GAS" to "Utilities",
         "WATER" to "Utilities",
+        "TSSPDCL" to "Utilities",
+        "TSNPDCL" to "Utilities",
+        "APSPDCL" to "Utilities",
+        "TATA POWER" to "Utilities",
+        "ADANI ELECTRICITY" to "Utilities",
+
+        // ============ EXPANDED KNOWN-MERCHANT LIST ============
+        // Curated additions so common Indian vendors/apps categorize instantly on first
+        // scan. All values are verified category names from DefaultCategories; keys are
+        // >= 4 chars (body-scan safe) or distinctive brand tokens.
+
+        // Food Delivery / QSR
+        "EATSURE" to "Food Delivery",
+        "FAASOS" to "Food Delivery",
+        "BEHROUZ" to "Food Delivery",
+        "OVENSTORY" to "Food Delivery",
+        "MCDONALD" to "Food Delivery",
+        "BURGER KING" to "Food Delivery",
+        "WOW MOMO" to "Food Delivery",
+        "LA PINOZ" to "Food Delivery",
+
+        // Dining Out
+        "STARBUCKS" to "Dining Out",
+        "CAFE COFFEE DAY" to "Dining Out",
+        "BARBEQUE NATION" to "Dining Out",
+        "PARADISE FOOD" to "Dining Out",
+        "CHAI POINT" to "Dining Out",
+        "THIRD WAVE" to "Dining Out",
+        "BLUE TOKAI" to "Dining Out",
+        "BAWARCHI" to "Dining Out",
+        "SHAH GHOUSE" to "Dining Out",
+        "MEHFIL" to "Dining Out",
+
+        // Groceries / quick commerce
+        "JIOMART" to "Groceries",
+        "MILKBASKET" to "Groceries",
+        "COUNTRY DELIGHT" to "Groceries",
+        "SPENCERS" to "Groceries",
+        "NATURES BASKET" to "Groceries",
+        "MORE RETAIL" to "Groceries",
+        "STAR BAZAAR" to "Groceries",
+        "SMART BAZAAR" to "Groceries",
+
+        // Shopping
+        "MEESHO" to "Shopping",
+        "NYKAA" to "Shopping",
+        "TATA CLIQ" to "Shopping",
+        "TATACLIQ" to "Shopping",
+        "SNAPDEAL" to "Shopping",
+        "SHOPSY" to "Shopping",
+        "FIRSTCRY" to "Shopping",
+        "PURPLLE" to "Shopping",
+        "LENSKART" to "Shopping",
+        "TANISHQ" to "Shopping",
+        "CARATLANE" to "Shopping",
+
+        // Travel
+        "MAKEMYTRIP" to "Travel",
+        "GOIBIBO" to "Travel",
+        "CLEARTRIP" to "Travel",
+        "YATRA" to "Travel",
+        "IXIGO" to "Travel",
+        "EASEMYTRIP" to "Travel",
+        "OYO" to "Travel",
+        "AIRBNB" to "Travel",
+        "AGODA" to "Travel",
+        "INDIGO" to "Travel",
+        "AIR INDIA" to "Travel",
+        "SPICEJET" to "Travel",
+        "AKASA" to "Travel",
+        "VISTARA" to "Travel",
+
+        // Entertainment / OTT
+        "HOTSTAR" to "Subscriptions",
+        "DISNEY" to "Subscriptions",
+        "SONYLIV" to "Subscriptions",
+        "ZEE5" to "Subscriptions",
+        "JIOCINEMA" to "Subscriptions",
+        "PRIME VIDEO" to "Subscriptions",
+        "AMAZON PRIME" to "Subscriptions",
+        "SUNNXT" to "Subscriptions",
+        "GAANA" to "Subscriptions",
+        "WYNK" to "Subscriptions",
+        "INOX" to "Entertainment",
+        "PVR" to "Entertainment",
+
+        // Software / AI subscriptions
+        "ANTHROPIC" to "Subscriptions",
+        "CLAUDE" to "Subscriptions",
+        "OPENAI" to "Subscriptions",
+        "CHATGPT" to "Subscriptions",
+        "PERPLEXITY" to "Subscriptions",
+        "GITHUB" to "Subscriptions",
+        "GOOGLE ONE" to "Subscriptions",
+        "ICLOUD" to "Subscriptions",
+
+        // Medical / pharmacy
+        "APOLLO PHARMACY" to "Medical",
+        "APOLLO" to "Medical",
+        "PHARMEASY" to "Medical",
+        "NETMEDS" to "Medical",
+        "TATA 1MG" to "Medical",
+        "MEDPLUS" to "Medical",
+        "PRACTO" to "Medical",
+
+        // Fuel
+        "SHELL" to "Fuel",
+        "NAYARA" to "Fuel",
+        "INDIAN OIL" to "Fuel",
+        "INDIANOIL" to "Fuel",
+        "HPCL" to "Fuel",
+
+        // Insurance
+        "HDFC ERGO" to "Insurance",
+        "STAR HEALTH" to "Insurance",
+        "ACKO" to "Insurance",
+        "DIGIT INSURANCE" to "Insurance",
+        "TATA AIG" to "Insurance",
+        "NIVA BUPA" to "Insurance",
+
+        // Investments
+        "KUVERA" to "Mutual Funds",
+        "PAYTM MONEY" to "Mutual Funds",
+        "ETMONEY" to "Mutual Funds",
+        "INDMONEY" to "Mutual Funds",
+        "SMALLCASE" to "Mutual Funds",
+
+        // Transport
+        "BLUSMART" to "Transportation",
+        "INDRIVE" to "Transportation",
+
+        // Education
+        "COURSERA" to "Education / Fees",
+        "UPGRAD" to "Education / Fees",
+        "GREAT LEARNING" to "Education / Fees",
+        "SIMPLILEARN" to "Education / Fees",
+
+        // Home services
+        "URBAN COMPANY" to "Services",
+        "URBANCLAP" to "Services",
+    )
+
+    // Keys excluded from the SMS-body fallback scan (PRIORITY 5.5): words that occur in
+    // ordinary bank-SMS prose or as generic nouns, where a body hit says nothing about the
+    // merchant. They still apply to extracted counterparty names (PRIORITY 3).
+    private val BODY_SCAN_EXCLUDED_KEYS = setOf(
+        "CASH", "CASH WDL", "CASH WITHDRAWAL", "GOLD", "GAS", "WATER", "ELECTRICITY",
+        "STATEMENT", "INTEREST", "INT CREDIT", "FUEL", "PETROL", "PARKING", "TOLL",
+        "SCHOOL", "COLLEGE", "UNIVERSITY", "COACHING", "GAMES", "METRO", "KITE",
+        "FITNESS", "BEAUTY", "SALON", "BARBER", "PARLOUR", "RELIANCE", "APPLE",
+        // Bank names: these keys exist for counterparty-name matching (e.g. an interest
+        // credit FROM the bank), but in the body they appear in every SMS that bank sends
+        // ("Team IDFC FIRST Bank"), so a body hit carries no signal - matching them here
+        // miscategorized ordinary IDFC card spends as Interest (which then flipped their
+        // type to INCOME via category-based type resolution).
+        "IDFC FIRST BANK", "CITIBANK", "SHIVALIK SMALL FINANCE BANK", "SURYODAY SMALL FINANCE BANK"
     )
 
     // AUDIT: Using unified TransactionType from data.entity
@@ -349,8 +513,9 @@ object CategoryMapper {
         TransactionType.INVESTMENT_CONTRIBUTION to AppConstants.Categories.MUTUAL_FUNDS,
         TransactionType.LIABILITY_PAYMENT to AppConstants.Categories.CREDIT_BILL_PAYMENTS,
         TransactionType.TRANSFER to AppConstants.Categories.P2P_TRANSFERS,
-        TransactionType.INCOME to AppConstants.Categories.OTHER_INCOME, 
-        TransactionType.STATEMENT to "Credit Card Statement" // Separate category for Statements
+        TransactionType.INCOME to AppConstants.Categories.OTHER_INCOME,
+        TransactionType.STATEMENT to "Credit Card Statement", // Separate category for Statements
+        TransactionType.REFUND to AppConstants.Categories.REFUND
     )
 
     fun categorize(
@@ -359,32 +524,24 @@ object CategoryMapper {
         rules: List<CategorizationRule> = emptyList(),
         categoryMap: Map<Long, String> = emptyMap(),
         userAccounts: List<UserAccount> = emptyList(),
-        messageBody: String = "", 
+        messageBody: String = "",
         salarySources: Set<Pair<String, String>> = emptySet(),
         salaryCompanyNames: Set<String> = emptySet(),
         merchantMemories: Map<String, Long> = emptyMap(), // ADAPTIVE CATEGORIZATION
         trace: MutableList<String>? = null
     ): String {
-        // PRIORITY 0: Credit Card Bill Payment Check (HIGHEST PRIORITY)
-        // This must come BEFORE any other logic to prevent misclassification
         val lowerBody = messageBody.lowercase()
+
+        // PRIORITY 0: Credit Card Bill Payment Check (HIGHEST PRIORITY)
+        // This must come BEFORE any other logic to prevent misclassification.
+        // Hard financial invariant - not even a User Rule should be able to mis-tag an
+        // actual credit-card-bill payment as something else, since downstream liability
+        // tracking depends on this being correct.
         if (counterparty.name != null) {
             val upper = counterparty.name.uppercase()
-            val isCreditCardPayment = upper.contains("CRED CLUB") ||
-                upper.contains("CRED APP") ||
-                (upper.contains("CRED") && !upper.contains("CREDITED") && upper.split(" ").size <= 2) ||
-                upper.contains("AMEX") ||
-                upper.contains("ONE CARD") ||
-                upper.contains("ONECARD") ||
-                upper.contains("SBI CARD") ||
-                upper.contains("SBICARD") ||
-                upper.contains("HDFC CARD") ||
-                upper.contains("HDFCCARD") ||
-                upper.contains("AXIS CARD") ||
-                upper.contains("AXISCARD") ||
-                upper.contains("ICICI CARD") ||
-                upper.contains("ICICCARD") ||
-                upper.contains("BILLDESK")
+            // Shared token list lives in SmsConstants.isCreditCardServiceName (word-boundary
+            // matching for "CRED" so it doesn't fire inside "CREDIT"/"CREDITED").
+            val isCreditCardPayment = SmsConstants.isCreditCardServiceName(upper)
 
             if (isCreditCardPayment && transactionType == TransactionType.EXPENSE) {
                 trace?.add("OVERRIDE: Credit Card Payment Service detected -> Credit Bill Payments")
@@ -392,7 +549,32 @@ object CategoryMapper {
             }
         }
 
-        // NEFT Self-Transfer Check
+        // PRIORITY 1: User-Defined Rules
+        // BUGFIX: This block used to run AFTER the NEFT self-transfer/salary-source/
+        // salary-company-name/interest-keyword checks below, even though it was labeled
+        // "Priority 1" and is the user's own explicit categorization intent. That meant a
+        // user-created rule could never override those heuristics - it was silently dead
+        // code for any merchant/payee that also happened to match one of those patterns.
+        // User rules now run immediately after the (hard-invariant) credit card check.
+        val sortedRules = rules.sortedBy { it.patternType.ordinal }
+
+        for (rule in sortedRules) {
+            val isMatch = when (rule.patternType) {
+                PatternType.UPI_ID -> counterparty.upiId?.equals(rule.pattern, ignoreCase = true) == true
+                PatternType.MERCHANT_NAME -> counterparty.name?.contains(rule.pattern, ignoreCase = true) == true
+                PatternType.PAYEE_NAME -> counterparty.name?.contains(rule.pattern, ignoreCase = true) == true
+                else -> false
+            }
+
+            if (isMatch) {
+                trace?.add("Matched User Rule: ${rule.id} (${rule.pattern}) -> Category ID ${rule.categoryId}")
+                return categoryMap[rule.categoryId] ?: AppConstants.Categories.UNCATEGORIZED
+            }
+        }
+        if (rules.isNotEmpty()) trace?.add("No User Rules matched (${rules.size} checked)")
+
+        // PRIORITY 2: Deterministic Pattern Overrides (NEFT self-transfer, known salary
+        // source, user-configured salary company name, interest keyword)
         if (messageBody.contains("NEFT", ignoreCase = true)) {
             if (CounterpartyExtractor.isNeftSelfTransfer(messageBody)) {
                 trace?.add("Matched: NEFT Self Transfer pattern")
@@ -408,7 +590,7 @@ object CategoryMapper {
                 }
             }
         }
-        
+
         // Salary Company Name Check (User-configured)
         if (transactionType == TransactionType.INCOME && salaryCompanyNames.isNotEmpty()) {
             val upperBody = messageBody.uppercase()
@@ -422,8 +604,8 @@ object CategoryMapper {
 
         // Interest Income Check (Body-based)
         if (transactionType == TransactionType.INCOME) {
-             if (lowerBody.contains("interest") || 
-                 lowerBody.contains("int. pd") || 
+             if (lowerBody.contains("interest") ||
+                 lowerBody.contains("int. pd") ||
                  lowerBody.contains("int pd") ||
                  lowerBody.contains("int cr") ||
                  lowerBody.contains("int. earned")) {
@@ -431,30 +613,13 @@ object CategoryMapper {
                  return "Interest"
              }
         }
-        
-        // Priority 1: User Rules
-        val sortedRules = rules.sortedBy { it.patternType.ordinal } 
-        
-        for (rule in sortedRules) {
-            val isMatch = when (rule.patternType) {
-                PatternType.UPI_ID -> counterparty.upiId?.equals(rule.pattern, ignoreCase = true) == true
-                PatternType.MERCHANT_NAME -> counterparty.name?.contains(rule.pattern, ignoreCase = true) == true
-                PatternType.PAYEE_NAME -> counterparty.name?.contains(rule.pattern, ignoreCase = true) == true
-                else -> false
-            }
-            
-            if (isMatch) {
-                trace?.add("Matched User Rule: ${rule.id} (${rule.pattern}) -> Category ID ${rule.categoryId}")
-                return categoryMap[rule.categoryId] ?: AppConstants.Categories.UNCATEGORIZED
-            }
-        }
-        if (rules.isNotEmpty()) trace?.add("No User Rules matched (${rules.size} checked)")
 
-        // Priority 2: Hardcoded Merchant Map
-        // MOVED UP: System Truth should override Adaptive Memory (which might contain bad learnings)
+        // PRIORITY 3: Hardcoded Merchant Map
+        // Runs before Adaptive Memory (Priority 5) so that system truth overrides
+        // potentially-bad learned corrections.
         counterparty.name?.let { name ->
             val upper = name.uppercase()
-            
+
             // Special case: Chits
             if (upper.contains("CHIT") || upper.contains("SHRIRAM")) {
                  if (transactionType == TransactionType.INCOME) {
@@ -468,18 +633,22 @@ object CategoryMapper {
 
             // Scan for the LONGEST matching merchant key to ensure specificity
             // e.g. Match "SWIGGY INSTAMART" (length 16) over "SWIGGY" (length 6)
+            //
+            // BUGFIX: previously used `upper.contains(key)`, a raw substring check with no
+            // word-boundary awareness. Short/generic keys matched inside unrelated words:
+            //   "IND" (-> Shopping) matched "INDIA", "INDIAN CLEARING", "INDUSIND BANK"
+            //   "CASH" (-> Cash Withdrawal) matched "CASHBACK", "CASHFREE"
+            //   "GOLD" (-> Gold) matched "GOLDEN DRAGON RESTAURANT"
+            //   "HP" (-> Fuel) matched "SHIP", "CHIP"
+            // SmsConstants.containsToken requires the match not be directly adjacent to
+            // another letter, which eliminates these false positives while still matching
+            // merchant codes with trailing digits (e.g. "BPCL0091234").
             var bestMatchCategory: String? = null
             var maxMatchLength = 0
             var bestMatchKey = ""
 
             for ((key, defaultCategory) in MERCHANT_CATEGORIES) {
-                if (upper.contains(key)) {
-                    // Prevent "CRED" matching "CREDITED"
-                    if (key == "CRED" && upper.contains("CREDITED") && 
-                        !upper.contains("CRED APP") && !upper.contains("CRED CLUB")) {
-                        continue
-                    }
-                    
+                if (SmsConstants.containsToken(upper, key)) {
                     if (key.length > maxMatchLength) {
                         // Investment Redemption check - for INCOME from investment entities
                         if (transactionType == TransactionType.INCOME) {
@@ -516,7 +685,7 @@ object CategoryMapper {
             }
         }
         
-        // Priority 2.5: Account Discovery matches (Self-Transfer / CC Bill)
+        // PRIORITY 3.5: Account Discovery matches (Self-Transfer / CC Bill)
         // Check this BEFORE Memory but AFTER Hardcoded Map (to allow explicit CC names to map to Credit Bills)
         if (counterparty.name != null) {
             // IMPROVED: Better account number matching with validation
@@ -550,13 +719,13 @@ object CategoryMapper {
             }
         }
 
-        // Recurring Deposit Check
+        // PRIORITY 4a: Recurring Deposit Check
         if (SmsConstants.RD_PATTERNS.any { lowerBody.contains(it) }) {
              trace?.add("Matched: Recurring Deposit pattern")
              return AppConstants.Categories.RECURRING_DEPOSITS
         }
 
-        // Cashback Check
+        // PRIORITY 4b: Cashback Check
         if (transactionType != TransactionType.EXPENSE &&
             (messageBody.contains("cashback", ignoreCase = true) ||
              messageBody.contains("reward", ignoreCase = true) ||
@@ -566,18 +735,25 @@ object CategoryMapper {
             return AppConstants.Categories.CASHBACK
         }
 
-        // Priority 3: ADAPTIVE MEMORY (Learned from User Corrections)
+        // PRIORITY 5: ADAPTIVE MEMORY (Learned from User Corrections)
         if (!counterparty.name.isNullOrBlank()) {
             val normalized = counterparty.name.uppercase().trim()
             var memoryCategoryId = merchantMemories[normalized]
-            
-            // Try fuzzy match if exact match fails
+
+            // Try fuzzy match if exact match fails.
+            // BUGFIX: previously used raw `normalized.contains(it) || it.contains(normalized)`,
+            // which could match a short learned merchant key inside an unrelated name (e.g. a
+            // remembered merchant "ATM" would match any name containing "ATM" as a substring,
+            // like "ATMOSPHERE RESTAURANT"). Now uses word-boundary matching and, like the
+            // hardcoded merchant map above, picks the longest (most specific) matching key
+            // instead of an arbitrary/first one.
             if (memoryCategoryId == null) {
-                 // Simple containment check for memories
-                 val match = merchantMemories.keys.find { normalized.contains(it) || it.contains(normalized) }
-                 if (match != null) memoryCategoryId = merchantMemories[match]
+                 val bestKey = merchantMemories.keys
+                     .filter { SmsConstants.containsToken(normalized, it) || SmsConstants.containsToken(it, normalized) }
+                     .maxByOrNull { it.length }
+                 if (bestKey != null) memoryCategoryId = merchantMemories[bestKey]
             }
-            
+
             if (memoryCategoryId != null) {
                 val learnedCategory = categoryMap[memoryCategoryId]
                 if (learnedCategory != null) {
@@ -587,28 +763,61 @@ object CategoryMapper {
             }
         }
 
-        // Priority 5: ML Classifier (Name > Body)
-        // DISABLED TEMPORARILY AS PER USER REQUEST
-        var mlCategory: String? = null
-        var mlConfidence = 0
-        
-        
-        if (mlCategory != null) {
-            return enforceCategoryTypeCompatibility(mlCategory, transactionType, trace)
+        // PRIORITY 5.5: BODY SCAN for known merchants.
+        // Counterparty extraction fails on bank formats without a template, but the merchant
+        // name is usually still right there in the SMS text ("...spent on your IDFC FIRST Bank
+        // Credit Card ending XX4969 at SWIGGY IN on..."). Previously the merchant map only ever
+        // saw counterparty.name, so all of these fell through to Uncategorized. Scan the body
+        // as a fallback, with two safety constraints: keys must be >= 4 chars, and generic
+        // English words that legitimately appear in bank prose are excluded.
+        run {
+            val upperBody = messageBody.uppercase()
+            var bodyMatchCategory: String? = null
+            var bodyMatchKey = ""
+            var bodyMaxLen = 0
+            for ((key, defaultCategory) in MERCHANT_CATEGORIES) {
+                if (key.length < 4 || key in BODY_SCAN_EXCLUDED_KEYS) continue
+                if (key.length > bodyMaxLen && SmsConstants.containsToken(upperBody, key)) {
+                    bodyMatchCategory = defaultCategory
+                    bodyMatchKey = key
+                    bodyMaxLen = key.length
+                }
+            }
+            if (bodyMatchCategory != null) {
+                trace?.add("Matched Merchant in SMS body: $bodyMatchKey -> $bodyMatchCategory")
+                return enforceCategoryTypeCompatibility(bodyMatchCategory, transactionType, trace)
+            }
         }
-        
-        // Priority 5: Type-based Fallback
+
+        // PRIORITY 6: ML Classifier - currently disabled (no model wired up).
+        // Kept as an explicit no-op step (rather than silently absent) so the priority
+        // numbering below stays accurate if/when a model is reintroduced.
+
+        // PRIORITY 7: Type-based Fallback
         val defaultCategory = TYPE_DEFAULT_CATEGORIES[transactionType] ?: AppConstants.Categories.UNCATEGORIZED
 
-        // 5. Handling Generic/Offline Merchants
-        // a) Q-Code / Card-Machine UPI (Generic Offline)
+        // 7a. Handling Generic/Offline Merchants
+        // Q-Code / Card-Machine UPI (Generic Offline)
         if (counterparty.upiId?.matches(Regex("(?i)^q\\d+.*")) == true) {
              trace?.add("Matched: Q-Code VPA -> Offline Merchant")
              return enforceCategoryTypeCompatibility("Offline Merchant", transactionType, trace)
         }
 
-        // b) Generic Fallback
-        if (defaultCategory == "Uncategorized" && 
+        // Offline QR gateway VPAs (BharatPe / GPay terminal / PaytmQR / Ezetap): these are
+        // in-person shop payments where the VPA carries no merchant name. Previously they
+        // fell all the way through to Uncategorized; Offline Merchant is the accurate bucket.
+        val vpaPrefix = counterparty.upiId?.substringBefore("@")?.lowercase()
+        if (vpaPrefix != null && transactionType == TransactionType.EXPENSE &&
+            (vpaPrefix.startsWith("bharatpe") ||
+             vpaPrefix.matches(Regex("^gpay-?\\d+.*")) ||
+             vpaPrefix.startsWith("paytmqr") ||
+             vpaPrefix.startsWith("ezetap"))) {
+            trace?.add("Matched: Offline QR gateway VPA '$vpaPrefix' -> Offline Merchant")
+            return enforceCategoryTypeCompatibility("Offline Merchant", transactionType, trace)
+        }
+
+        // 7b. Generic Fallback
+        if (defaultCategory == "Uncategorized" &&
             (counterparty.type == CounterpartyExtractor.CounterpartyType.MERCHANT || 
              (transactionType == TransactionType.EXPENSE && !counterparty.name.isNullOrBlank()))) {
             trace?.add("Fallback: Generic Merchant/Expense with Name -> Miscellaneous")
@@ -686,11 +895,17 @@ object CategoryMapper {
         }
 
         // Check against registered UPI VPAs (phone numbers, custom VPAs)
+        // BUGFIX: previously a raw substring check, so a short VPA prefix like "sai"
+        // (from e.g. "sai@okhdfcbank") would match any counterparty name containing that
+        // substring - including unrelated merchants like "Sai Traders" or "Sai Electronics" -
+        // wrongly tagging real purchases as Self Transfer. Require a word-boundary match,
+        // and ignore VPA prefixes too short to be meaningful (<4 chars, e.g. numeric handles).
         val userVpas = userAccounts.mapNotNull { it.upiVpa }.distinct()
         for (vpa in userVpas) {
             // Extract VPA prefix (before @)
             val vpaPrefix = vpa.substringBefore("@").lowercase()
-            if (lower.contains(vpaPrefix) || vpaPrefix.contains(lower)) {
+            if (vpaPrefix.length < 4) continue
+            if (SmsConstants.containsToken(lower, vpaPrefix) || SmsConstants.containsToken(vpaPrefix, lower)) {
                 return true
             }
         }
@@ -732,51 +947,14 @@ object CategoryMapper {
 
     /**
      * Improved name matching that handles various name formats.
-     * Similar to CounterpartyExtractor.areNamesEquivalent but for CategoryMapper context.
+     * Delegates to the shared [com.saikumar.expensetracker.util.NameMatcher] so this
+     * logic has a single source of truth (previously duplicated in 3 places, and this
+     * copy in particular had drifted out of sync with CounterpartyExtractor's version -
+     * it was missing initials matching, e.g. "S REDDY" vs "SAIKUMAR REDDY").
      */
-    private fun areNamesEquivalent(name1: String, name2: String): Boolean {
-        val lower1 = name1.lowercase()
-        val lower2 = name2.lowercase()
+    private fun areNamesEquivalent(name1: String, name2: String): Boolean =
+        com.saikumar.expensetracker.util.NameMatcher.areNamesEquivalent(name1, name2)
 
-        // Exact match
-        if (lower1 == lower2) return true
-
-        // One contains the other (substring match)
-        if (lower1.contains(lower2) || lower2.contains(lower1)) return true
-
-        val parts1 = lower1.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-        val parts2 = lower2.split("\\s+".toRegex()).filter { it.isNotEmpty() }
-
-        if (parts1.isEmpty() || parts2.isEmpty()) return false
-
-        // Extract significant parts (length >= 3)
-        val significantParts1 = parts1.filter { it.length >= 3 }
-        val significantParts2 = parts2.filter { it.length >= 3 }
-
-        // If at least 2 significant parts match, likely same person
-        val commonSignificant = significantParts1.intersect(significantParts2.toSet())
-        if (commonSignificant.size >= 2) {
-            return true
-        }
-
-        // Check if all parts of shorter name match parts in longer name
-        val (shorterParts, longerParts) = if (parts1.size <= parts2.size) {
-            parts1 to parts2
-        } else {
-            parts2 to parts1
-        }
-
-        val allShorterPartsMatched = shorterParts.all { shortPart ->
-            longerParts.any { longPart ->
-                shortPart == longPart ||
-                (shortPart.length == 1 && longPart.startsWith(shortPart)) ||
-                longPart.startsWith(shortPart)
-            }
-        }
-
-        return allShorterPartsMatched && shorterParts.size >= 2
-    }
-    
     fun calculateConfidence(category: String, wasUserRule: Boolean = false): Int {
         if (wasUserRule) return Confidence.USER_RULE
         

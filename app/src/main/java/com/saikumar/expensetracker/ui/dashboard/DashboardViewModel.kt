@@ -78,7 +78,11 @@ class DashboardViewModel(
         val categories: List<Category>,
         val query: String,
         val selectedAccounts: Set<String>,
-        val accounts: List<UserAccount>
+        val accounts: List<UserAccount>,
+        // The "yyyy-MM" key for the cycle currently being viewed, derived directly from the
+        // user-selected reference date (_referenceDate). This MUST be computed the same way
+        // setCustomCycle() computes it, since it's the lookup key for cycle overrides.
+        val cycleYearMonth: String
     )
 
     private val _referenceDate = MutableStateFlow(LocalDate.now())
@@ -173,41 +177,66 @@ class DashboardViewModel(
         return 0 // Fallback to last working day
     }
 
+    // NOTE: combine() with exactly 5 flows and an inline-destructured lambda is ambiguous
+    // between kotlinx.coroutines' fixed 5-arity overload and its reified vararg overload
+    // (Flow<T> is covariant, so all 5 flows are also applicable as Flow<Any> for the vararg
+    // version). This can make the compiler pick the wrong overload and fail with confusing
+    // "SuspendFunctionN vs SuspendFunction1<Array<T>, R>" errors. Nesting two smaller combine()
+    // calls (3 flows, then 3 flows) avoids the ambiguous arity entirely.
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<DashboardUiState> = combine(
-        _referenceDate,
-        repository.allEnabledCategories,
-        _searchQuery,
+        combine(_referenceDate, repository.allEnabledCategories, _searchQuery) { refDate, categories, query ->
+            Triple(refDate, categories, query)
+        },
         selectedAccounts,
-        detectedAccounts,
-    ) { refDate, categories, query, selectedAccts, accounts ->
-        Quintuple(refDate, categories, query, selectedAccts, accounts)
+        detectedAccounts
+    ) { refDateCategoriesQuery, selectedAccts, accounts ->
+        Quintuple(
+            refDateCategoriesQuery.first,
+            refDateCategoriesQuery.second,
+            refDateCategoriesQuery.third,
+            selectedAccts,
+            accounts
+        )
     }
     .flatMapLatest { params ->
         flow {
             // Detect salary day dynamically from actual transactions
             val salaryDay = detectSalaryDay()
+            val refDate = params.first
 
             emit(FilterParams(
-                CycleUtils.getCurrentCycleRange(params.first, salaryDay),
-                params.second,
-                params.third,
-                params.fourth,
-                params.fifth
+                range = CycleUtils.getCurrentCycleRange(refDate, salaryDay),
+                categories = params.second,
+                query = params.third,
+                selectedAccounts = params.fourth,
+                accounts = params.fifth,
+                // BUGFIX: previously recomputed as
+                // `LocalDate.now().withMonth(params.range.startDate.monthValue)` in the next
+                // stage. That was wrong in two ways: (1) CycleUtils.getCurrentCycleRange()
+                // deliberately puts the cycle's *start* date in the PREVIOUS calendar month
+                // (salary cycles run e.g. 25th-of-last-month to 24th-of-this-month), so keying
+                // off `range.startDate`'s month picked the wrong month; (2) it used
+                // `LocalDate.now()`'s YEAR regardless of which year the user had actually
+                // navigated to via previousCycle()/nextCycle(). Both bugs meant that after
+                // setCustomCycle() saved an override keyed by `_referenceDate`'s own
+                // "yyyy-MM", the lookup below could compute a different key and silently miss
+                // it, showing the default computed range instead of the one the user set.
+                // Deriving the key directly from refDate here guarantees it matches
+                // setCustomCycle()'s key exactly.
+                cycleYearMonth = refDate.format(DateTimeFormatter.ofPattern("yyyy-MM"))
             ))
         }
     }
     .flatMapLatest { params ->
-        val refDate = LocalDate.now().withMonth(params.range.startDate.monthValue)
-        val yearMonth = refDate.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        cycleOverrideDao.getOverride(yearMonth).map { override ->
+        cycleOverrideDao.getOverride(params.cycleYearMonth).map { override ->
             val range = override?.let {
                 CycleRange(
                     Instant.ofEpochMilli(it.startDate).atZone(ZoneId.systemDefault()).toLocalDateTime(),
                     Instant.ofEpochMilli(it.endDate).atZone(ZoneId.systemDefault()).toLocalDateTime()
                 )
             } ?: params.range
-            FilterParams(range, params.categories, params.query, params.selectedAccounts, params.accounts)
+            params.copy(range = range)
         }
     }.flatMapLatest { params ->
         // Convert CycleRange to epoch millis for query
@@ -267,15 +296,29 @@ class DashboardViewModel(
                     it.transaction.transactionType != TransactionType.IGNORE
                 }
                 
-                // Calculate Total Income (Excluding P2P Transfers)
+                // Calculate Total Income (Excluding P2P Transfers and Investment Redemptions).
+                // FINANCIAL ACCURACY: a redemption is the user's own capital coming back, not
+                // earnings - counting it as income inflated income by lakhs. It's netted
+                // against investments below instead, which leaves extraMoney unchanged
+                // (the cash genuinely is spendable) while keeping income honest.
                 val income = activeTransactions
-                    .filter { 
-                        (it.transaction.transactionType == TransactionType.INCOME && 
-                         it.category.name != "P2P Transfers") ||
+                    .filter {
+                        (it.transaction.transactionType == TransactionType.INCOME &&
+                         it.category.name != "P2P Transfers" &&
+                         it.category.name != "Investment Redemption" &&
+                         it.category.type != CategoryType.INVESTMENT) ||
                         it.transaction.transactionType == TransactionType.CASHBACK
                     }
                     .sumOf { it.transaction.amountPaisa } / 100.0
-                
+
+                // Redemptions: money coming back OUT of investments
+                val redemptionAmount = activeTransactions
+                    .filter {
+                        it.transaction.transactionType == TransactionType.INCOME &&
+                        (it.category.name == "Investment Redemption" || it.category.type == CategoryType.INVESTMENT)
+                    }
+                    .sumOf { it.transaction.amountPaisa } / 100.0
+
                 // Calculate refund amount for netting
                 val refundAmount = activeTransactions
                     .filter { it.transaction.transactionType == TransactionType.REFUND }
@@ -296,23 +339,30 @@ class DashboardViewModel(
                     .filter { it.category.type == CategoryType.VARIABLE_EXPENSE }
                     .sumOf { it.transaction.amountPaisa } / 100.0
                     
+                // NET invested this cycle: outflows minus redemptions. Can go negative in a
+                // cycle where more was redeemed than invested - that's accurate, not a bug.
                 val investment = expenseTransactions
                     .filter { it.category.type == CategoryType.INVESTMENT }
-                    .sumOf { it.transaction.amountPaisa } / 100.0
-                    
+                    .sumOf { it.transaction.amountPaisa } / 100.0 - redemptionAmount
+
                 val vehicle = expenseTransactions
                     .filter { it.category.type == CategoryType.VEHICLE }
                     .sumOf { it.transaction.amountPaisa } / 100.0
-                
+
                 // Net refunds against expenses
                 val totalExpenses = (fixed + variable) - refundAmount
 
                 val filteredTransactions = accountFilteredTransactions
                 // Count ignored transactions from pre-filtered list (before type exclusions)
                 val ignoredCount = accountFilteredTransactions.count { it.transaction.transactionType == TransactionType.IGNORE }
-                // Calculate Context for Hero Card
+                // Calculate Context for Hero Card.
+                // The income==0 case matters: salary usually lands at the END of a cycle, so
+                // for most of the month "remaining money" is a scary negative that means
+                // nothing. The hero card switches to a "spent so far" presentation for it.
+                val remaining = income - (totalExpenses + vehicle + investment)
                 val balanceContext = when {
-                    income - (totalExpenses + vehicle + investment) < 0 -> {
+                    income <= 0.0 -> "No income recorded this cycle yet"
+                    remaining < 0 -> {
                         when {
                             investment > income * 0.5 -> "High investment month"
                             variable > income * 0.4 -> "High variable spending"
@@ -331,7 +381,7 @@ class DashboardViewModel(
                     totalInvestments = investment,
                     totalVehicleExpenses = vehicle,
                     totalExpenses = totalExpenses,
-                    extraMoney = income - (totalExpenses + vehicle + investment),
+                    extraMoney = remaining,
                     transactions = filteredTransactions,
                     statements = statements,
                     transactionLinks = linkMap,

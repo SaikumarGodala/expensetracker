@@ -196,37 +196,64 @@ class MonthlyOverviewViewModel(
                 }
             }
             
-            // Filter out only true self-transfers and liability payments
-            // P0 FIX: Only count COMPLETED transactions to prevent pending/future transactions from inflating totals
-            val activeTransactions = accountFilteredParams.filter { 
+            // Filter to settled, economically-real transactions.
+            // FINANCIAL ACCURACY: PENDING and IGNORE types were previously included here,
+            // flowing into the per-category breakdown (and IGNORE means the user explicitly
+            // said "don't count this"). Excluded now, consistent with the Dashboard.
+            val activeTransactions = accountFilteredParams.filter {
                 it.transaction.status == TransactionStatus.COMPLETED &&  // CRITICAL: Only completed transactions
                 it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT &&
-                it.transaction.transactionType != TransactionType.TRANSFER  // Self-transfers excluded
+                it.transaction.transactionType != TransactionType.TRANSFER &&  // Self-transfers excluded
+                it.transaction.transactionType != TransactionType.PENDING &&
+                it.transaction.transactionType != TransactionType.IGNORE
             }
-            
-            // Calculate totals using TransactionType
+
+            // Calculate totals using TransactionType.
+            // Income includes CASHBACK (money in), matching the Dashboard's definition -
+            // previously the two screens showed different income for the same cycle.
+            // Investment redemptions are NOT income (own capital returning); they net
+            // against investments below, same as the Dashboard.
             val income = activeTransactions
-                .filter { it.transaction.transactionType == TransactionType.INCOME }
+                .filter {
+                    (it.transaction.transactionType == TransactionType.INCOME &&
+                     it.category.name != com.saikumar.expensetracker.core.AppConstants.Categories.P2P_TRANSFERS &&
+                     it.category.name != "Investment Redemption" &&
+                     it.category.type != CategoryType.INVESTMENT) ||
+                    it.transaction.transactionType == TransactionType.CASHBACK
+                }
                 .sumOf { it.transaction.amountPaisa } / 100.0
-            
+
+            val redemptions = activeTransactions
+                .filter {
+                    it.transaction.transactionType == TransactionType.INCOME &&
+                    (it.category.name == "Investment Redemption" || it.category.type == CategoryType.INVESTMENT)
+                }
+                .sumOf { it.transaction.amountPaisa } / 100.0
+
+            // Settled refunds net against expenses (money came back; the spend didn't stick)
+            val refunds = activeTransactions
+                .filter { it.transaction.transactionType == TransactionType.REFUND }
+                .sumOf { it.transaction.amountPaisa } / 100.0
+
             // Expenses = EXPENSE type + Investment flows
-            val expenseTransactions = activeTransactions.filter { 
+            val expenseTransactions = activeTransactions.filter {
                 it.transaction.transactionType == TransactionType.EXPENSE ||
                 it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION ||
                 it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW
             }
-            
+
             val expenses = expenseTransactions
-                .filter { 
-                    it.category.type == CategoryType.FIXED_EXPENSE || 
+                .filter {
+                    it.category.type == CategoryType.FIXED_EXPENSE ||
                     it.category.type == CategoryType.VARIABLE_EXPENSE ||
                     it.category.type == CategoryType.VEHICLE
                 }
-                .sumOf { it.transaction.amountPaisa } / 100.0
-            
+                .sumOf { it.transaction.amountPaisa } / 100.0 - refunds
+
+            // Net invested = outflows minus redemptions (matches Dashboard)
             val investments = expenseTransactions
                 .filter { it.category.type == CategoryType.INVESTMENT }
-                .sumOf { it.transaction.amountPaisa } / 100.0
+                .sumOf { it.transaction.amountPaisa } / 100.0 - redemptions
             
             // Pre-calculate typical spends (Ghost Budgets) for visible categories
             // This is async inside the flow mapping? 

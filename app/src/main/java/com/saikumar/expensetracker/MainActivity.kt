@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.animation.*
@@ -45,7 +48,13 @@ import com.saikumar.expensetracker.util.BiometricPromptManager
 import com.saikumar.expensetracker.ui.components.LockScreen
 import androidx.appcompat.app.AppCompatActivity
 import com.saikumar.expensetracker.ui.components.BudgetBreachDialog
-import com.saikumar.expensetracker.ui.components.AppDrawer
+
+private data class NavDestination(
+    val route: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+)
 
 class MainActivity : AppCompatActivity() {
     private val promptManager by lazy {
@@ -228,27 +237,50 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                ModalNavigationDrawer(
-                    drawerState = drawerState,
-                    drawerContent = {
-                        AppDrawer(
-                            currentRoute = currentRoute,
-                            onNavigate = { route ->
-                                navController.navigate(route) {
-                                    popUpTo("dashboard") { inclusive = (route == "dashboard") }
-                                    launchSingleTop = true
-                                }
-                            },
-                            onClose = { scope.launch { drawerState.close() } }
-                        )
-                    }
-                ) {
+                // MODERN NAVIGATION: bottom NavigationBar for the four top-level destinations.
+                // Replaces the ModalNavigationDrawer - the drawer hid Overview/Insights/Settings
+                // behind a hamburger (2 taps + zero visibility); bottom nav keeps every section
+                // one thumb-tap away, the standard pattern for 3-5 destinations.
+                val topDestinations = listOf(
+                    NavDestination("dashboard", "Home", Icons.Filled.Home, Icons.Outlined.Home),
+                    NavDestination("analytics", "Insights", Icons.Filled.Insights, Icons.Outlined.Insights),
+                    NavDestination("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+                )
+                val isTopLevel = currentRoute in topDestinations.map { it.route }
+
+                run {
                     Scaffold(
-                        // No bottomBar
+                        bottomBar = {
+                            if (isTopLevel) {
+                                NavigationBar {
+                                    topDestinations.forEach { dest ->
+                                        val selected = currentRoute == dest.route
+                                        NavigationBarItem(
+                                            selected = selected,
+                                            onClick = {
+                                                if (!selected) {
+                                                    navController.navigate(dest.route) {
+                                                        popUpTo("dashboard") { saveState = true }
+                                                        launchSingleTop = true
+                                                        restoreState = true
+                                                    }
+                                                }
+                                            },
+                                            icon = {
+                                                Icon(
+                                                    if (selected) dest.selectedIcon else dest.unselectedIcon,
+                                                    contentDescription = dest.label
+                                                )
+                                            },
+                                            label = { Text(dest.label) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     ) { innerPadding ->
                     // Check onboarding state with explicit loading handling
                     var isLoading by remember { mutableStateOf(true) }
@@ -313,8 +345,7 @@ class MainActivity : AppCompatActivity() {
                                             Log.e("MainActivity", "Scan failed", e)
                                         }
                                     }
-                                },
-                                onMenuClick = { scope.launch { drawerState.open() } }
+                                }
                             )
                         }
                         composable(
@@ -322,38 +353,40 @@ class MainActivity : AppCompatActivity() {
                             enterTransition = { fadeIn(tween(300)) },
                             exitTransition = { fadeOut(tween(300)) }
                         ) {
-                            com.saikumar.expensetracker.ui.analytics.AnalyticsScreen(
-                                repository = app.repository,
-                                onCategoryClick = { category, start, end ->
-                                    navController.navigate("filtered/${category.type.name}/$start/$end?categoryName=${category.name}")
-                                }
-                            )
-                        }
-                        composable(
-                            "overview",
-                            enterTransition = { fadeIn(tween(300)) },
-                            exitTransition = { fadeOut(tween(300)) }
-                        ) {
+                            // Unified Insights hub: "This Cycle" (former Monthly Overview)
+                            // + "Over Time" (former Trends & Analytics) behind one toggle.
                             val trendsCalculator = com.saikumar.expensetracker.domain.SpendingTrendsCalculator(app.database.transactionDao())
-                            val viewModel: MonthlyOverviewViewModel = viewModel(
+                            val overviewViewModel: MonthlyOverviewViewModel = viewModel(
                                 factory = MonthlyOverviewViewModel.Factory(
-                                    app.repository, 
-                                    app.preferencesManager, 
+                                    app.repository,
+                                    app.preferencesManager,
                                     app.database.userAccountDao(),
                                     app.database.budgetDao(),
                                     trendsCalculator
                                 )
                             )
-                            MonthlyOverviewScreen(
-                                viewModel,
-                                onNavigateBack = { navController.popBackStack() },
-                                onNavigateToSearch = { navController.navigate("search") },
-                                onCategoryClick = { type, start, end -> navController.navigate("filtered/${type.name}/$start/$end") },
-                                onNavigateToSalaryHistory = { navController.navigate("salary_history") },
-                                onNavigateToInterest = { navController.navigate("filtered/INCOME/0/${Long.MAX_VALUE}?categoryName=Interest") },
-                                onNavigateToRetirement = { navController.navigate("retirement") },
-                                onNavigateToNeedsReview = { start, end ->
-                                    navController.navigate("filtered/${CategoryType.VARIABLE_EXPENSE.name}/$start/$end?categoryName=Needs Review")
+                            com.saikumar.expensetracker.ui.insights.InsightsHubScreen(
+                                cycleContent = {
+                                    MonthlyOverviewScreen(
+                                        overviewViewModel,
+                                        onNavigateBack = { navController.popBackStack() },
+                                        onNavigateToSearch = { navController.navigate("search") },
+                                        onCategoryClick = { type, start, end -> navController.navigate("filtered/${type.name}/$start/$end") },
+                                        onNavigateToSalaryHistory = { navController.navigate("salary_history") },
+                                        onNavigateToInterest = { navController.navigate("filtered/INCOME/0/${Long.MAX_VALUE}?categoryName=Interest") },
+                                        onNavigateToRetirement = { navController.navigate("retirement") },
+                                        onNavigateToNeedsReview = { start, end ->
+                                            navController.navigate("filtered/${CategoryType.VARIABLE_EXPENSE.name}/$start/$end?categoryName=Needs Review")
+                                        }
+                                    )
+                                },
+                                trendsContent = {
+                                    com.saikumar.expensetracker.ui.analytics.AnalyticsScreen(
+                                        repository = app.repository,
+                                        onCategoryClick = { category, start, end ->
+                                            navController.navigate("filtered/${category.type.name}/$start/$end?categoryName=${category.name}")
+                                        }
+                                    )
                                 }
                             )
                         }

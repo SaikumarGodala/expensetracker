@@ -15,6 +15,7 @@ object AppConstants {
         const val MISCELLANEOUS = "Miscellaneous"
         const val SELF_TRANSFER = "Self Transfer"
         const val INTEREST = "Interest"
+        const val REFUND = "Refund"
     }
     
     // Keyword Fragments (for fuzzy matching)

@@ -40,7 +40,10 @@ fun TransactionEditDialog(
     onFindSimilar: (suspend () -> com.saikumar.expensetracker.sms.SimilarityResult)? = null
 ) {
     var selectedCategory by remember { mutableStateOf(transaction.category) }
-    var selectedType by remember { mutableStateOf(transaction.category.type) }
+    // Type is fully derived from the chosen category - no separate Type picker.
+    // (The save path already ignored any manually-picked type and derived it via
+    // deriveClassificationFromCategory, so the old Type dropdown was pure friction.)
+    val selectedType = selectedCategory.type
     var note by remember { mutableStateOf(transaction.transaction.note ?: "") }
     // Classification auto-derived from category when saving
     val accountType by remember { mutableStateOf(transaction.transaction.accountType) }
@@ -55,7 +58,6 @@ fun TransactionEditDialog(
 
     // P2P override: allows user to mark P2P as income/expense instead of neutral transfer
     var p2pOverride by remember { mutableStateOf<String?>(null) } // "INCOME", "EXPENSE", or null (neutral)
-    var typeExpanded by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     // Classification is auto-derived from category (see deriveClassificationFromCategory)
@@ -221,69 +223,22 @@ fun TransactionEditDialog(
                     }
                 }
                 
-                // Two-dropdown approach: Type first, then Category
-                // 1. Type Dropdown (5 options)
-                ExposedDropdownMenuBox(
-                    expanded = typeExpanded,
-                    onExpandedChange = { typeExpanded = !typeExpanded },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = when (selectedType) {
-                            CategoryType.INCOME -> "📈 Income"
-                            CategoryType.FIXED_EXPENSE -> "🏠 Fixed Expenses"
-                            CategoryType.VARIABLE_EXPENSE -> "🛒 Variable Expenses"
-                            CategoryType.INVESTMENT -> "📊 Investments"
-                            CategoryType.VEHICLE -> "🚗 Vehicle"
-                            CategoryType.STATEMENT -> "📄 Statement"
-                            CategoryType.LIABILITY -> "💳 CC Bill Payment"
-                            CategoryType.TRANSFER -> "↔️ Transfer"
-                            CategoryType.IGNORE -> "🚫 Invalid/Ignore"
-                        },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category Type") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = typeExpanded,
-                        onDismissRequest = { typeExpanded = false }
-                    ) {
-                        CategoryType.entries.forEach { type ->
-                            val typeLabel = when (type) {
-                                CategoryType.INCOME -> "📈 Income"
-                                CategoryType.FIXED_EXPENSE -> "🏠 Fixed Expenses"
-                                CategoryType.VARIABLE_EXPENSE -> "🛒 Variable Expenses"
-                                CategoryType.INVESTMENT -> "📊 Investments"
-                                CategoryType.VEHICLE -> "🚗 Vehicle"
-                                CategoryType.STATEMENT -> "📄 Statement"
-                                CategoryType.LIABILITY -> "💳 CC Bill Payment"
-                                CategoryType.TRANSFER -> "↔️ Transfer"
-                                CategoryType.IGNORE -> "🚫 Invalid/Ignore"
-                            }
-                            DropdownMenuItem(
-                                text = { Text(typeLabel) },
-                                onClick = {
-                                    selectedType = type
-                                    typeExpanded = false
-                                    // Auto-select first category of new type
-                                    val firstOfType = categories.find { it.type == type }
-                                    if (firstOfType != null) {
-                                        selectedCategory = firstOfType
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // 2. Category Dropdown (filtered by selected type)
-                val filteredCategories = categories.filter { it.type == selectedType }.sortedBy { it.name }
-                
+                // SINGLE grouped category picker. The old two-step (Category Type dropdown ->
+                // Category dropdown) forced two decisions where one suffices: the type is a
+                // property OF the category, so picking "Groceries" already implies Variable
+                // Expense. Categories are listed grouped by type with section headers.
+                val groupOrder = listOf(
+                    CategoryType.VARIABLE_EXPENSE to "🛒 Variable Expenses",
+                    CategoryType.FIXED_EXPENSE to "🏠 Fixed Expenses",
+                    CategoryType.VEHICLE to "🚗 Vehicle",
+                    CategoryType.INCOME to "📈 Income",
+                    CategoryType.INVESTMENT to "📊 Investments",
+                    CategoryType.LIABILITY to "💳 CC Bill Payment",
+                    CategoryType.TRANSFER to "↔️ Transfer",
+                    CategoryType.STATEMENT to "📄 Statement",
+                    CategoryType.IGNORE to "🚫 Invalid/Ignore"
+                )
+
                 ExposedDropdownMenuBox(
                     expanded = categoryExpanded,
                     onExpandedChange = { categoryExpanded = !categoryExpanded },
@@ -294,12 +249,17 @@ fun TransactionEditDialog(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Category") },
-                        leadingIcon = { 
+                        leadingIcon = {
                             Icon(
-                                CategoryIcons.getIcon(selectedCategory.name), 
+                                CategoryIcons.getIcon(selectedCategory.name),
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp)
                             )
+                        },
+                        supportingText = {
+                            // Show the derived group so the user still sees the type without
+                            // having to pick it
+                            Text(groupOrder.firstOrNull { it.first == selectedType }?.second ?: selectedType.name)
                         },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
@@ -307,26 +267,49 @@ fun TransactionEditDialog(
                     )
                     ExposedDropdownMenu(
                         expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false }
+                        onDismissRequest = { categoryExpanded = false },
+                        modifier = Modifier.heightIn(max = 400.dp)
                     ) {
-                        filteredCategories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            CategoryIcons.getIcon(category.name), 
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(category.name)
-                                    }
-                                },
-                                onClick = {
-                                    selectedCategory = category
-                                    categoryExpanded = false
+                        groupOrder.forEach { (type, label) ->
+                            val group = categories.filter { it.type == type }.sortedBy { it.name }
+                            if (group.isNotEmpty()) {
+                                // Section header (not clickable)
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                                group.forEach { category ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    CategoryIcons.getIcon(category.name),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(category.name)
+                                                if (category.id == selectedCategory.id) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                    Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedCategory = category
+                                            categoryExpanded = false
+                                        }
+                                    )
                                 }
-                            )
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
                         }
                     }
                 }
@@ -638,10 +621,8 @@ fun TransactionEditDialog(
 }
 
 // Local helper for formatting amount - consistent format with decimals
-private fun formatAmount(paisa: Long): String {
-    val rupees = paisa / 100.0
-    return "₹${String.format(Locale.getDefault(), "%,.2f", rupees)}"
-}
+private fun formatAmount(paisa: Long): String =
+    com.saikumar.expensetracker.util.CurrencyFormatter.formatPaisa(paisa, showDecimals = true)
 
 /**
  * Derives the transaction classification from category type and name.

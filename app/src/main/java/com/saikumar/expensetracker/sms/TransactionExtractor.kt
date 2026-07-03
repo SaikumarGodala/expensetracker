@@ -82,7 +82,15 @@ object TransactionExtractor {
 
     // Credit indicators
     private val CREDIT_KEYWORDS = listOf(
-        "credited", "deposited", "received", "added", "refund"
+        "credited", "deposited", "received", "added", "refund", "reversed", "reversal"
+    )
+
+    // Reversal/refund indicators - money credited back because a transaction was undone
+    // (either a merchant return or the reversal of a previously failed/declined attempt).
+    // These must resolve to TransactionType.REFUND rather than plain INCOME/EXPENSE so
+    // they don't inflate income totals or double-count as fresh spend.
+    private val REVERSAL_KEYWORDS = listOf(
+        "reversed", "reversal", "refunded", "refund of", "refund for", "credited back", "chargeback"
     )
 
     // Transfer indicators (between own accounts)
@@ -165,7 +173,8 @@ object TransactionExtractor {
                         currency.startsWith("SGD") -> java.math.BigDecimal("62.0")
                         else -> java.math.BigDecimal("1.0") // INR
                     }
-                    return amount.multiply(conversionRate).multiply(java.math.BigDecimal(100)).toLong()
+                    return amount.multiply(conversionRate).multiply(java.math.BigDecimal(100))
+                        .setScale(0, java.math.RoundingMode.HALF_UP).toLong()
                 } catch (e: Exception) {
                     // Fall through to generic patterns
                 }
@@ -192,7 +201,8 @@ object TransactionExtractor {
                         currency.startsWith("SGD") -> java.math.BigDecimal("62.0")
                         else -> java.math.BigDecimal("1.0") // INR
                     }
-                    return amount.multiply(conversionRate).multiply(java.math.BigDecimal(100)).toLong()
+                    return amount.multiply(conversionRate).multiply(java.math.BigDecimal(100))
+                        .setScale(0, java.math.RoundingMode.HALF_UP).toLong()
                 } catch (e: Exception) {
                     // Fall through to generic patterns
                 }
@@ -207,9 +217,13 @@ object TransactionExtractor {
                 if (matchedGroup != null) {
                     try {
                         val amountStr = matchedGroup.replace(",", "")
-                        // Use BigDecimal for safe currency math: String -> BigDecimal -> multiply 100 -> Long
+                        // Use BigDecimal for safe currency math: String -> BigDecimal -> multiply 100 -> Long.
+                        // Rounded to 0 decimal places first so an SMS with unusual sub-paisa
+                        // precision (e.g. "100.005") can't throw ArithmeticException out of
+                        // longValueExact() and cause an otherwise-valid amount to be dropped.
                         return java.math.BigDecimal(amountStr)
                             .multiply(java.math.BigDecimal(100))
+                            .setScale(0, java.math.RoundingMode.HALF_UP)
                             .longValueExact()
                     } catch (e: Exception) {
                         continue
@@ -273,6 +287,16 @@ object TransactionExtractor {
             return TransactionType.STATEMENT
         }
 
+        // ============ REFUND / REVERSAL DETECTION (High Priority) ============
+        // Money coming back - either a merchant return or the undo of a failed/declined
+        // transaction. Gated on isDebit != true so a confidently-detected debit (e.g. the
+        // original failed txn mentioned earlier in the same message) doesn't get misread as
+        // a refund; isDebit == null (ambiguous wording, common for pure reversal notices) is
+        // still allowed through since the reversal keyword itself is a strong signal.
+        if (isDebit != true && REVERSAL_KEYWORDS.any { lower.contains(it) }) {
+            return TransactionType.REFUND
+        }
+
         // ============ CREDIT CARD BILL PAYMENT DETECTION (High Priority) ============
         // These are LIABILITY_PAYMENT - paying off credit card debt
 
@@ -321,7 +345,14 @@ object TransactionExtractor {
 
                 // Check if recipient is a known merchant (not a person)
                 // Expanded list to include Investment entities which often look like Person names
-                val isMerchant = MERCHANT_SIGNALS.any { recipientName.contains(it) } ||
+                //
+                // BUGFIX: MERCHANT_SIGNALS contains short generic words ("SPA", "LAB", "GAS",
+                // "MART", "CLUB"...) that were matched with a raw `contains` check, so a person
+                // recipient whose name simply *contains* one of these as a substring (e.g.
+                // "Sparsh" contains "SPA", "Malabar" contains "LAB") was wrongly classified as a
+                // merchant and excluded from P2P TRANSFER detection - silently miscategorized as
+                // a plain EXPENSE instead. SmsConstants.containsToken enforces a word boundary.
+                val isMerchant = SmsConstants.containsAnyToken(recipientName, MERCHANT_SIGNALS) ||
                                  recipientName.contains("ZERODHA") ||
                                  recipientName.contains("ICCL") ||
                                  recipientName.contains("INDIAN CLEARING") ||
