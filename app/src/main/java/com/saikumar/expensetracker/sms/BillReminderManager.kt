@@ -153,7 +153,8 @@ object BillReminderManager {
         val confirmed = lower.contains("successful") ||
             lower.contains("has been processed") ||
             lower.contains("received a payment") ||
-            lower.contains("received the payment")
+            lower.contains("received the payment") ||
+            lower.contains("received payment") // Hathway: "We have received payment of Rs559"
         if (!confirmed) return
         // Not a promise of future MONEY movement. (A bare "will be" is too blunt: Airtel's
         // confirmations end with "receipt will be available to download for 7 days".)

@@ -105,10 +105,11 @@ object CounterpartyExtractor {
         Pattern.CASE_INSENSITIVE
     )
     
-    // ICICI "INR XXX spent using ICICI Bank Card on DD-MON-YY on <MERCHANT>" pattern
-    // Also supports USD and other currencies
+    // ICICI "INR XXX spent using ICICI Bank Card on DD-MON-YY on <MERCHANT>" pattern.
+    // Also supports USD and other currencies. Lazy capture with an explicit terminator:
+    // "." was inside the class, so "on L FUELS. Avl Limit: ..." captured "Fuels Avl Limit".
     private val ICICI_SPENT_ON_PATTERN = Pattern.compile(
-        "(?:INR|USD|EUR|GBP|AED|SGD)\\s+[\\d,\\.]+\\s+spent\\s+using\\s+ICICI[^\\n]*on\\s+\\d{2}-[A-Z][a-z]{2}-\\d{2}\\s+on\\s+([A-Z][A-Za-z0-9\\s\\.]{2,30})",
+        "(?:INR|USD|EUR|GBP|AED|SGD)\\s+[\\d,\\.]+\\s+spent\\s+using\\s+ICICI[^\\n]*on\\s+\\d{2}-[A-Z][a-z]{2}-\\d{2}\\s+on\\s+([A-Z][A-Za-z0-9,\\s]{2,30}?)(?:\\.|\\s+Avl\\b)",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -129,8 +130,10 @@ object CounterpartyExtractor {
 
     // ICICI "Rs X,XXX spent on ICICI Bank Card XX... on DD-Mon-YY at <MERCHANT>" pattern.
     // "*" allowed so gateway-wrapped merchants ("RAZ*HP Pay") survive; cleanName strips RAZ*.
+    // Terminates at "." OR " Avl" - some bodies have no period before "Avl Lmt", which made
+    // the captured merchant "Sri XX Fuels Avl Limit".
     private val ICICI_SPENT_AT_PATTERN = Pattern.compile(
-        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*?at\\s+([A-Z][A-Za-z0-9*\\s\\.]+?)\\.",
+        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*?at\\s+([A-Z][A-Za-z0-9*\\s\\.]+?)(?:\\.|\\s+Avl\\b)",
         Pattern.CASE_INSENSITIVE
     )
 

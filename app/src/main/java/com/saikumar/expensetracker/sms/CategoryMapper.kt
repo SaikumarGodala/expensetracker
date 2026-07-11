@@ -204,6 +204,13 @@ object CategoryMapper {
         "AVENUE SUPERMAR" to "Groceries",
         "CASH WDL" to "Cash Withdrawal", // ATM: "debited Rs. 10,000.00 ... NFS*CASH WDL*"
         "NFS" to "Cash Withdrawal",
+        "KIRANA" to "Groceries", // "Ganesh Kirana" & every other kirana store
+        "FUELS" to "Fuel", // petrol pumps named "<X> Fuels"
+        "FLIPKARTINTERNE" to "Shopping", // ICICI glues+truncates "FlipkartInterne"
+        "MYJIO" to "Mobile + WiFi",
+        "INDIAN RAILWAYS" to "Transportation",
+        "BAKERS" to "Dining Out", // "Cakes Bakers"
+        "DISTRICT MO" to "Entertainment", // truncated "District Movies"
         "AVENUE SUPERMART" to "Groceries", // full word - token matching can't hit the truncated key mid-word
         "AVENUE SUPERMARTS" to "Groceries",
         "TITAN COMPANY" to "Shopping", // watches/jewellery ("..TITAN COMPANY LI_" card spends)
