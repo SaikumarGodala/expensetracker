@@ -116,9 +116,13 @@ object MerchantNormalizer {
 
         var normalized = rawName.lowercase(Locale.getDefault()).trim()
 
-        // 0. Check for known merchant name first (before any modification)
+        // 0. Check for known merchant name first (before any modification).
+        // WORD-BOUNDARY match only: raw contains() renamed any name that merely embeds a
+        // brand substring - person "POLAMURI Sudhir" became "Ola", "Mohammad ZUBER" would
+        // become "Uber". Token matching (plus exact-equals) fixes the class.
         for ((pattern, name) in KNOWN_MERCHANTS) {
-            if (normalized == pattern || normalized.startsWith(pattern) || normalized.contains(pattern)) {
+            if (normalized == pattern ||
+                com.saikumar.expensetracker.sms.SmsConstants.containsToken(normalized, pattern)) {
                 return name
             }
         }

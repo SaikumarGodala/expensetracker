@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Schedule
 import com.saikumar.expensetracker.ui.theme.*
 
 import com.saikumar.expensetracker.data.db.TransactionWithCategory
@@ -60,6 +61,7 @@ fun DashboardScreen(
     onScanInbox: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val upcomingBills by viewModel.upcomingBills.collectAsState()
     var editingTransaction by remember { mutableStateOf<TransactionWithCategory?>(null) }
     var sortOption by remember { mutableStateOf(com.saikumar.expensetracker.ui.components.SortOption.DATE_DESC) }
     var showDateRangePicker by remember { mutableStateOf(false) }
@@ -92,8 +94,8 @@ fun DashboardScreen(
             transaction = editingTransaction!!,
             categories = uiState.categories,
             onDismiss = { editingTransaction = null },
-            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification ->
-                viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)
+            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification, newMerchant ->
+                viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification, newMerchant)
                 editingTransaction = null
             },
             onAddCategory = { name, type ->
@@ -147,6 +149,9 @@ fun DashboardScreen(
     
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scanState by com.saikumar.expensetracker.util.ScanProgressManager.scanState.collectAsState()
+
+    // Refresh the upcoming-bills card whenever a scan finishes (new reminders / new links)
+    LaunchedEffect(scanState) { viewModel.reloadUpcomingBills() }
     
     // Only Add FAB, no Search
     Scaffold(
@@ -205,11 +210,13 @@ fun DashboardScreen(
                          onClearAll = { viewModel.clearAccountFilter() }
                      )
                      
+                     // onSurface tint for all header actions (was primary-blue for these two
+                     // but onSurface for the filter icon - three icons, two colors)
                      IconButton(onClick = onScanInbox) {
-                         Icon(Icons.Default.Sync, "Sync", tint = MaterialTheme.colorScheme.primary)
+                         Icon(Icons.Default.Sync, "Sync", tint = MaterialTheme.colorScheme.onSurface)
                      }
                      IconButton(onClick = onNavigateToSearch) {
-                         Icon(Icons.Default.Search, "Search", tint = MaterialTheme.colorScheme.primary)
+                         Icon(Icons.Default.Search, "Search", tint = MaterialTheme.colorScheme.onSurface)
                      }
                  }
             }
@@ -228,10 +235,11 @@ fun DashboardScreen(
                     ) {
 
                         
-                        // Refined Month Selector
+                        // Refined Month Selector - surfaceContainer, not High: the pill sits
+                        // directly above the hero card and shouldn't out-weigh it
                         Surface(
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            color = MaterialTheme.colorScheme.surfaceContainer,
                             modifier = Modifier.padding(bottom = 16.dp)
                         ) {
                             Row(
@@ -286,7 +294,84 @@ fun DashboardScreen(
                 }
                 
                 // --- RISKS & ACTIONS ---
-                
+
+                // UPCOMING BILLS (due-date reminder SMS not yet matched to a payment)
+                if (upcomingBills.isNotEmpty()) {
+                    item {
+                        var upcomingExpanded by remember { mutableStateOf(true) }
+                        val dueTotal = upcomingBills.sumOf { it.amountPaisa }
+                        val now = System.currentTimeMillis()
+                        val dueFmt = remember { java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()) }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
+                        ) {
+                            Column(modifier = Modifier.animateContentSize().padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable { upcomingExpanded = !upcomingExpanded },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                "Upcoming Bills (${upcomingBills.size})",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "${formatAmount(dueTotal)} due",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Icon(
+                                        if (upcomingExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = "Expand",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (upcomingExpanded) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                                    upcomingBills.forEach { bill ->
+                                        val overdue = (bill.dueDateMillis ?: 0L) < now
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    bill.billerName ?: bill.categoryHint ?: "Bill",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    if (overdue) "was due ${dueFmt.format(java.util.Date(bill.dueDateMillis!!))}"
+                                                    else "due ${dueFmt.format(java.util.Date(bill.dueDateMillis!!))}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Text(formatAmount(bill.amountPaisa), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // STATEMENTS (Info - Collapsible)
                 if (uiState.statements.isNotEmpty()) {
                     item {
@@ -343,13 +428,83 @@ fun DashboardScreen(
                     }
                 }
                 
+                // CREDIT CARD BILL PAYMENTS (Collapsible, separated from the spend feed)
+                if (uiState.creditBillPayments.isNotEmpty()) {
+                    item {
+                        var billsExpanded by remember { mutableStateOf(false) }
+                        val billsTotal = uiState.creditBillPayments.sumOf { it.transaction.amountPaisa }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
+                        ) {
+                            Column(modifier = Modifier.animateContentSize().padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable { billsExpanded = !billsExpanded },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.CreditCard, contentDescription = null, tint = VehiclePurple, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                "Card Bill Payments (${uiState.creditBillPayments.size})",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "${formatAmount(billsTotal)} • not counted as spending",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Icon(
+                                        if (billsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = "Expand",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (billsExpanded) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                                    uiState.creditBillPayments.forEach { pay ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clickable { editingTransaction = pay }.padding(vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Icon(Icons.Default.CreditCard, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    pay.transaction.merchantName ?: "Card Bill Payment",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Text(formatAmount(pay.transaction.amountPaisa), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // SYSTEM HYGIENE (Ignored Items)
                 if (uiState.ignoredCount > 0) {
                      item {
                         Surface(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -664,7 +819,7 @@ fun SummaryRowList(state: DashboardUiState, onCategoryClick: (CategoryType) -> U
 fun SummaryChip(label: String, amount: Double, color: Color, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard),
         color = color.copy(alpha = 0.12f)
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).widthIn(min = 80.dp)) {
@@ -771,10 +926,16 @@ fun TransactionItem(
 ) {
     val transactionType = item.transaction.transactionType
     val isSelfTransferLinked = linkType == LinkType.SELF_TRANSFER
+    // Money sitting in an income category counts as income even if typed TRANSFER (e.g. money
+    // received from a person, filed under "Other Income") - show it green like the chip counts it.
+    val isIncomeCategory = item.category.type == com.saikumar.expensetracker.data.entity.CategoryType.INCOME &&
+        transactionType != TransactionType.REFUND &&
+        item.category.name != com.saikumar.expensetracker.core.AppConstants.Categories.P2P_TRANSFERS &&
+        !com.saikumar.expensetracker.domain.TransactionRuleEngine.isInvestmentRedemption(transactionType, item.category)
     // Trust the LinkType if present, otherwise fall back to TransactionType
-    val isTransfer = isSelfTransferLinked || transactionType == TransactionType.TRANSFER
-    
-    val isIncome = transactionType == TransactionType.INCOME
+    val isTransfer = (isSelfTransferLinked || transactionType == TransactionType.TRANSFER) && !isIncomeCategory
+
+    val isIncome = transactionType == TransactionType.INCOME || isIncomeCategory
     val isLiabilityPayment = transactionType == TransactionType.LIABILITY_PAYMENT
     val isRefund = linkType == LinkType.REFUND || transactionType == TransactionType.REFUND
     val isCashback = transactionType == TransactionType.CASHBACK
@@ -886,14 +1047,15 @@ fun TransactionItem(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp).fillMaxWidth(),
+            // 12dp keeps the row on the 4dp grid (was 14dp horizontal)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Category-colored avatar (rounded square reads more "category tile" than a circle)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .background(avatarColor.copy(alpha = 0.15f), androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
+                    .size(com.saikumar.expensetracker.ui.theme.Dimens.AvatarSizeMedium)
+                    .background(avatarColor.copy(alpha = 0.15f), androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusAvatar)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(avatarIcon, contentDescription = null, tint = avatarColor, modifier = Modifier.size(22.dp))
@@ -950,7 +1112,7 @@ fun TransactionItem(
 private fun LabelChip(text: String, color: Color) {
     Surface(
         color = color.copy(alpha = 0.14f),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusChip)
     ) {
         Text(
             text,

@@ -39,6 +39,7 @@ data class DashboardUiState(
     val extraMoney: Double = 0.0,
     val transactions: List<TransactionWithCategory> = emptyList(),
     val statements: List<TransactionWithCategory> = emptyList(),
+    val creditBillPayments: List<TransactionWithCategory> = emptyList(),
     val transactionLinks: Map<Long, LinkDetail> = emptyMap(),
     // Account filter
     val detectedAccounts: List<UserAccount> = emptyList(),
@@ -66,7 +67,8 @@ class DashboardViewModel(
     private val repository: ExpenseRepository,
     private val preferencesManager: PreferencesManager,
     private val cycleOverrideDao: CycleOverrideDao,
-    private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
+    private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao,
+    private val billReminderDao: com.saikumar.expensetracker.data.db.BillReminderDao? = null
 ) : ViewModel() {
 
     // Note: Category seeding moved to ExpenseTrackerApplication.onCreate() for better performance
@@ -117,6 +119,34 @@ class DashboardViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+    // --- Upcoming bills (captured due-date reminder SMS, not yet linked to a payment) ---
+    private val _upcomingBills = MutableStateFlow<List<com.saikumar.expensetracker.data.entity.BillReminder>>(emptyList())
+    val upcomingBills: StateFlow<List<com.saikumar.expensetracker.data.entity.BillReminder>> = _upcomingBills.asStateFlow()
+
+    fun reloadUpcomingBills() {
+        val dao = billReminderDao ?: return
+        viewModelScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val graceStart = now - 5L * 24 * 60 * 60 * 1000   // keep just-overdue visible
+                val horizon = now + 30L * 24 * 60 * 60 * 1000
+                val raw = dao.getUpcoming(graceStart, horizon)
+                // The same bill is reminded several times ("Amount Due Rs.12595 ... pay by
+                // 06/JUL" x4) - keep one row per (biller/hint, amount), the freshest reminder.
+                _upcomingBills.value = raw
+                    .groupBy { (it.billerName ?: it.categoryHint ?: "?") to it.amountPaisa }
+                    .map { (_, group) -> group.maxBy { it.receivedAt } }
+                    .sortedBy { it.dueDateMillis }
+            } catch (e: Exception) {
+                android.util.Log.w("DashboardViewModel", "Upcoming bills load failed: ${e.message}")
+            }
+        }
+    }
+
+    init {
+        reloadUpcomingBills()
     }
 
     // Cache for salary day detection to avoid repeated DB queries
@@ -301,12 +331,32 @@ class DashboardViewModel(
                 // earnings - counting it as income inflated income by lakhs. It's netted
                 // against investments below instead, which leaves extraMoney unchanged
                 // (the cash genuinely is spendable) while keeping income honest.
-                val income = activeTransactions
+                // Predicate shared with FilteredTransactionsViewModel/MonthlyOverviewViewModel
+                // via TransactionRuleEngine.isInvestmentRedemption - this used to be three
+                // independently-drifting inline copies (missing entirely in the drill-down
+                // list, which is why tapping "Income" still showed redemptions).
+                // Income is computed from the COMPLETED set BEFORE the TRANSFER exclusion that
+                // activeTransactions applies - otherwise the P2P "Other Income" credits (typed
+                // TRANSFER) are dropped before this filter can count them.
+                val incomeBase = accountFilteredTransactions.filter {
+                    it.transaction.status == TransactionStatus.COMPLETED
+                }
+                val income = incomeBase
                     .filter {
-                        (it.transaction.transactionType == TransactionType.INCOME &&
+                        // Count as income when the type is INCOME, OR the assigned CATEGORY is
+                        // an income category (per user's choice, this includes money received
+                        // from individuals sitting in "Other Income" even though it's typed
+                        // TRANSFER). REFUND-typed rows are excluded here because they already
+                        // net against spending separately; redemptions/P2P excluded below.
+                        val t = it.transaction.transactionType
+                        val isIncome = t == TransactionType.INCOME ||
+                                       (it.category.type == CategoryType.INCOME &&
+                                        t != TransactionType.REFUND)
+                        (isIncome &&
                          it.category.name != "P2P Transfers" &&
-                         it.category.name != "Investment Redemption" &&
-                         it.category.type != CategoryType.INVESTMENT) ||
+                         !com.saikumar.expensetracker.domain.TransactionRuleEngine.isInvestmentRedemption(
+                             it.transaction.transactionType, it.category
+                         )) ||
                         it.transaction.transactionType == TransactionType.CASHBACK
                     }
                     .sumOf { it.transaction.amountPaisa } / 100.0
@@ -314,8 +364,9 @@ class DashboardViewModel(
                 // Redemptions: money coming back OUT of investments
                 val redemptionAmount = activeTransactions
                     .filter {
-                        it.transaction.transactionType == TransactionType.INCOME &&
-                        (it.category.name == "Investment Redemption" || it.category.type == CategoryType.INVESTMENT)
+                        com.saikumar.expensetracker.domain.TransactionRuleEngine.isInvestmentRedemption(
+                            it.transaction.transactionType, it.category
+                        )
                     }
                     .sumOf { it.transaction.amountPaisa } / 100.0
 
@@ -352,7 +403,13 @@ class DashboardViewModel(
                 // Net refunds against expenses
                 val totalExpenses = (fixed + variable) - refundAmount
 
+                // Credit-card bill payments get their own collapsible section, so lift them
+                // out of the main feed (they're already excluded from spend totals).
+                val creditBillPayments = accountFilteredTransactions
+                    .filter { it.transaction.transactionType == TransactionType.LIABILITY_PAYMENT }
+                    .sortedByDescending { it.transaction.timestamp }
                 val filteredTransactions = accountFilteredTransactions
+                    .filter { it.transaction.transactionType != TransactionType.LIABILITY_PAYMENT }
                 // Count ignored transactions from pre-filtered list (before type exclusions)
                 val ignoredCount = accountFilteredTransactions.count { it.transaction.transactionType == TransactionType.IGNORE }
                 // Calculate Context for Hero Card.
@@ -384,6 +441,7 @@ class DashboardViewModel(
                     extraMoney = remaining,
                     transactions = filteredTransactions,
                     statements = statements,
+                    creditBillPayments = creditBillPayments,
                     transactionLinks = linkMap,
                     detectedAccounts = params.accounts,
                     selectedAccounts = params.selectedAccounts,
@@ -412,14 +470,22 @@ class DashboardViewModel(
     }
 
     fun updateTransactionDetails(
-        transaction: Transaction, 
-        newCategoryId: Long, 
-        newNote: String, 
-        accountType: AccountType, 
-        updateSimilar: Boolean, 
-        manualClassification: String? = null
+        transaction: Transaction,
+        newCategoryId: Long,
+        newNote: String,
+        accountType: AccountType,
+        updateSimilar: Boolean,
+        manualClassification: String? = null,
+        newMerchantName: String? = null
     ) {
         viewModelScope.launch {
+            // Rename the merchant first (and back-fill same-VPA rows) so the row we re-save
+            // below carries the new name.
+            if (!newMerchantName.isNullOrBlank() && newMerchantName != transaction.merchantName) {
+                try { repository.renameMerchant(transaction, newMerchantName) } catch (e: Exception) {
+                    android.util.Log.w("DashboardViewModel", "renameMerchant failed: ${e.message}")
+                }
+            }
             // Determine transaction type from manual classification or category
         val categories = repository.allEnabledCategories.first()
         val newCategory = categories.find { it.id == newCategoryId }
@@ -433,11 +499,15 @@ class DashboardViewModel(
         )
             
         repository.updateTransaction(transaction.copy(
-            categoryId = newCategoryId, 
-            note = newNote, 
+            categoryId = newCategoryId,
+            note = newNote,
             accountType = accountType,
             manualClassification = manualClassification,
-            transactionType = newTransactionType
+            transactionType = newTransactionType,
+            merchantName = newMerchantName?.trim()?.ifBlank { null } ?: transaction.merchantName,
+            // User-confirmed: reclassify and the post-scan passes all skip conf>=100 rows,
+            // so a manual edit survives every future rescan.
+            confidenceScore = 100
         ))
         
         // ===== MERCHANT MEMORY: User Confirmation =====
@@ -560,14 +630,15 @@ class DashboardViewModel(
 
 
     class Factory(
-        private val repository: ExpenseRepository, 
-        private val preferencesManager: PreferencesManager, 
+        private val repository: ExpenseRepository,
+        private val preferencesManager: PreferencesManager,
         private val cycleOverrideDao: CycleOverrideDao,
-        private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao
+        private val userAccountDao: com.saikumar.expensetracker.data.db.UserAccountDao,
+        private val billReminderDao: com.saikumar.expensetracker.data.db.BillReminderDao? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DashboardViewModel(repository, preferencesManager, cycleOverrideDao, userAccountDao) as T
+            return DashboardViewModel(repository, preferencesManager, cycleOverrideDao, userAccountDao, billReminderDao) as T
         }
     }
 }

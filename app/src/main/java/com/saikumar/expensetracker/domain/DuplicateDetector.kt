@@ -65,6 +65,15 @@ class DuplicateDetector(
         val candidates = transactionDao.findPotentialDuplicates(amountPaisa, windowStart, windowEnd)
 
         for (candidate in candidates) {
+            // HARD NEGATIVE: both sides carry a bank reference number and they DIFFER -
+            // these are two distinct transactions no matter how similar they look. Several
+            // same-amount SIP debits fire in the same minute (4 x Rs.10,000 to Indian
+            // Clearing for different funds); without this they collapsed into one.
+            if (!referenceNo.isNullOrBlank() && !candidate.referenceNo.isNullOrBlank() &&
+                referenceNo != candidate.referenceNo) {
+                continue
+            }
+
             var confidenceBoost = 0.0
             val matchReasons = mutableListOf<String>()
 

@@ -9,6 +9,8 @@ import com.saikumar.expensetracker.data.db.YearlySpending
 import com.saikumar.expensetracker.data.entity.Category
 import com.saikumar.expensetracker.data.repository.ExpenseRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -112,6 +114,110 @@ class AnalyticsViewModel(
     init {
         // Initial load
         refreshData()
+    }
+
+    // ===== NEEDS-ATTENTION GROUPS =====
+    // The generic buckets (Uncategorized/Miscellaneous) grouped by counterparty, so the
+    // user can see WHO the money went to/came from and categorize a whole group at once.
+    data class AttentionGroup(val name: String, val count: Int, val totalPaisa: Long)
+
+    private val _attentionGroups = MutableStateFlow<List<AttentionGroup>>(emptyList())
+    val attentionGroups: StateFlow<List<AttentionGroup>> = _attentionGroups.asStateFlow()
+
+    private val genericBuckets = setOf("Uncategorized", "Miscellaneous", "Unknown Expense")
+
+    fun loadAttentionGroups() {
+        viewModelScope.launch {
+            try {
+                // ALL-TIME, not just the selected year: this card is for clearing the whole
+                // backlog, and a category decision for a counterparty is time-independent.
+                val txns = repository.getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
+                _attentionGroups.value = txns
+                    .filter {
+                        it.category.name in genericBuckets &&
+                        it.transaction.deletedAt == null &&
+                        it.transaction.transactionType == com.saikumar.expensetracker.data.entity.TransactionType.EXPENSE
+                    }
+                    .groupBy { it.transaction.merchantName ?: it.transaction.upiId ?: "(no name)" }
+                    .map { (name, group) ->
+                        AttentionGroup(name, group.size, group.sumOf { it.transaction.amountPaisa })
+                    }
+                    .sortedWith(compareByDescending<AttentionGroup> { it.count }.thenByDescending { it.totalPaisa })
+            } catch (e: Exception) {
+                android.util.Log.w("AnalyticsViewModel", "loadAttentionGroups failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Categorize every generic-bucket transaction of [name] in the selected year to
+     * [category] - user-confirmed (conf=100, survives reclassify) and learned into
+     * merchant memory so FUTURE payments to the same counterparty map automatically.
+     */
+    // Transactions of one attention group, for the preview dialog (all-time)
+    private val _groupTransactions = MutableStateFlow<List<com.saikumar.expensetracker.data.db.TransactionWithCategory>>(emptyList())
+    val groupTransactions: StateFlow<List<com.saikumar.expensetracker.data.db.TransactionWithCategory>> = _groupTransactions.asStateFlow()
+
+    fun loadGroupTransactions(name: String) {
+        viewModelScope.launch {
+            try {
+                _groupTransactions.value = repository.getTransactionsInPeriod(0L, Long.MAX_VALUE).first()
+                    .filter {
+                        it.category.name in genericBuckets &&
+                        it.transaction.deletedAt == null &&
+                        (it.transaction.merchantName ?: it.transaction.upiId ?: "(no name)") == name
+                    }
+                    .sortedByDescending { it.transaction.timestamp }
+            } catch (e: Exception) {
+                _groupTransactions.value = emptyList()
+            }
+        }
+    }
+
+    fun bulkCategorize(name: String, category: Category) {
+        viewModelScope.launch {
+            try {
+                // ALL-TIME (see loadAttentionGroups)
+                val start = 0L
+                val end = Long.MAX_VALUE
+                val newType = when (category.type) {
+                    com.saikumar.expensetracker.data.entity.CategoryType.INCOME -> com.saikumar.expensetracker.data.entity.TransactionType.INCOME
+                    com.saikumar.expensetracker.data.entity.CategoryType.INVESTMENT -> com.saikumar.expensetracker.data.entity.TransactionType.INVESTMENT_OUTFLOW
+                    com.saikumar.expensetracker.data.entity.CategoryType.TRANSFER -> com.saikumar.expensetracker.data.entity.TransactionType.TRANSFER
+                    com.saikumar.expensetracker.data.entity.CategoryType.LIABILITY -> com.saikumar.expensetracker.data.entity.TransactionType.LIABILITY_PAYMENT
+                    else -> com.saikumar.expensetracker.data.entity.TransactionType.EXPENSE
+                }
+                val txns = repository.getTransactionsInPeriod(start, end).first()
+                    .filter {
+                        it.category.name in genericBuckets &&
+                        it.transaction.deletedAt == null &&
+                        (it.transaction.merchantName ?: it.transaction.upiId ?: "(no name)") == name
+                    }
+                for (t in txns) {
+                    repository.updateTransaction(
+                        t.transaction.copy(
+                            categoryId = category.id,
+                            transactionType = newType,
+                            isExpenseEligible = newType == com.saikumar.expensetracker.data.entity.TransactionType.EXPENSE,
+                            confidenceScore = 100
+                        )
+                    )
+                }
+                // Learn for the future
+                if (name != "(no name)") {
+                    repository.userConfirmMerchantMapping(
+                        merchantName = name,
+                        categoryId = category.id,
+                        transactionType = newType.name,
+                        timestamp = System.currentTimeMillis()
+                    )
+                }
+                loadAttentionGroups()
+                refreshData()
+            } catch (e: Exception) {
+                android.util.Log.e("AnalyticsViewModel", "bulkCategorize failed", e)
+            }
+        }
     }
 
     fun setYear(year: Int) {

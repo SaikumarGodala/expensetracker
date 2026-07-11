@@ -56,14 +56,15 @@ fun FilteredTransactionsScreen(
             transaction = editingTransaction!!,
             categories = categories,
             onDismiss = { editingTransaction = null },
-            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification ->
+            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification, newMerchant ->
                 viewModel.updateTransactionDetails(
                     editingTransaction!!.transaction,
                     categoryId,
                     note,
                     accountType,
                     updateSimilar,
-                    manualClassification
+                    manualClassification,
+                    newMerchant
                 )
                 editingTransaction = null
             },
@@ -146,22 +147,23 @@ fun FilteredTransactionsScreen(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp) // Reduced spacing for density
+                        // Same 8dp row rhythm as the Home feed - this list used 4dp,
+                        // making identical rows feel cramped only on this screen
+                        verticalArrangement = Arrangement.spacedBy(com.saikumar.expensetracker.ui.theme.Dimens.ItemSpacing)
                     ) {
                         groupedTransactions.forEach { (date, transactions) ->
-                            stickyHeader { 
-                                Surface(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    tonalElevation = 1.dp,
-                                    shape = MaterialTheme.shapes.small
-                                ) {
+                            // Date headers styled identically to the Home feed's (plain
+                            // uppercase label) - this screen previously used tonal pill
+                            // headers, a second date-header style for the same kind of list.
+                            stickyHeader {
+                                Surface(color = MaterialTheme.colorScheme.background) {
                                     Text(
-                                        text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM dd")),
+                                        text = date.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM")).uppercase(),
                                         style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
                                     )
                                 }
                             }

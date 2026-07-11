@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.saikumar.expensetracker.ui.theme.Dimens
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import android.util.Log
@@ -32,10 +33,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.font.FontWeight
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onNavigateBack: () -> Unit,
     onNavigateToCategories: () -> Unit = {},
     onNavigateToAdvanced: () -> Unit = {},
     onNavigateToTransferCircle: () -> Unit = {}
@@ -77,8 +78,10 @@ fun SettingsScreen(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(scrollState)
             .padding(paddingValues)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            // Matches Home/Insights' 16dp screen margin and section rhythm - was 20dp on
+            // both axes, the one screen out of step with the rest of the app.
+            .padding(Dimens.ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacing)
     ) {
         Text(
             "Settings",
@@ -88,6 +91,10 @@ fun SettingsScreen(
 
         // ============= QUICK ACTIONS SECTION =============
         var showReclassifyConfirmation by remember { mutableStateOf(false) }
+        var runHealthCheck by remember { mutableStateOf(false) }
+        var healthReport by remember {
+            mutableStateOf<List<com.saikumar.expensetracker.domain.BalanceAuditor.AccountReport>?>(null)
+        }
 
         if (showReclassifyConfirmation) {
             AlertDialog(
@@ -151,6 +158,81 @@ fun SettingsScreen(
                 title = "Transfer Circle",
                 subtitle = "Manage trusted P2P contacts",
                 onClick = onNavigateToTransferCircle
+            )
+            HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+            SettingsItem(
+                icon = Icons.Default.CheckCircle,
+                title = "Ledger Health Check",
+                subtitle = "Verify ledger against bank-reported balances",
+                onClick = { runHealthCheck = true }
+            )
+        }
+
+        // ============= LEDGER HEALTH CHECK =============
+        if (runHealthCheck) {
+            LaunchedEffect(Unit) {
+                healthReport = null
+                val app = context.applicationContext as com.saikumar.expensetracker.ExpenseTrackerApplication
+                healthReport = try {
+                    withContext(Dispatchers.IO) {
+                        com.saikumar.expensetracker.domain.BalanceAuditor.audit(app.database)
+                    }
+                } catch (e: Exception) {
+                    Log.e("SettingsScreen", "Balance audit failed", e)
+                    emptyList()
+                }
+            }
+            AlertDialog(
+                onDismissRequest = { runHealthCheck = false },
+                icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                title = { Text("Ledger Health") },
+                text = {
+                    val report = healthReport
+                    if (report == null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Comparing ledger with bank-reported balances…")
+                        }
+                    } else if (report.isEmpty()) {
+                        Text("No balance data yet. Balances are collected from bank SMS during scans — run a scan first.")
+                    } else {
+                        val dateFmt = remember { java.text.SimpleDateFormat("d MMM yy", java.util.Locale.getDefault()) }
+                        LazyColumn {
+                            items(report) { acct ->
+                                val pct = if (acct.windowCount > 0) acct.consistentCount * 100 / acct.windowCount else 0
+                                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                    Text(
+                                        "A/c ••${acct.accountLast4}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        "${acct.consistentCount} of ${acct.windowCount} intervals match ($pct%)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (pct >= 90) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.error
+                                    )
+                                    acct.worstGaps.forEach { w ->
+                                        val gapRs = w.gapPaisa / 100.0
+                                        Text(
+                                            "• ${dateFmt.format(java.util.Date(w.fromTs))} → ${dateFmt.format(java.util.Date(w.toTs))}: " +
+                                                (if (gapRs > 0) "₹%,.0f unaccounted credit".format(gapRs)
+                                                 else "₹%,.0f unaccounted debit".format(-gapRs)) +
+                                                " (${w.txnCount} txns in ledger)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { runHealthCheck = false }) { Text("Close") }
+                }
             )
         }
 
@@ -301,6 +383,64 @@ fun SettingsScreen(
                 subtitle = "See past acknowledgments",
                 onClick = { showBreachHistory = true }
              )
+        }
+
+        // ============= TRANSACTION RULES =============
+        val p2pThreshold by viewModel.smallP2pThresholdPaise.collectAsState()
+        var showP2pThresholdDialog by remember { mutableStateOf(false) }
+        var tempThreshold by remember { mutableStateOf("") }
+
+        if (showP2pThresholdDialog) {
+            AlertDialog(
+                onDismissRequest = { showP2pThresholdDialog = false },
+                title = { Text("P2P Transfer Threshold") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Payments to people BELOW this amount are counted as spending " +
+                            "(chai, splits, small shops). At or above it, they follow the " +
+                            "transfer rules (Transfer Circle / P2P). Set 0 to disable.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = tempThreshold,
+                            onValueChange = { if (it.all { c -> c.isDigit() } && it.length <= 7) tempThreshold = it },
+                            label = { Text("Amount in ₹") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            )
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        tempThreshold.toLongOrNull()?.let {
+                            viewModel.setSmallP2pThresholdRupees(it)
+                            showP2pThresholdDialog = false
+                            android.widget.Toast.makeText(context, "Saved. Reclassify to apply to existing transactions.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }) { Text("Save") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showP2pThresholdDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        SettingsSection(title = "Transaction Rules") {
+            SettingsItem(
+                icon = Icons.Default.People,
+                title = "P2P Transfer Threshold",
+                subtitle = if (p2pThreshold > 0)
+                    "Below ₹${java.text.NumberFormat.getIntegerInstance().format(p2pThreshold / 100)}, payments to people count as spending"
+                else "Off - all person payments follow transfer rules",
+                onClick = {
+                    tempThreshold = (p2pThreshold / 100).toString()
+                    showP2pThresholdDialog = true
+                }
+            )
         }
 
         // ============= SECURITY SECTION =============
@@ -457,12 +597,61 @@ fun SettingsScreen(
             }
         }
 
+        // ============= APPEARANCE =============
+        // Theme & palette moved out of "Advanced" - they're everyday preferences, not
+        // power-user tools.
+        val themeMode by viewModel.themeMode.collectAsState()
+        val colorPalette by viewModel.colorPalette.collectAsState()
+        SettingsSection(title = "Appearance") {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Theme", style = MaterialTheme.typography.bodyLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(0 to "System", 1 to "Light", 2 to "Dark").forEach { (mode, label) ->
+                            FilterChip(
+                                selected = themeMode == mode,
+                                onClick = { viewModel.setThemeMode(mode) },
+                                label = { Text(label) },
+                                modifier = Modifier.height(32.dp)
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+                Text("Color Palette", style = MaterialTheme.typography.bodyLarge)
+                Spacer(modifier = Modifier.height(6.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf("DYNAMIC", "OCEAN", "FOREST", "SUNSET", "SNOW").forEach { palette ->
+                        FilterChip(
+                            selected = colorPalette == palette,
+                            onClick = { viewModel.setColorPalette(palette) },
+                            label = {
+                                Text(
+                                    if (palette == "DYNAMIC") "Default"
+                                    else palette.lowercase().replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            modifier = Modifier.height(32.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // ============= PREFERENCES SECTION =============
         SettingsSection(title = "Preferences") {
             SettingsItem(
                 icon = Icons.Default.Tune,
                 title = "Advanced Settings",
-                subtitle = "Themes, Debug, ML Data",
+                subtitle = "Salary detection, backups, debug tools",
                 onClick = onNavigateToAdvanced
             )
         }
@@ -589,13 +778,14 @@ private fun SettingsItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            // 12dp vertical keeps rows on the 4dp grid (was 14dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(Dimens.RadiusAvatar))
                 .background(
                     if (isDestructive) 
                         MaterialTheme.colorScheme.errorContainer 

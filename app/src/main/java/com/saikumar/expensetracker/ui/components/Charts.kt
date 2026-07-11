@@ -1,8 +1,10 @@
 package com.saikumar.expensetracker.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +21,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import com.saikumar.expensetracker.ui.theme.Dimens
+import com.saikumar.expensetracker.util.CategoryIcons
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
@@ -154,23 +158,38 @@ fun PieChart(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onCategoryClick(item) }
-                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                        // No horizontal padding: the parent card already provides the 16dp
+                        // inset, so rows sit flush with the "Category Breakdown" title.
+                        .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Color Indicator: Warning Icon if bad, Circle otherwise
-                    if (isNeedsAttention) {
-                         androidx.compose.material3.Icon(
-                            androidx.compose.material.icons.Icons.Default.Warning,
-                            contentDescription = "Needs Attention",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        Canvas(modifier = Modifier.size(16.dp)) {
-                            drawCircle(color = color)
+                    // Tonal category-icon avatar, consistent with every other list row in
+                    // the app (Home feed, This Cycle breakdown) - previously this legend used
+                    // a bare Canvas-drawn circle (or a plain Warning icon with no background
+                    // at all), the one place in the app with no avatar treatment.
+                    Box(
+                        modifier = Modifier
+                            .size(Dimens.AvatarSizeSmall)
+                            .background(color.copy(alpha = 0.14f), RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isNeedsAttention) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Default.Warning,
+                                contentDescription = "Needs Attention",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        } else {
+                            androidx.compose.material3.Icon(
+                                CategoryIcons.getIcon(item.categoryName),
+                                contentDescription = null,
+                                tint = color,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.width(16.dp))
                     
                     // Name and Bar
@@ -226,12 +245,12 @@ fun PieChart(
                         modifier = Modifier.size(16.dp)
                     )
                 }
-                // Thin separator
+                // Thin separator, indented to the text start (avatar width + spacer)
                 if (index < displayData.size - 1) {
                     androidx.compose.material3.HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(start = 36.dp) // Indent to align with text
+                        modifier = Modifier.padding(start = Dimens.AvatarSizeSmall + 16.dp)
                     )
                 }
             }

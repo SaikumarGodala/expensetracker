@@ -7,14 +7,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.saikumar.expensetracker.sms.SmsProcessor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,74 +49,7 @@ fun AdvancedSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
-            // App Appearance
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    
-                    // Theme Mode: Compact Row
-                    val themeMode by viewModel.themeMode.collectAsState()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Theme", style = MaterialTheme.typography.titleSmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            FilterChip(
-                                selected = themeMode == 0,
-                                onClick = { viewModel.setThemeMode(0) },
-                                label = { Text("System") },
-                                modifier = Modifier.height(32.dp)
-                            )
-                            FilterChip(
-                                selected = themeMode == 1,
-                                onClick = { viewModel.setThemeMode(1) },
-                                label = { Text("Light") },
-                                modifier = Modifier.height(32.dp)
-                            )
-                            FilterChip(
-                                selected = themeMode == 2,
-                                onClick = { viewModel.setThemeMode(2) },
-                                label = { Text("Dark") },
-                                modifier = Modifier.height(32.dp)
-                            )
-                        }
-                    }
-                    
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    
-                    // Color Palette: Compact Layout
-                    Text("Color Palette", style = MaterialTheme.typography.titleSmall)
-                    val colorPalette by viewModel.colorPalette.collectAsState()
-                    
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val palettes = listOf("DYNAMIC", "OCEAN", "FOREST", "SUNSET", "SNOW")
-                        palettes.forEach { palette ->
-                            val isSelected = colorPalette == palette
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { viewModel.setColorPalette(palette) },
-                                label = { 
-                                    if (palette == "DYNAMIC") Text("Default", style = MaterialTheme.typography.labelMedium) 
-                                    else Text(palette.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelMedium) 
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else if (palette == "SNOW") {
-                                    { Text("❄️", style = MaterialTheme.typography.labelMedium) }
-                                } else null,
-                                modifier = Modifier.height(32.dp)
-                            )
-                        }
-                    }
-                }
-            }
+            // (Theme & palette moved to the main Settings screen's "Appearance" section)
 
             // Debug Mode Card
             Card(

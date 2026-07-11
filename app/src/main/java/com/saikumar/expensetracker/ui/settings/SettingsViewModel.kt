@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.saikumar.expensetracker.sms.SmsProcessor
 import com.saikumar.expensetracker.util.PreferencesManager
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,12 +21,6 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     val snackbarController = SnackbarController()
-
-    val salaryDay: StateFlow<Int> = preferencesManager.salaryDay
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
-
-    val smsAutoRead: StateFlow<Boolean> = preferencesManager.smsAutoRead
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val debugMode: StateFlow<Boolean> = preferencesManager.debugMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -66,33 +59,12 @@ class SettingsViewModel(
         }
     }
 
-    fun setSalaryDay(day: Int) {
-        viewModelScope.launch {
-            preferencesManager.setSalaryDay(day)
-        }
-    }
-
     fun setDebugMode(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.setDebugMode(enabled)
         }
     }
-    
-    val mlEnabled: StateFlow<Boolean> = preferencesManager.mlEnabled
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    fun setMlEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesManager.setMlEnabled(enabled)
-        }
-    }
-
-    fun setSmsAutoRead(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesManager.setSmsAutoRead(enabled)
-        }
-    }
-    
     fun setThemeMode(mode: Int) {
         viewModelScope.launch {
             preferencesManager.setThemeMode(mode)
@@ -105,26 +77,6 @@ class SettingsViewModel(
         }
     }
 
-    fun scanInbox(context: Context) {
-        viewModelScope.launch {
-            try {
-                SmsProcessor.scanInbox(context)
-                snackbarController.showSuccess("Inbox scan completed")
-            } catch (e: SecurityException) {
-                snackbarController.showError(
-                    "Permission denied. Please grant SMS access",
-                    actionLabel = "Settings"
-                )
-            } catch (e: Exception) {
-                snackbarController.showError(
-                    "Failed to scan inbox: ${e.message}",
-                    actionLabel = "Retry",
-                    onAction = { scanInbox(context) }
-                )
-            }
-        }
-    }
-    
     // Salary company names for salary detection
     val salaryCompanyNames: StateFlow<Set<String>> = preferencesManager.salaryCompanyNames
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
@@ -155,25 +107,22 @@ class SettingsViewModel(
         }
     }
     
-    // Small P2P threshold - below this amount, P2P is treated as merchant expense
+    // P2P threshold: payments to people below this amount count as spending, not transfers
     val smallP2pThresholdPaise: StateFlow<Long> = preferencesManager.smallP2pThresholdPaise
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 50000L)
-    
-    fun setSmallP2pThresholdRupees(rupees: Int) {
+
+    fun setSmallP2pThresholdRupees(rupees: Long) {
         viewModelScope.launch {
-            preferencesManager.setSmallP2pThresholdPaise(rupees.toLong() * 100)
+            preferencesManager.setSmallP2pThresholdPaise(rupees * 100)
         }
     }
-    
+
     // Budget
     val budgetLimitPaise: StateFlow<Long> = preferencesManager.budgetLimitPaise
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
-    
+
     val isAutoBudgetEnabled: StateFlow<Boolean> = preferencesManager.isAutoBudgetEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-        
-    val isManualBudgetOverride: StateFlow<Boolean> = preferencesManager.isManualBudgetOverride
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun setBudgetLimit(limitRupees: Long) {
         viewModelScope.launch {
@@ -194,32 +143,6 @@ class SettingsViewModel(
                 // We'll use the existing limit but mark it as NOT manual.
                 val current = budgetLimitPaise.value
                 preferencesManager.setBudgetLimit(current, isManual = false)
-            }
-        }
-    }
-
-    // Total Interest Earned
-    private val _totalInterest = kotlinx.coroutines.flow.MutableStateFlow(0.0)
-    val totalInterest: StateFlow<Double> = _totalInterest.asStateFlow()
-
-    fun loadTotalInterest(context: Context) {
-        viewModelScope.launch {
-            try {
-                // Use IO dispatcher for DB ops
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val db = com.saikumar.expensetracker.data.db.AppDatabase.getDatabase(context, viewModelScope)
-                    val interestCategory = db.categoryDao().getCategoryByName(com.saikumar.expensetracker.core.AppConstants.Categories.INTEREST)
-                    
-                    // Use optimized SQL query with Join
-                    val interestPaisa = if (interestCategory != null) {
-                        db.transactionDao().getTotalInterestPaisa(interestCategory.id) ?: 0L
-                    } else {
-                        0L
-                    }
-                    _totalInterest.value = interestPaisa / 100.0
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }

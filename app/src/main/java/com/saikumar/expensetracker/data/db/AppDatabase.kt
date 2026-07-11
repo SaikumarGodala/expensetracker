@@ -32,9 +32,11 @@ import kotlinx.coroutines.CoroutineScope
         TransferCircleMember::class,
         TransferCircleAlias::class,
         BudgetBreach::class,
-        CategoryBudget::class
+        CategoryBudget::class,
+        BillReminder::class,
+        BalanceSnapshot::class
     ],
-    version = 44, // Added performance indices on upiId, status, transactionType
+    version = 46, // Added balance_snapshots table (bank-reported balance self-audit)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -57,6 +59,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transferCircleDao(): com.saikumar.expensetracker.data.dao.TransferCircleDao
     abstract fun budgetBreachDao(): BudgetBreachDao
     abstract fun budgetDao(): com.saikumar.expensetracker.data.dao.BudgetDao
+    abstract fun billReminderDao(): BillReminderDao
+    abstract fun balanceSnapshotDao(): BalanceSnapshotDao
 
     companion object {
         @Volatile

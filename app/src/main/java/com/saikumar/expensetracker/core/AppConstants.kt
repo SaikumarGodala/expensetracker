@@ -16,6 +16,7 @@ object AppConstants {
         const val SELF_TRANSFER = "Self Transfer"
         const val INTEREST = "Interest"
         const val REFUND = "Refund"
+        const val INVESTMENT_REDEMPTION = "Investment Redemption"
     }
     
     // Keyword Fragments (for fuzzy matching)

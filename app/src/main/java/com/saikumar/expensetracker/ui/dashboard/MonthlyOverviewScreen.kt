@@ -62,10 +62,12 @@ fun MonthlyOverviewScreen(
     var budgetRecommendations by remember { mutableStateOf<List<BudgetRecommendation>>(emptyList()) }
     val scope = rememberCoroutineScope() 
     
+    val activeSubscriptions by viewModel.activeSubscriptions.collectAsState()
+
     // Search State REMOVED - Using Global Search
     // var searchQuery by remember { mutableStateOf("") }
     // var showSearchDialog by remember { mutableStateOf(false) }
-    
+
     if (showBudgetSheet) {
         BudgetPlanningSheet(
             recommendations = budgetRecommendations,
@@ -97,8 +99,8 @@ fun MonthlyOverviewScreen(
             transaction = editingTransaction!!,
             categories = allCategories,
             onDismiss = { editingTransaction = null },
-            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification ->
-                viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification)
+            onConfirm = { categoryId, note, accountType, updateSimilar, manualClassification, newMerchant ->
+                viewModel.updateTransactionDetails(editingTransaction!!.transaction, categoryId, note, accountType, updateSimilar, manualClassification, newMerchant)
                 editingTransaction = null
             },
             onAddCategory = { name, type ->
@@ -115,6 +117,10 @@ fun MonthlyOverviewScreen(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     Scaffold(
+        // Zero insets: this screen renders inside InsightsHubScreen, which already applies
+        // statusBarsPadding above its header - default insets re-added the status-bar
+        // height as a phantom gap between the hub's toggle and the Filter row.
+        contentWindowInsets = WindowInsets(0.dp)
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             LazyColumn(
@@ -226,7 +232,9 @@ fun MonthlyOverviewScreen(
                                     )
                                     uiState.cycleRange?.let { range ->
                                         Text(
-                                            "${range.startDate.format(DateTimeFormatter.ofPattern("dd"))}-${range.endDate.format(DateTimeFormatter.ofPattern("dd"))}",
+                                            // Full "30 Jun – 29 Jul" instead of the cryptic
+                                            // day-only "30-29" (which read like a typo)
+                                            "${range.startDate.format(DateTimeFormatter.ofPattern("d MMM"))} – ${range.endDate.format(DateTimeFormatter.ofPattern("d MMM"))}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -238,10 +246,10 @@ fun MonthlyOverviewScreen(
                                 }
                             }
                             
-                            // Search Icon
-                            IconButton(onClick = onNavigateToSearch) {
-                                Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
-                            }
+                            // Search now lives in the InsightsHub header (matching Home's
+                            // header anatomy); 48dp spacer preserves the date navigator's
+                            // centering that the IconButton used to provide.
+                            Spacer(modifier = Modifier.size(48.dp))
                         }
                     }
                 }
@@ -380,11 +388,12 @@ fun MonthlyOverviewScreen(
                     }
                 }
 
-                // Global Typical Explanation
+                // Global Typical Explanation - no horizontal inset so it aligns flush with
+                // the cards above/below (list contentPadding already provides the margin)
                 item {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(vertical = 8.dp)
                     ) {
                         Icon(
                             Icons.Default.Info, 
@@ -416,6 +425,59 @@ fun MonthlyOverviewScreen(
                     )
                 }
 
+                // Active Subscriptions summary (recurring fixed-amount charges)
+                if (activeSubscriptions.isNotEmpty()) {
+                    item {
+                        val monthly = activeSubscriptions.sumOf { it.amountPaisa } / 100.0
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Autorenew, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "${activeSubscriptions.size} active subscriptions",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        "₹${String.format(Locale.getDefault(), "%,.0f", monthly)}/mo",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                activeSubscriptions.take(5).forEach { sub ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(sub.merchant, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                                        Text(
+                                            "₹${String.format(Locale.getDefault(), "%,.0f", sub.amountPaisa / 100.0)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (activeSubscriptions.size > 5) {
+                                    Text(
+                                        "+${activeSubscriptions.size - 5} more",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Quick Insights Section
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -429,8 +491,11 @@ fun MonthlyOverviewScreen(
                 }
 
                 item {
+                    // IntrinsicSize.Max + fillMaxHeight in the card keeps all three tiles
+                    // the same height even when one subtitle wraps ("Track earnings" used
+                    // to make the middle card taller than its siblings)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // Salary History
@@ -439,7 +504,7 @@ fun MonthlyOverviewScreen(
                             title = "Salary",
                             subtitle = "View history",
                             onClick = onNavigateToSalaryHistory,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                         // Interest Earned
                         QuickInsightCard(
@@ -447,7 +512,7 @@ fun MonthlyOverviewScreen(
                             title = "Interest",
                             subtitle = "Track earnings",
                             onClick = onNavigateToInterest,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                         // Retirement
                         QuickInsightCard(
@@ -455,7 +520,7 @@ fun MonthlyOverviewScreen(
                             title = "EPF/NPS",
                             subtitle = "Balances",
                             onClick = onNavigateToRetirement,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                     }
                 }
@@ -484,7 +549,7 @@ private fun QuickInsightCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -505,38 +570,15 @@ private fun QuickInsightCard(
             Text(
                 subtitle,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
 }
 
-@Composable
-fun SummaryCard(title: String, amount: Double, color: Color, modifier: Modifier = Modifier, subtitle: String? = null, subtitleColor: Color = color.copy(alpha = 0.8f), onClick: () -> Unit = {}) {
-    Card(
-        modifier = modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(title, style = MaterialTheme.typography.labelSmall)
-            Text(
-                "₹${String.format(Locale.getDefault(), "%,.0f", amount)}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
-            if (subtitle != null) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = subtitleColor,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-    }
-}
+// NOTE: SummaryCard was removed here - dead code, no call sites anywhere in the app
+// (superseded by SummaryChip on the Dashboard).
 
 @Composable
 fun InteractiveCategoryLegendItem(
@@ -549,7 +591,7 @@ fun InteractiveCategoryLegendItem(
     // Main Container
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard),
         tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
@@ -605,13 +647,13 @@ fun InteractiveCategoryLegendItem(
                         val target = status.targetAmountPaisa / 100.0
                         val spent = summary.total
                         val progress = (spent / target).coerceIn(0.0, 1.0).toFloat()
-                        
+
                         val progressColor = when {
                             spent >= target * 1.0 -> MaterialTheme.colorScheme.error // Crossed typical
                             spent >= target * 0.8 -> Color(0xFFFFC107) // Warning
                             else -> Color(0xFF4CAF50) // Healthy
                         }
-                        
+
                         Spacer(modifier = Modifier.height(6.dp))
                         LinearProgressIndicator(
                             progress = { progress },
@@ -621,6 +663,22 @@ fun InteractiveCategoryLegendItem(
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
                             color = progressColor,
                             trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+
+                        // UX: the bar color alone never explained itself - a full red bar
+                        // just looked broken. One quiet line states the comparison the bar
+                        // is making (vs the explicit budget, or vs typical 3-month spend).
+                        Spacer(modifier = Modifier.height(3.dp))
+                        val baseline = if (status.isGhost) "typical" else "budget"
+                        val vsLabel = when {
+                            spent >= target -> "₹${String.format(Locale.getDefault(), "%,.0f", spent - target)} over $baseline (₹${String.format(Locale.getDefault(), "%,.0f", target)})"
+                            spent >= target * 0.8 -> "nearing $baseline of ₹${String.format(Locale.getDefault(), "%,.0f", target)}"
+                            else -> "within $baseline of ₹${String.format(Locale.getDefault(), "%,.0f", target)}"
+                        }
+                        Text(
+                            vsLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (spent >= target) progressColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

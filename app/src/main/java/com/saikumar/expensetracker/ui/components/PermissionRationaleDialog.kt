@@ -16,9 +16,9 @@ fun PermissionRationaleDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Sms, contentDescription = null) },
-        title = { Text("SMS Permission Required") },
-        text = { 
-            Text("Expense Tracker needs access to your SMS messages to automatically detect and categorize your financial transactions (UPI, Credit Card, Bank).\n\nYour data is processed locally on your device and is never uploaded to any server.") 
+        title = { Text("Permissions") },
+        text = {
+            Text("Expense Tracker needs access to your SMS messages to automatically detect and categorize your financial transactions (UPI, Credit Card, Bank).\n\nContacts access is optional — it lets the app show a name instead of a phone number for UPI payments to people you know.\n\nYour data is processed locally on your device and is never uploaded to any server.")
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {

@@ -83,7 +83,13 @@ class MonthlyOverviewViewModel(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allCategories = repository.allEnabledCategories
-    
+
+    /** Active recurring subscriptions (Netflix, YouTube, EMIs...) for the summary card. */
+    val activeSubscriptions: StateFlow<List<com.saikumar.expensetracker.domain.RecurringDetector.Recurring>> =
+        flow {
+            emit(com.saikumar.expensetracker.domain.RecurringDetector.detectActive(repository.transactionDao))
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private data class FilterParams(
         val range: CycleRange,
         val selectedAccounts: Set<String>,
@@ -213,21 +219,25 @@ class MonthlyOverviewViewModel(
             // previously the two screens showed different income for the same cycle.
             // Investment redemptions are NOT income (own capital returning); they net
             // against investments below, same as the Dashboard.
-            val income = activeTransactions
+            // Income from the COMPLETED set BEFORE activeTransactions' TRANSFER exclusion, so
+            // P2P "Other Income" credits (typed TRANSFER) are counted (see DashboardViewModel).
+            val incomeBase = accountFilteredParams.filter {
+                it.transaction.status == TransactionStatus.COMPLETED
+            }
+            val income = incomeBase
                 .filter {
-                    (it.transaction.transactionType == TransactionType.INCOME &&
+                    val t = it.transaction.transactionType
+                    val isIncome = t == TransactionType.INCOME ||
+                        (it.category.type == CategoryType.INCOME && t != TransactionType.REFUND)
+                    (isIncome &&
                      it.category.name != com.saikumar.expensetracker.core.AppConstants.Categories.P2P_TRANSFERS &&
-                     it.category.name != "Investment Redemption" &&
-                     it.category.type != CategoryType.INVESTMENT) ||
-                    it.transaction.transactionType == TransactionType.CASHBACK
+                     !TransactionRuleEngine.isInvestmentRedemption(it.transaction.transactionType, it.category)) ||
+                    t == TransactionType.CASHBACK
                 }
                 .sumOf { it.transaction.amountPaisa } / 100.0
 
             val redemptions = activeTransactions
-                .filter {
-                    it.transaction.transactionType == TransactionType.INCOME &&
-                    (it.category.name == "Investment Redemption" || it.category.type == CategoryType.INVESTMENT)
-                }
+                .filter { TransactionRuleEngine.isInvestmentRedemption(it.transaction.transactionType, it.category) }
                 .sumOf { it.transaction.amountPaisa } / 100.0
 
             // Settled refunds net against expenses (money came back; the spend didn't stick)
@@ -337,14 +347,20 @@ class MonthlyOverviewViewModel(
     }
 
     fun updateTransactionDetails(
-        transaction: Transaction, 
-        newCategoryId: Long, 
-        newNote: String, 
-        accountType: AccountType, 
+        transaction: Transaction,
+        newCategoryId: Long,
+        newNote: String,
+        accountType: AccountType,
         updateSimilar: Boolean,
-        manualClassification: String? = null
+        manualClassification: String? = null,
+        newMerchantName: String? = null
     ) {
         viewModelScope.launch {
+            if (!newMerchantName.isNullOrBlank() && newMerchantName != transaction.merchantName) {
+                try { repository.renameMerchant(transaction, newMerchantName) } catch (e: Exception) {
+                    android.util.Log.w("MonthlyOverviewVM", "renameMerchant failed: ${e.message}")
+                }
+            }
             // Determine transaction type from manual classification or category
         val categories = repository.allEnabledCategories.first()
         val newCategory = categories.find { it.id == newCategoryId }
@@ -370,11 +386,13 @@ class MonthlyOverviewViewModel(
         }
 
             repository.updateTransaction(transaction.copy(
-                categoryId = newCategoryId, 
-                note = newNote, 
+                categoryId = newCategoryId,
+                note = newNote,
                 accountType = accountType,
                 manualClassification = manualClassification,
-                transactionType = finalTransactionType
+                transactionType = finalTransactionType,
+                merchantName = newMerchantName?.trim()?.ifBlank { null } ?: transaction.merchantName,
+                confidenceScore = 100 // user-confirmed: survives reclassify
             ))
             
             // ===== MERCHANT MEMORY: User Confirmation =====

@@ -37,14 +37,15 @@ class ExpenseTrackerApplication : Application() {
             synchronized(this) {
                 if (_repository == null || _database?.isOpen == false) { // Recreate repo if DB was closed/recreated
                      _repository = ExpenseRepository(
-                        database.categoryDao(), 
+                        database.categoryDao(),
                         database.transactionDao(),
                         database.accountDao(),
                         database.merchantPatternDao(),
                         database.merchantMemoryDao(),
                         database.transactionLinkDao(),  // P1 Fix #4
-                        database.pendingTransactionDao() // CRITICAL FIX 3
-                    ) 
+                        database.pendingTransactionDao(), // CRITICAL FIX 3
+                        database.merchantAliasDao()
+                    )
                 }
                 return _repository!!
             }

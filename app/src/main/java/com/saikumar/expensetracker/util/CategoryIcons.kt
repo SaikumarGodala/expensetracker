@@ -34,6 +34,7 @@ object CategoryIcons {
         "Education / Fees" to Icons.Default.School,
         "Scheduled / Upcoming Payments" to Icons.Default.Schedule,
         "Credit Bill Payments" to Icons.Default.CreditCard,
+        "Credit Card Statement" to Icons.Default.Description,
         
         // Variable Expenses
         "Groceries" to Icons.Default.ShoppingCart,
@@ -91,9 +92,23 @@ object CategoryIcons {
         "Fuel" to Icons.Default.LocalGasStation,
         "Service" to Icons.Default.Build,
         "Repair" to Icons.Default.BuildCircle,
+        "Vehicle Maintenance" to Icons.Default.Build,
         "Parking" to Icons.Default.LocalParking,
         "Parking & Tolls" to Icons.Default.LocalParking,
         "Registration / Toll" to Icons.Default.ReceiptLong,
+
+        // Previously missing -> fell back to the "?" (Help) icon
+        "Domestic Help" to Icons.Default.People,
+        "Home Maintenance" to Icons.Default.Build,
+        "Services" to Icons.Default.Build,
+        "Business Income" to Icons.Default.Business,
+        "NPS" to Icons.Default.Savings,
+        "Provident Fund" to Icons.Default.Savings,
+        "Crypto" to Icons.Default.CurrencyBitcoin,
+        "Loan Repayment" to Icons.Default.AccountBalance,
+        "Failed/Declined" to Icons.Default.Cancel,
+        "Spam" to Icons.Default.Block,
+        "Bank Fees" to Icons.Default.MoneyOff,
     )
     
     fun getIcon(categoryName: String): ImageVector {

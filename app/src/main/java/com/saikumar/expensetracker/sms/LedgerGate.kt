@@ -21,18 +21,30 @@ object LedgerGate {
     // 1. NON-TRANSACTIONAL EXCLUSIONS (Drop immediately)
     // NOTE: Credit card statements are NOT excluded - they are processed as STATEMENT type
     private val EXCLUDED_PHRASES = listOf(
-        "otp is", "otp for", "mandate", "login", "requested block", 
+        "otp is", "otp for", "login", "requested block",
         "minimum limit", "min bal", "balance below",
         // Standing Instruction confirmations (not actual transactions)
         "standing instruction", "recurring charges", "manage standing instructions",
+        // EMI-conversion notice: the original card spend was already recorded; the
+        // conversion is a restructuring, not new money movement
+        "converted to emi",
         // Marketing / Spam
         "presenting", "credit line", "congratulations", "pre-approved"
     )
+
+    // "Mandate" alone must NOT be excluded: an executed SIP autopay reads "UPI Mandate:
+    // Sent Rs.12000.00 from HDFC Bank A/c To Indian Clearing Corpor..." — real money moved
+    // (a mutual-fund investment). Only mandate LIFECYCLE notices (created/revoked/upcoming)
+    // are non-transactional; the upcoming-debit ones are dropped by FUTURE_PHRASES anyway.
+    private val MANDATE_SETTLED_PHRASES = listOf("sent rs", "debited", "deducted")
 
     // 2. FUTURE/REMINDER EXCLUSIONS (Drop immediately)
     private val FUTURE_PHRASES = listOf(
         "amount due", "total due", "min due", "minimum due",
         "due by", "will be debited", "to be debited", "is due",
+        // E-Mandate pre-debit notice ("E-Mandate! Rs.12000 will be deducted on 02/07/26") -
+        // the actual execution SMS arrives separately and is captured instead.
+        "will be deducted", "to be deducted",
         // Pending reversal/refund promises - nothing has settled yet, so there's nothing
         // to record. The eventual settlement SMS (if the bank sends one) will be caught by
         // the SETTLED_REVERSAL_KEYWORDS check below instead.
@@ -43,7 +55,14 @@ object LedgerGate {
     // 3. POSITIVE CONFIRMATION VERBS (One MUST be present)
     private val CONFIRMATION_VERBS = listOf(
         "debited", "credited", "received", "paid", "sent",
-        "processed", "spent", "withdrawn", "deposited", "txn"
+        "processed", "spent", "withdrawn", "deposited", "txn",
+        // Settled reversals/refunds ("Transaction Reversed! ... Amt: Rs.X", "is refunded to
+        // your Card") carry no other verb. FUTURE_PHRASES already dropped "will be reversed/
+        // refunded" above, so only completed ones reach here.
+        "reversed", "refunded",
+        // "Amt Deducted! Rs.49900 from your HDFC Bank A/c ... for Money Transfer" - a settled
+        // debit. Safe: FUTURE_PHRASES drops "will be/to be deducted" notices before this check.
+        "deducted"
     )
 
     // 4. FAILURE / DECLINE KEYWORDS - a notice about a transaction that never actually
@@ -70,6 +89,15 @@ object LedgerGate {
         // RULE 1: Exclusion Filters (OTP, Login, etc.)
         if (EXCLUDED_PHRASES.any { lowerBody.contains(it) }) {
             return LedgerDecision.Drop("Informational/OTP Message", "FILTER_INFO")
+        }
+
+        // RULE 1.5: Mandate lifecycle notices (created/revoked/registered) are informational.
+        // An EXECUTED mandate ("UPI Mandate: Sent Rs.X ... To Indian Clearing Corpor") is a
+        // real settled debit - an SIP investment - and must pass. Upcoming-debit mandate
+        // notices are handled by FUTURE_PHRASES in evaluate().
+        if (lowerBody.contains("mandate") &&
+            MANDATE_SETTLED_PHRASES.none { lowerBody.contains(it) }) {
+            return LedgerDecision.Drop("Mandate Lifecycle Notice", "FILTER_MANDATE_INFO")
         }
 
         // RULE 3: "Avl Bal" only check (Balance Enquiry)
@@ -139,7 +167,10 @@ object LedgerGate {
         // "ICICI Bank Credit Card XX0006 Statement is sent to xx@email. Total of Rs 39,114 due"
         // contains "card" + "sent", which previously forced it to EXPENSE - recording the whole
         // statement balance as a fresh expense and double-counting every card swipe in it.
-        if (!isStatement && lowerBody.contains("card") &&
+        // A settled reversal/refund ("Transaction Reversed! ... Card ... Amt Rs.X") matches
+        // "transaction"+"card" here, but it is money coming BACK, not a card spend. Respect the
+        // extractor's REFUND type instead of forcing EXPENSE (which later flips to phantom INCOME).
+        if (!isStatement && parsedType != TransactionType.REFUND && lowerBody.contains("card") &&
            (lowerBody.contains("spent") || lowerBody.contains("txn") || lowerBody.contains("transaction") || lowerBody.contains("sent") || lowerBody.contains("used")) &&
            !lowerBody.contains("payment received") && !lowerBody.contains("credited")) {
             
