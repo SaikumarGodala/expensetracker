@@ -137,9 +137,13 @@ object LedgerGate {
         }
 
         // RULE 2: Future/Reminder Filters (Depends on Type)
-        // EXCEPTION: Allow STATEMENT type (credit card statements) through
+        // EXCEPTIONS: STATEMENT passes; so does a SETTLED refund-to-card - "IRCTC refund of
+        // Rs X credited to your Card ... Revised total due Rs Y" mentions "total due" only
+        // as the statement math, the refund itself already happened.
         val isStatement = parsedType == TransactionType.STATEMENT
-        if (!isStatement && FUTURE_PHRASES.any { lowerBody.contains(it) }) {
+        val isSettledRefund = parsedType == TransactionType.REFUND &&
+            SETTLED_REVERSAL_KEYWORDS.any { lowerBody.contains(it) }
+        if (!isStatement && !isSettledRefund && FUTURE_PHRASES.any { lowerBody.contains(it) }) {
             return LedgerDecision.Drop("Future/Reminder Event", "FILTER_FUTURE")
         }
 

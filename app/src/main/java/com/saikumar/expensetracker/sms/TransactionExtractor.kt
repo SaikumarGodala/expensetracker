@@ -312,6 +312,13 @@ object TransactionExtractor {
     private fun detectBankTransactionType(body: String, isDebit: Boolean?): TransactionType {
         val lower = body.lowercase()
 
+        // REFUND-to-card BEFORE statement detection: "IRCTC refund of Rs 1,860 credited to
+        // ICICI Bank Credit Card ... Revised total due Rs X" contains "total due", which
+        // used to win and turn real refunds into STATEMENT rows.
+        if (isDebit != true && REVERSAL_KEYWORDS.any { lower.contains(it) }) {
+            return TransactionType.REFUND
+        }
+
         // Statement detection
         if (STATEMENT_KEYWORDS.any { lower.contains(it) }) {
             return TransactionType.STATEMENT

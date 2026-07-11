@@ -896,6 +896,7 @@ object SmsProcessor {
         // Category-vs-type contradiction repair (after pairing so links are respected)
         try {
             repairTransferTypedSpending(db, categoryMap)
+            repairRefundStatements(db, categoryMap)
         } catch (e: Exception) {
             Log.e(TAG, "Transfer-typed spending repair failed", e)
         }
@@ -945,6 +946,38 @@ object SmsProcessor {
             fixed++
         }
         if (fixed > 0) Log.i(TAG, "Repaired $fixed TRANSFER-typed rows with spending categories to EXPENSE")
+        return fixed
+    }
+
+    // "IRCTC refund of Rs X credited to your Card ... Revised total due Rs Y" was typed
+    // STATEMENT ("total due" keyword) before the refund-first ordering fix, and reclassify's
+    // paging query excludes STATEMENT rows - so existing misrows need this explicit repair.
+    private val REFUND_STMT_SOURCE = Regex("""(?:^|\n)\s*([A-Za-z][A-Za-z\s]{2,25}?)\s+refund\s+of\s+Rs""", RegexOption.IGNORE_CASE)
+    private suspend fun repairRefundStatements(db: AppDatabase, categoryMap: Map<String, Category>): Int {
+        var fixed = 0
+        val refundCatId = categoryMap["Refund"]?.id
+        val settled = Regex("""refund\s+of\s+Rs[\s\d,\.]+credited""", RegexOption.IGNORE_CASE)
+        for (txn in db.transactionDao().getActiveByType(TransactionType.STATEMENT)) {
+            if (txn.confidenceScore >= 100) continue
+            val body = txn.fullSmsBody ?: continue
+            if (!settled.containsMatchIn(body)) continue
+            // Name from the leading brand when it reads like one; generic refunds
+            // ("Online Refund For UPI Ecom Trxn refund of...") keep a neutral label.
+            val src = REFUND_STMT_SOURCE.find(body)?.groupValues?.get(1)?.trim()
+                ?.takeIf { !it.contains("refund", ignoreCase = true) }
+            db.transactionDao().updateTransaction(
+                txn.copy(
+                    transactionType = TransactionType.REFUND,
+                    merchantName = src?.split(Regex("\\s+"))
+                        ?.joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercaseChar() } }
+                        ?: "Card Refund",
+                    categoryId = refundCatId ?: txn.categoryId,
+                    isExpenseEligible = false
+                )
+            )
+            fixed++
+        }
+        if (fixed > 0) Log.i(TAG, "Repaired $fixed refund-to-card rows mistyped as STATEMENT")
         return fixed
     }
 
@@ -1433,6 +1466,7 @@ object SmsProcessor {
         // Category-vs-type contradiction repair (after pairing so links are respected)
         try {
             repairTransferTypedSpending(db, categoryMap)
+            repairRefundStatements(db, categoryMap)
         } catch (e: Exception) {
             Log.e(TAG, "Transfer-typed spending repair failed", e)
         }

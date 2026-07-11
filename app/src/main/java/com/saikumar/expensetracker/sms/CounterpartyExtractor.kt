@@ -208,6 +208,13 @@ object CounterpartyExtractor {
     )
 
 
+    // ICICI card-via-UPI: "ICICI Bank Credit Card XX9007 debited for INR 149.00 on
+    // 08-Jun-26 for UPI-652530500227-JIO. To dispute..." - merchant name after the ref.
+    private val ICICI_CARD_UPI_REF_PATTERN = Pattern.compile(
+        "ICICI[^\\n]*?debited\\s+for\\s+(?:INR|Rs\\.?)\\s*[\\d,\\.]+\\s+on\\s+\\S+\\s+for\\s+UPI-\\d+-([A-Za-z][A-Za-z0-9&\\s]{1,30}?)(?:\\.|\\s+To\\b)",
+        Pattern.CASE_INSENSITIVE
+    )
+
     // Credit Alert "credited from VPA <VPA>"
     private val CREDIT_ALERT_VPA_PATTERN = Pattern.compile(
         "credited\\s+to\\s+[^\\n]+from\\s+VPA\\s+([a-zA-Z0-9._-]+@[a-zA-Z]+)",
@@ -366,6 +373,18 @@ object CounterpartyExtractor {
                     // Junk/QR handle - keep it as the upiId so the VPA fallback shows it.
                     Counterparty(null, handle, CounterpartyType.UNKNOWN, trace)
                 }
+            }
+        }
+
+        // 3c. ICICI card-via-UPI with merchant after the ref ("for UPI-652530500227-JIO.")
+        ICICI_CARD_UPI_REF_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: ICICI_CARD_UPI_REF")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
             }
         }
 
@@ -616,6 +635,17 @@ object CounterpartyExtractor {
             }
         }
         
+        // 10b. Refund source: "IRCTC refund of Rs 1,860 credited...", "Swiggy Diners refund
+        // of Rs 50 credited..." - the refunder's name leads the sentence.
+        Regex("""(?:^|\n)\s*([A-Za-z][A-Za-z\s]{2,25}?)\s+refund\s+of\s+Rs""", RegexOption.IGNORE_CASE)
+            .find(body)?.let { m ->
+                val name = cleanName(m.groupValues[1], trace)
+                trace.add("Matched Template: REFUND_SOURCE")
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                }
+            }
+
         // 11. Fee/charge/EMI purpose ("debited ... towards <purpose>") - late fallback so it
         // only names rows nothing else could (bank charges, direct-debit EMIs).
         DEBITED_TOWARDS_PATTERN.matcher(body).let { m ->
