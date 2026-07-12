@@ -116,16 +116,13 @@ interface TransactionDao {
      * BUG FIX: Enhanced deduplication - Check for duplicate by reference number + amount.
      */
     @Query("""
-        SELECT EXISTS(
-            SELECT 1 FROM transactions 
-            WHERE referenceNo = :refNo 
-            AND amountPaisa = :amountPaisa 
-            AND referenceNo IS NOT NULL
-            AND deletedAt IS NULL
-            LIMIT 1
-        )
+        SELECT * FROM transactions 
+        WHERE referenceNo = :refNo 
+        AND amountPaisa = :amountPaisa 
+        AND referenceNo IS NOT NULL
+        AND deletedAt IS NULL
     """)
-    suspend fun existsByReferenceAndAmount(refNo: String?, amountPaisa: Long): Boolean
+    suspend fun findByReferenceAndAmount(refNo: String?, amountPaisa: Long): List<Transaction>
 
     /**
      * BUG FIX: Find potential duplicates by amount and timestamp (time window check).

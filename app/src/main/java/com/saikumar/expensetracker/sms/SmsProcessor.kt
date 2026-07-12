@@ -785,7 +785,8 @@ object SmsProcessor {
                         amountPaisa = parsed.amountPaisa,
                         timestamp = timestamp,
                         merchantName = parsed.counterparty.name,
-                        accountNumberLast4 = parsed.accountTypeDetected.name // Placeholder, ideally specific account num
+                        accountNumberLast4 = parsed.accountTypeDetected.name, // Placeholder, ideally specific account num
+                        isDebit = parsed.isDebit
                     )
                     
                     if (duplicateCheck.isDuplicate) {
@@ -1138,7 +1139,8 @@ object SmsProcessor {
                         amountPaisa = parsedTxn.amountPaisa,
                         timestamp = timestamp,
                         merchantName = parsedTxn.counterparty.name,
-                        accountNumberLast4 = SmsConstants.extractAccountLast4(body)
+                        accountNumberLast4 = SmsConstants.extractAccountLast4(body),
+                        isDebit = parsedTxn.isDebit
                      )
                      if (dupeCheck.isDuplicate) {
                          Log.d(TAG, "Duplicate ignored (Smart Check): ${dupeCheck.reason}")

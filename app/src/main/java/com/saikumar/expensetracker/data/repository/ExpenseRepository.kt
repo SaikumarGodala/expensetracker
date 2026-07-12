@@ -130,7 +130,7 @@ class ExpenseRepository(
      * @return true if duplicate exists
      */
     suspend fun transactionExistsByReferenceAndAmount(refNo: String?, amountPaisa: Long): Boolean {
-        return transactionDao.existsByReferenceAndAmount(refNo, amountPaisa)
+        return transactionDao.findByReferenceAndAmount(refNo, amountPaisa).isNotEmpty()
     }
 
     /**
