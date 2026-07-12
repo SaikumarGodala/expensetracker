@@ -1094,6 +1094,10 @@ object SmsProcessor {
 
             if (DuplicateChecker.isDuplicate(db, smsHash)) return@withContext
 
+            val seededCategories = CategorySeeder.seedDefaultsIfNeeded(db.categoryDao())
+            val categoryNameMap = seededCategories.associate { it.id to it.name }
+            val rules = db.categorizationRuleDao().getAllActiveRules().first()
+            
             val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
 
             // Initialize DuplicateDetector
@@ -1111,7 +1115,18 @@ object SmsProcessor {
             // Load User Accounts for self-transfer detection
             val userAccounts = db.userAccountDao().getAllAccounts()
 
-            val result = process(sender, body, timestamp, salaryCompanyNames = salaryCompanyNames, merchantMemories = memories, context = context, userAccounts = userAccounts, vpaAliases = vpaAliases)
+            val result = process(
+                sender = sender,
+                body = body,
+                timestamp = timestamp,
+                rules = rules,
+                categoryMap = categoryNameMap,
+                salaryCompanyNames = salaryCompanyNames,
+                merchantMemories = memories,
+                context = context,
+                userAccounts = userAccounts,
+                vpaAliases = vpaAliases
+            )
             
             // Post-Extraction Duplicate Check (Tier 2/3)
             if (result is ProcessingResult.Success) {

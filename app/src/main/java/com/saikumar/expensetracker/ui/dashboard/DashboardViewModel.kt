@@ -197,6 +197,8 @@ class DashboardViewModel(
                     return detectedDay
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             android.util.Log.e("DashboardViewModel", "Failed to detect salary day: ${e.message}")
         }
