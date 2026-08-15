@@ -91,8 +91,13 @@ class SearchViewModel(
                 val amount = item.transaction.amountPaisa
                 when (item.transaction.transactionType) {
                     TransactionType.INCOME, TransactionType.CASHBACK, TransactionType.REFUND -> amount
-                    TransactionType.EXPENSE, TransactionType.INVESTMENT_CONTRIBUTION, TransactionType.LIABILITY_PAYMENT -> -amount
-                    else -> 0L // Transfers and others don't affect net total for now
+                    // Investments (stored as INVESTMENT_OUTFLOW), pension and CC-bill payments
+                    // are all money leaving the account - include them so a search filtered to
+                    // "Investments" actually sums instead of showing 0.
+                    TransactionType.EXPENSE, TransactionType.INVESTMENT_CONTRIBUTION,
+                    TransactionType.INVESTMENT_OUTFLOW, TransactionType.PENSION,
+                    TransactionType.LIABILITY_PAYMENT -> -amount
+                    else -> 0L // Transfers and statements don't affect the net total
                 }
             }
         }.launchIn(viewModelScope)

@@ -178,10 +178,14 @@ class MainActivity : AppCompatActivity() {
                     com.saikumar.expensetracker.ui.components.PermissionRationaleDialog(
                         onConfirm = {
                             showPermissionRationale = false
+                            // READ_CONTACTS is optional (used to name phone-number UPI
+                            // payees). Requested alongside SMS but never gates the scan -
+                            // the launcher callback only checks READ_SMS.
                             smsPermissionLauncher.launch(
                                 arrayOf(
                                     Manifest.permission.RECEIVE_SMS,
-                                    Manifest.permission.READ_SMS
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.READ_CONTACTS
                                 )
                             )
                         },
@@ -304,7 +308,12 @@ class MainActivity : AppCompatActivity() {
                     NavHost(
                         navController = navController,
                         startDestination = startDestination,
-                        modifier = Modifier.padding(innerPadding)
+                        // Only consume the bottom-bar padding here. Each destination owns its
+                        // top inset (via its own Scaffold/TopAppBar or statusBarsPadding);
+                        // previously the top status-bar inset was applied HERE and AGAIN by
+                        // each screen's nested Scaffold, producing a double-height dead zone
+                        // above "Home" and misaligned header positions across tabs.
+                        modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
                     ) {
                         composable(
                             "onboarding",
@@ -330,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                             exitTransition = { fadeOut(tween(300)) }
                         ) {
                             val viewModel: DashboardViewModel = viewModel(
-                                factory = DashboardViewModel.Factory(app.repository, app.preferencesManager, app.database.cycleOverrideDao(), app.database.userAccountDao())
+                                factory = DashboardViewModel.Factory(app.repository, app.preferencesManager, app.database.cycleOverrideDao(), app.database.userAccountDao(), app.database.billReminderDao())
                             )
                             DashboardScreen(
                                 viewModel,
@@ -366,6 +375,7 @@ class MainActivity : AppCompatActivity() {
                                 )
                             )
                             com.saikumar.expensetracker.ui.insights.InsightsHubScreen(
+                                onNavigateToSearch = { navController.navigate("search") },
                                 cycleContent = {
                                     MonthlyOverviewScreen(
                                         overviewViewModel,
@@ -385,7 +395,8 @@ class MainActivity : AppCompatActivity() {
                                         repository = app.repository,
                                         onCategoryClick = { category, start, end ->
                                             navController.navigate("filtered/${category.type.name}/$start/$end?categoryName=${category.name}")
-                                        }
+                                        },
+                                        onNavigateToTransferCircle = { navController.navigate("transfer_circle") }
                                     )
                                 }
                             )
@@ -400,7 +411,6 @@ class MainActivity : AppCompatActivity() {
                             )
                             SettingsScreen(
                                 viewModel,
-                                onNavigateBack = { navController.popBackStack() },
                                 onNavigateToCategories = { navController.navigate("category_management") },
                                 onNavigateToAdvanced = { navController.navigate("advanced_settings") },
                                 onNavigateToTransferCircle = { navController.navigate("transfer_circle") }

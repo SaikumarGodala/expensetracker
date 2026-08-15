@@ -283,10 +283,13 @@ fun SearchTransactionItem(
         else -> ""
     }
 
+    // Tonal, not elevated: search results were the last shadowed cards in an
+    // otherwise flat-tonal app
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        shape = RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -317,7 +320,7 @@ fun SearchTransactionItem(
                     } else rawCategoryColor
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusChip))
                             .background(categoryColor.copy(alpha = 0.14f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {

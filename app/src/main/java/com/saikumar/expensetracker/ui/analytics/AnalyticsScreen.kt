@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -43,7 +44,8 @@ import java.util.Locale
 @Composable
 fun AnalyticsScreen(
     repository: ExpenseRepository,
-    onCategoryClick: (Category, Long, Long) -> Unit
+    onCategoryClick: (Category, Long, Long) -> Unit,
+    onNavigateToTransferCircle: () -> Unit = {}
 ) {
     val viewModel: AnalyticsViewModel = viewModel(
         factory = AnalyticsViewModel.Factory(repository)
@@ -71,9 +73,11 @@ fun AnalyticsScreen(
     val topCategory = state.categorySpending.maxByOrNull { it.totalAmount }
 
     // No top bar: the screen title is provided by InsightsHubScreen, which hosts
-    // this content behind its "Over Time" segmented tab.
+    // this content behind its "Over Time" segmented tab. Insets are zeroed for the
+    // same reason - the hub already consumed the status-bar inset.
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0.dp)
     ) { padding ->
         Column(
             modifier = Modifier
@@ -105,13 +109,14 @@ fun AnalyticsScreen(
                     ((totalSpend - state.previousYearTotal).toDouble() / state.previousYearTotal.toDouble()) * 100
                 } else null
 
-                // Hero Card (Total Spent)
+                // Hero Card (Total Spent) - hero radius tier, matching Home's balance card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    shape = RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusHero)
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -227,7 +232,8 @@ fun AnalyticsScreen(
                                     onCategoryClick(topCategoryObj, start, end)
                                 }
                             },
-                        colors = CardDefaults.cardColors(containerColor = cardColor)
+                        colors = CardDefaults.cardColors(containerColor = cardColor),
+                        shape = RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,22 +263,153 @@ fun AnalyticsScreen(
                             }
                             
                             if (isNeedsAttention) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Button(
-                                    onClick = { 
-                                         if (topCategoryObj != null) {
-                                            val start = java.time.LocalDate.of(state.selectedYear, 1, 1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                                            val end = java.time.LocalDate.of(state.selectedYear, 12, 31).atTime(23, 59, 59).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                                            onCategoryClick(topCategoryObj, start, end)
+                                // The useful version: the bucket grouped BY COUNTERPARTY, so
+                                // it's obvious who the money went to and one tap categorizes
+                                // the whole group (learned for future payments too).
+                                LaunchedEffect(state.selectedYear) { viewModel.loadAttentionGroups() }
+                                val groups by viewModel.attentionGroups.collectAsState()
+                                var expanded by remember { mutableStateOf(false) }
+                                var viewingGroup by remember { mutableStateOf<String?>(null) }
+                                var pickingFor by remember { mutableStateOf<String?>(null) }
+
+                                // STEP 1: transaction list for the tapped counterparty
+                                if (viewingGroup != null) {
+                                    val groupTxns by viewModel.groupTransactions.collectAsState()
+                                    val dateFmt = remember { java.text.SimpleDateFormat("d MMM yy", Locale.getDefault()) }
+                                    AlertDialog(
+                                        onDismissRequest = { viewingGroup = null },
+                                        title = { Text(viewingGroup!!, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+                                        text = {
+                                            androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                                                items(groupTxns.size) { i ->
+                                                    val t = groupTxns[i]
+                                                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween
+                                                        ) {
+                                                            Text(
+                                                                dateFmt.format(java.util.Date(t.transaction.timestamp)),
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                            Text(
+                                                                "₹${java.text.NumberFormat.getIntegerInstance().format(t.transaction.amountPaisa / 100)}",
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            )
+                                                        }
+                                                        val snippet = (t.transaction.fullSmsBody ?: t.transaction.smsSnippet ?: "")
+                                                            .replace('\n', ' ').take(80)
+                                                        if (snippet.isNotBlank()) {
+                                                            Text(
+                                                                snippet,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                                maxLines = 1,
+                                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+                                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                                }
+                                            }
+                                        },
+                                        confirmButton = {
+                                            Button(onClick = {
+                                                pickingFor = viewingGroup
+                                                viewingGroup = null
+                                            }) { Text("Categorize All (${groupTxns.size})") }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { viewingGroup = null }) { Text("Close") }
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.error,
-                                        contentColor = MaterialTheme.colorScheme.onError
-                                    ),
+                                    )
+                                }
+
+                                // STEP 2: category picker
+                                if (pickingFor != null) {
+                                    val groupOrder = listOf(
+                                        com.saikumar.expensetracker.data.entity.CategoryType.VARIABLE_EXPENSE to "🛒 Variable Expenses",
+                                        com.saikumar.expensetracker.data.entity.CategoryType.FIXED_EXPENSE to "🏠 Fixed Expenses",
+                                        com.saikumar.expensetracker.data.entity.CategoryType.VEHICLE to "🚗 Vehicle",
+                                        com.saikumar.expensetracker.data.entity.CategoryType.INCOME to "📈 Income",
+                                        com.saikumar.expensetracker.data.entity.CategoryType.INVESTMENT to "📊 Investments",
+                                        com.saikumar.expensetracker.data.entity.CategoryType.LIABILITY to "💳 CC Bill Payment",
+                                        com.saikumar.expensetracker.data.entity.CategoryType.TRANSFER to "↔️ Transfer"
+                                    )
+                                    com.saikumar.expensetracker.ui.common.CategoryPickerDialog(
+                                        categories = state.allCategories,
+                                        selectedCategory = topCategoryObj ?: state.allCategories.first(),
+                                        groupOrder = groupOrder,
+                                        onPick = { cat ->
+                                            viewModel.bulkCategorize(pickingFor!!, cat)
+                                            pickingFor = null
+                                        },
+                                        onDismiss = { pickingFor = null }
+                                    )
+                                }
+
+                                if (groups.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    HorizontalDivider(color = contentColor.copy(alpha = 0.15f))
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        "Tap a name to categorize all its payments:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = contentColor.copy(alpha = 0.7f)
+                                    )
+                                    val shown = if (expanded) groups.take(25) else groups.take(6)
+                                    shown.forEach { g ->
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.loadGroupTransactions(g.name)
+                                                    viewingGroup = g.name
+                                                }
+                                                .padding(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                g.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = contentColor,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                "${g.count} × · ₹${java.text.NumberFormat.getIntegerInstance().format(g.totalPaisa / 100)}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = contentColor.copy(alpha = 0.8f)
+                                            )
+                                            Icon(
+                                                Icons.Default.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = contentColor.copy(alpha = 0.5f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    if (groups.size > 6) {
+                                        TextButton(onClick = { expanded = !expanded }) {
+                                            Text(
+                                                if (expanded) "Show less" else "Show all ${groups.size}",
+                                                color = iconTint
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+                                TextButton(
+                                    onClick = onNavigateToTransferCircle,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Analyze & Categorize")
+                                    Text("People you transfer with often? Review Transfer Circle", color = iconTint)
                                 }
                             }
                         }
@@ -283,31 +420,44 @@ fun AnalyticsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // VIEW MODE TABS
-            SingleChoiceSegmentedButtonRow(
+            // VIEW MODE CHIPS
+            // Deliberately styled as compact FilterChips, NOT a second full-width
+            // segmented row: the hub's "This Cycle / Over Time" toggle sits directly
+            // above this screen, and two identical pill rows stacked read as one
+            // broken control. Chips also carry clearer labels than Overview/Trends.
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                AnalyticsViewMode.values().forEachIndexed { index, mode ->
-                    SegmentedButton(
-                        selected = state.viewMode == mode,
+                AnalyticsViewMode.values().forEach { mode ->
+                    val selected = state.viewMode == mode
+                    FilterChip(
+                        selected = selected,
                         onClick = { viewModel.setViewMode(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = AnalyticsViewMode.values().size),
                         label = {
                             Text(
-                                when(mode) {
-                                    AnalyticsViewMode.OVERVIEW -> "Overview"
-                                    AnalyticsViewMode.TRENDS -> "Trends"
-                                },
-                                style = MaterialTheme.typography.labelSmall
+                                when (mode) {
+                                    AnalyticsViewMode.OVERVIEW -> "Category Breakdown"
+                                    AnalyticsViewMode.TRENDS -> "Monthly Trend"
+                                }
                             )
-                        }
+                        },
+                        leadingIcon = if (selected) {
+                            {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                )
+                            }
+                        } else null
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // PROMINENT CATEGORY FILTER (Trends Mode Only)
             if (state.viewMode == AnalyticsViewMode.TRENDS) {
@@ -366,7 +516,8 @@ fun AnalyticsScreen(
                         .padding(horizontal = 16.dp)
                         .padding(bottom = 32.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         // Header for Chart Section
@@ -454,7 +605,8 @@ fun AnalyticsScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(bottom = 16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        shape = RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(12.dp),
@@ -495,30 +647,35 @@ fun YearSelector(
     onPrevious: () -> Unit,
     onNext: () -> Unit
 ) {
+    // Styled to mirror Home's month selector pill exactly (same container, pill shape,
+    // chevrons inside, titleMedium bold) - previously this was a differently-colored,
+    // differently-shaped, larger-typography variant of the same control.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.Center
     ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.Default.KeyboardArrowLeft, "Previous Year", tint = MaterialTheme.colorScheme.primary)
-        }
-        
         Surface(
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(percent = com.saikumar.expensetracker.ui.theme.Dimens.RadiusPill),
+            color = MaterialTheme.colorScheme.surfaceContainer
         ) {
-            Text(
-                text = selectedYear.toString(),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-            )
-        }
-
-        IconButton(onClick = onNext) {
-            Icon(Icons.Default.KeyboardArrowRight, "Next Year", tint = MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier.padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onPrevious, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.KeyboardArrowLeft, "Previous Year", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                }
+                Text(
+                    text = selectedYear.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+                IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.KeyboardArrowRight, "Next Year", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
         }
     }
 }
@@ -534,7 +691,10 @@ fun SecondaryStatCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        // Explicit shape (was relying on the M3 default) so this matches the app-wide
+        // RadiusCard tier instead of whatever Material's implicit default happened to be.
+        shape = RoundedCornerShape(com.saikumar.expensetracker.ui.theme.Dimens.RadiusCard)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(

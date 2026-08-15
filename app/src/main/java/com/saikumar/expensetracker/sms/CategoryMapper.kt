@@ -48,6 +48,7 @@ object CategoryMapper {
         "H&M" to "Clothing",
         "LEVIS" to "Clothing",
         "LIFESTYLE" to "Clothing",
+        "LIFE STYLE" to "Clothing", // bank prints "Life Style Internation" with a space
         "MAX FASHION" to "Clothing",
         "MYNTRA" to "Clothing",
         "PANTALOONS" to "Clothing",
@@ -79,6 +80,9 @@ object CategoryMapper {
         "DINEOUT" to "Dining Out",
         "ELIOR FOOD LLP" to "Dining Out",
         "ELIORINDIAFOODS" to "Dining Out",
+        "ELIOR" to "Dining Out", // catches the bank-truncated "Elior Food"/"Elior Foo"
+        "NILOUFER" to "Dining Out", // Cafe Niloufer
+        "PARAMPARA MITHAI" to "Dining Out",
         "GOKHANA" to "Dining Out",
         "HOUSE OF SPIRITS" to "Dining Out",
         "KINGS FAMILY" to "Dining Out",
@@ -133,9 +137,12 @@ object CategoryMapper {
         // Entertainment
         "AMOEBA" to "Entertainment",
         "BOOKMYSHOW" to "Entertainment",
+        "BOOKMYS" to "Entertainment", // bank-truncated "BookMyShow"
         "DISTRICT MOVIES" to "Entertainment",
+        "DISTRICT MOVIE" to "Entertainment", // "District Movie Ticket"
         "DREAM11" to "Entertainment",
         "GAMEON" to "Entertainment",
+        "GAME ON" to "Entertainment",
         "GAMES" to "Entertainment",
         // Consistent with "GOOGLE PLAY" -> Subscriptions below; previously this spelling
         // mapped to Entertainment so the same store landed in two categories.
@@ -181,6 +188,8 @@ object CategoryMapper {
         "GODREJ INTERIO" to "Furniture",
         "HOMETOWN" to "Furniture",
         "IKEA" to "Furniture",
+        "IKEAWL" to "Furniture", // bank-truncated Ikea handle
+        "FLOSLEEPSOLUTIO" to "Furniture", // Flo Sleep Solutions (mattress) - bank-truncated form
         "NILKAMAL" to "Furniture",
         "NILKAMALFURNITU" to "Furniture",
         "PEPPERFRY" to "Furniture",
@@ -193,6 +202,22 @@ object CategoryMapper {
 
         // Groceries
         "AVENUE SUPERMAR" to "Groceries",
+        "CASH WDL" to "Cash Withdrawal", // ATM: "debited Rs. 10,000.00 ... NFS*CASH WDL*"
+        "NFS" to "Cash Withdrawal",
+        "KIRANA" to "Groceries", // "Ganesh Kirana" & every other kirana store
+        "FUELS" to "Fuel", // petrol pumps named "<X> Fuels"
+        "FLIPKARTINTERNE" to "Shopping", // ICICI glues+truncates "FlipkartInterne"
+        "MYJIO" to "Mobile + WiFi",
+        "INDIAN RAILWAYS" to "Transportation",
+        "BAKERS" to "Dining Out", // "Cakes Bakers"
+        "DISTRICT MO" to "Entertainment", // truncated "District Movies"
+        "AVENUE SUPERMART" to "Groceries", // full word - token matching can't hit the truncated key mid-word
+        "AVENUE SUPERMARTS" to "Groceries",
+        "TITAN COMPANY" to "Shopping", // watches/jewellery ("..TITAN COMPANY LI_" card spends)
+        "TITAN" to "Shopping",
+        "STATIONERY" to "Shopping", // "Sri Meenakshi Stationery" & other stationery shops
+        "JEWEL PARK" to "Shopping",
+        "JEWELLERS" to "Shopping",
         "BHARAT BAZAR" to "Groceries",
         "BIGBASKET" to "Groceries",
         "BLINKIT" to "Groceries",
@@ -224,6 +249,7 @@ object CategoryMapper {
 
         // Insurance
         "ICICI PRU" to "Insurance",
+        "IPRU" to "Insurance", // ICICI Prudential premium via BillDesk ("...at IPRU BILLDESK")
         "LIC" to "Insurance",
         "POLICYBAZAAR" to "Insurance",
         "WWW POLICYBAZAAR" to "Insurance",
@@ -244,8 +270,14 @@ object CategoryMapper {
         "VYAPAR" to "Miscellaneous",
 
         // Mobile + WiFi
+        // NOTE: "AIRTEL" alone is only a DEFAULT (most payments to Airtel are telecom
+        // bills). It is refined two ways: "AIRTEL PAYMENTS BANK" below wins on
+        // longest-key matching (that's a payment rail, not a bill - could be anything),
+        // and BillReminderManager overrides the category when a matched bill reminder
+        // says the amount was actually for DTH/broadband/etc.
         "ACT FIBERNET" to "Mobile + WiFi",
         "AIRTEL" to "Mobile + WiFi",
+        "AIRTEL PAYMENTS BANK" to "Miscellaneous",
         "BSNL" to "Mobile + WiFi",
         "HATHWAY" to "Mobile + WiFi",
         "JIO" to "Mobile + WiFi",
@@ -326,6 +358,8 @@ object CategoryMapper {
         "YOUTUBE" to "Subscriptions",
         "YOUTUBEGOOGLE" to "Subscriptions",
         "ZEEENTERTAINMEN" to "Subscriptions",
+        "LINKEDIN" to "Subscriptions",
+        "GRAMMARLY" to "Subscriptions",
 
 
         // Transportation
@@ -453,6 +487,23 @@ object CategoryMapper {
         "TATA 1MG" to "Medical",
         "MEDPLUS" to "Medical",
         "PRACTO" to "Medical",
+        // Hospitals (card swipes like "..YASHODA SUPER SP_", "AIG HOSPITALS")
+        "YASHODA" to "Medical",
+        "HOSPITAL" to "Medical",
+        "HOSPITALS" to "Medical",
+        "SUPER SPECIALITY" to "Medical",
+        "SUPERSPECIALITY" to "Medical",
+        "FORTIS" to "Medical",
+        "MANIPAL" to "Medical",
+        "NARAYANA" to "Medical",
+        "MEDICOVER" to "Medical",
+        "CARE HOSPITAL" to "Medical",
+        "CONTINENTAL HOSPITAL" to "Medical",
+        "RAINBOW CHILDREN" to "Medical",
+        "AIG HOSPITAL" to "Medical",
+        "DIAGNOSTIC" to "Medical",
+        "DIAGNOSTICS" to "Medical",
+        "PATHOLOGY" to "Medical",
 
         // Fuel
         "SHELL" to "Fuel",
@@ -518,6 +569,16 @@ object CategoryMapper {
         TransactionType.REFUND to AppConstants.Categories.REFUND
     )
 
+    // Bank / credit-card fees charged by the bank itself. These are real expenses that carry
+    // no merchant, so they'd otherwise fall to Uncategorized.
+    private val BANK_FEE_REGEX = Regex(
+        "annual fee|joining fee|membership fee|renewal fee|finance charge|late payment|late fee|" +
+        "over.?limit fee|cash advance fee|markup fee|forex markup|card replacement|reissuance fee|" +
+        "non.?maintenance|amb charge|min(?:imum)? balance charge|sms charge|sms alert charge|" +
+        "annual charge|interest charge",
+        RegexOption.IGNORE_CASE
+    )
+
     fun categorize(
         counterparty: CounterpartyExtractor.Counterparty,
         transactionType: TransactionType,
@@ -532,6 +593,27 @@ object CategoryMapper {
     ): String {
         val lowerBody = messageBody.lowercase()
 
+        // A card PURCHASE ("Rs X spent on ICICI Card XX4001 at HP PAY", "spent on your ...
+        // Credit Card ending XXnnnn at IPRU BILLDESK") is money SPENT via the card at a
+        // merchant — it must count as spending under that merchant, NOT be netted out as a
+        // card-bill payment, even when the merchant's name contains a bill-payment token
+        // (CRED/BILLDESK) or the SMS names one of the user's own card numbers. Real bill
+        // payments say "Sent ... To CRED Club" / "Payment received on your card" and never
+        // "spent on/at", so that phrasing safely tells a spend apart from a payment.
+        val isCardPurchase = lowerBody.contains("spent on") || lowerBody.contains("spent at")
+
+        // BANK / CARD FEE: a charge levied by the bank (annual/late/finance/AMB fee...).
+        // Not a card purchase, and excludes reversed/waived fees (those are refunds / no charge).
+        if (!isCardPurchase &&
+            transactionType != TransactionType.INCOME && transactionType != TransactionType.REFUND &&
+            BANK_FEE_REGEX.containsMatchIn(lowerBody) &&
+            !lowerBody.contains("reversed") && !lowerBody.contains("waiv") &&
+            !lowerBody.contains("refunded") && !lowerBody.contains("not been charged") &&
+            !lowerBody.contains("no annual") && !lowerBody.contains("lifetime free")) {
+            trace?.add("Matched: bank/card fee keyword -> Bank Fees")
+            return "Bank Fees"
+        }
+
         // PRIORITY 0: Credit Card Bill Payment Check (HIGHEST PRIORITY)
         // This must come BEFORE any other logic to prevent misclassification.
         // Hard financial invariant - not even a User Rule should be able to mis-tag an
@@ -543,7 +625,7 @@ object CategoryMapper {
             // matching for "CRED" so it doesn't fire inside "CREDIT"/"CREDITED").
             val isCreditCardPayment = SmsConstants.isCreditCardServiceName(upper)
 
-            if (isCreditCardPayment && transactionType == TransactionType.EXPENSE) {
+            if (isCreditCardPayment && transactionType == TransactionType.EXPENSE && !isCardPurchase) {
                 trace?.add("OVERRIDE: Credit Card Payment Service detected -> Credit Bill Payments")
                 return AppConstants.Categories.CREDIT_BILL_PAYMENTS
             }
@@ -680,8 +762,14 @@ object CategoryMapper {
             }
             
             if (bestMatchCategory != null) {
-                trace?.add("Matched Hardcoded Merchant: $bestMatchKey -> $bestMatchCategory")
-                return enforceCategoryTypeCompatibility(bestMatchCategory, transactionType, trace)
+                // A card purchase whose (mis-)extracted merchant token maps to Credit Bill
+                // Payments must not be netted out of spending — let it fall through to a real
+                // spending category instead.
+                if (!(isCardPurchase && bestMatchCategory == AppConstants.Categories.CREDIT_BILL_PAYMENTS)) {
+                    trace?.add("Matched Hardcoded Merchant: $bestMatchKey -> $bestMatchCategory")
+                    return enforceCategoryTypeCompatibility(bestMatchCategory, transactionType, trace)
+                }
+                trace?.add("SKIP Hardcoded Merchant $bestMatchKey -> Credit Bill (card purchase, keep as spend)")
             }
         }
         
@@ -692,7 +780,11 @@ object CategoryMapper {
             val matchedAccount = userAccounts.find { myAccount ->
                 isAccountNumberInText(counterparty.name, myAccount.accountNumberLast4)
             }
-            if (matchedAccount != null) {
+            // A card purchase names the user's own card number ("spent on ICICI Card XX0006
+            // at IPRU BILLDESK") but the card is being CHARGED at a merchant, not paid — so
+            // this is NOT a payment to that card. Only treat an own-account match as a
+            // bill/self-transfer when it isn't a spend.
+            if (matchedAccount != null && !isCardPurchase) {
                 trace?.add("Matched: Discovered Account ${matchedAccount.accountNumberLast4}")
                 return if (matchedAccount.accountType == AccountType.CREDIT_CARD) {
                     AppConstants.Categories.CREDIT_BILL_PAYMENTS // Payment to my own Credit Card
@@ -777,6 +869,10 @@ object CategoryMapper {
             var bodyMaxLen = 0
             for ((key, defaultCategory) in MERCHANT_CATEGORIES) {
                 if (key.length < 4 || key in BODY_SCAN_EXCLUDED_KEYS) continue
+                // A card purchase's body always contains a bill-payment token (it was paid via
+                // BillDesk/CRED), but the card was SPENT, not paid off — skip those keys so the
+                // real merchant token (e.g. IPRU) can win and it stays counted as spending.
+                if (isCardPurchase && defaultCategory == AppConstants.Categories.CREDIT_BILL_PAYMENTS) continue
                 if (key.length > bodyMaxLen && SmsConstants.containsToken(upperBody, key)) {
                     bodyMatchCategory = defaultCategory
                     bodyMatchKey = key
@@ -883,7 +979,7 @@ object CategoryMapper {
      *
      * Uses account holder names discovered from NEFT/salary deposits and UPI VPAs.
      */
-    private fun isUserOwnName(name: String, userAccounts: List<UserAccount>): Boolean {
+    fun isUserOwnName(name: String, userAccounts: List<UserAccount>): Boolean {
         val lower = name.lowercase()
 
         // Check against account holder names

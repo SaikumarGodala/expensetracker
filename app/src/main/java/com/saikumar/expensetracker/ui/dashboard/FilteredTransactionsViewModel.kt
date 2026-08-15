@@ -39,19 +39,38 @@ class FilteredTransactionsViewModel(
             // Base filter: Status COMPLETED and Type matches CategoryType logic
             val baseFiltered = when (type) {
                 CategoryType.INCOME -> {
-                    list.filter { 
+                    // FINANCIAL ACCURACY: investment redemptions are excluded here - own
+                    // capital returning, not fresh income - matching the headline "Income"
+                    // total on Home/This Cycle (which already nets them out). This branch
+                    // used to have no such exclusion, so tapping the Income summary chip
+                    // showed redemption rows even though the number above it didn't include
+                    // them.
+                    list.filter {
+                        val t = it.transaction.transactionType
+                        val isIncome = t == TransactionType.INCOME || t == TransactionType.CASHBACK ||
+                            (it.category.type == CategoryType.INCOME && t != TransactionType.REFUND)
                         it.transaction.status == TransactionStatus.COMPLETED &&
-                        (it.transaction.transactionType == TransactionType.INCOME ||
-                         it.transaction.transactionType == TransactionType.CASHBACK)
+                        isIncome &&
+                        it.category.name != "P2P Transfers" &&
+                        !com.saikumar.expensetracker.domain.TransactionRuleEngine.isInvestmentRedemption(
+                            it.transaction.transactionType, it.category
+                        )
                     }
                 }
                 CategoryType.INVESTMENT -> {
-                    list.filter { 
+                    // Redemptions belong here instead - they're what nets against outflows
+                    // to produce the "Invest" chip's net-invested figure.
+                    list.filter {
                         it.transaction.status == TransactionStatus.COMPLETED &&
-                        it.category.type == CategoryType.INVESTMENT &&
-                        (it.transaction.transactionType == TransactionType.EXPENSE ||
-                         it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
-                         it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION)
+                        (
+                            (it.category.type == CategoryType.INVESTMENT &&
+                             (it.transaction.transactionType == TransactionType.EXPENSE ||
+                              it.transaction.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
+                              it.transaction.transactionType == TransactionType.INVESTMENT_CONTRIBUTION)) ||
+                            com.saikumar.expensetracker.domain.TransactionRuleEngine.isInvestmentRedemption(
+                                it.transaction.transactionType, it.category
+                            )
+                        )
                     }
                 }
                 else -> {
@@ -92,17 +111,24 @@ class FilteredTransactionsViewModel(
     }
 
     fun updateTransactionDetails(
-        transaction: Transaction, 
-        newCategoryId: Long, 
-        newNote: String, 
-        accountType: AccountType, 
+        transaction: Transaction,
+        newCategoryId: Long,
+        newNote: String,
+        accountType: AccountType,
         updateSimilar: Boolean,
-        manualClassification: String? = null
+        manualClassification: String? = null,
+        newMerchantName: String? = null
     ) {
         viewModelScope.launch {
             val categories = repository.allEnabledCategories.first()
             val newCategory = categories.find { it.id == newCategoryId }
-            
+
+            if (!newMerchantName.isNullOrBlank() && newMerchantName != transaction.merchantName) {
+                try { repository.renameMerchant(transaction, newMerchantName) } catch (e: Exception) {
+                    android.util.Log.w("FilteredTxnVM", "renameMerchant failed: ${e.message}")
+                }
+            }
+
             // Use centralized Rule Engine
             val newTransactionType = com.saikumar.expensetracker.domain.TransactionRuleEngine.resolveTransactionType(
                 transaction = transaction,
@@ -110,13 +136,15 @@ class FilteredTransactionsViewModel(
                 isSelfTransfer = false,
                 category = newCategory
             )
-            
+
             repository.updateTransaction(transaction.copy(
                 categoryId = newCategoryId,
                 note = newNote,
                 accountType = accountType,
                 manualClassification = manualClassification,
-                transactionType = newTransactionType
+                transactionType = newTransactionType,
+                merchantName = newMerchantName?.trim()?.ifBlank { null } ?: transaction.merchantName,
+                confidenceScore = 100 // user-confirmed: survives reclassify
             ))
 
             // Record user confirmation for ML training

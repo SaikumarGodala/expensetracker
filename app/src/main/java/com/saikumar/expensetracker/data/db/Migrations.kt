@@ -104,6 +104,66 @@ object Migrations {
         }
     }
 
+    val MIGRATION_44_45 = object : Migration(44, 45) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migrating from version 44 to 45: Adding bill_reminders table")
+
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS bill_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    smsHash TEXT NOT NULL,
+                    billerName TEXT,
+                    amountPaisa INTEGER NOT NULL,
+                    dueDateMillis INTEGER,
+                    categoryHint TEXT,
+                    smsBody TEXT NOT NULL,
+                    receivedAt INTEGER NOT NULL,
+                    matchedTxnId INTEGER
+                )
+            """.trimIndent())
+
+            database.execSQL("""
+                CREATE UNIQUE INDEX IF NOT EXISTS index_bill_reminders_smsHash
+                ON bill_reminders (smsHash)
+            """.trimIndent())
+
+            database.execSQL("""
+                CREATE INDEX IF NOT EXISTS index_bill_reminders_amountPaisa
+                ON bill_reminders (amountPaisa)
+            """.trimIndent())
+
+            Log.i(TAG, "Migration 44→45 complete")
+        }
+    }
+
+    val MIGRATION_45_46 = object : Migration(45, 46) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migrating from version 45 to 46: Adding balance_snapshots table")
+
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS balance_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    accountLast4 TEXT NOT NULL,
+                    balancePaisa INTEGER NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    smsHash TEXT NOT NULL
+                )
+            """.trimIndent())
+
+            database.execSQL("""
+                CREATE UNIQUE INDEX IF NOT EXISTS index_balance_snapshots_smsHash
+                ON balance_snapshots (smsHash)
+            """.trimIndent())
+
+            database.execSQL("""
+                CREATE INDEX IF NOT EXISTS index_balance_snapshots_accountLast4_timestamp
+                ON balance_snapshots (accountLast4, timestamp)
+            """.trimIndent())
+
+            Log.i(TAG, "Migration 45→46 complete")
+        }
+    }
+
     /**
      * All migrations should be added to this list for automatic registration.
      * NOTE: Declare individual migrations BEFORE this array to avoid forward reference errors.
@@ -112,7 +172,9 @@ object Migrations {
         MIGRATION_40_41,
         MIGRATION_41_42,
         MIGRATION_42_43,
-        MIGRATION_43_44
+        MIGRATION_43_44,
+        MIGRATION_44_45,
+        MIGRATION_45_46
     )
 
     /**

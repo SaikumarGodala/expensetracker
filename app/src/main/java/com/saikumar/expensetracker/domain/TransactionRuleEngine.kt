@@ -20,6 +20,24 @@ object TransactionRuleEngine {
         data class Invalid(val reason: String) : ValidationResult()
     }
 
+    /**
+     * True if this transaction is an investment redemption: an INCOME-typed credit landing
+     * in an investment-flavored category (the "Investment Redemption" category itself, or
+     * any category typed INVESTMENT). Its own capital returning, not fresh earnings.
+     *
+     * Single source of truth for this predicate - it previously existed as three separate,
+     * independently-drifting inline filters (DashboardViewModel, MonthlyOverviewViewModel,
+     * and NOT AT ALL in FilteredTransactionsViewModel, which is why redemptions kept
+     * surfacing under "Income" when a user tapped through from the summary chip: the
+     * headline totals had been netted correctly, but the drill-down list used its own
+     * un-netted filter).
+     */
+    fun isInvestmentRedemption(transactionType: TransactionType, category: Category?): Boolean {
+        if (category == null || transactionType != TransactionType.INCOME) return false
+        return category.name == AppConstants.Categories.INVESTMENT_REDEMPTION ||
+            category.type == CategoryType.INVESTMENT
+    }
+
     // =================================================================
     // 1. VALIDATION RULES (From TransactionValidator)
     // =================================================================
@@ -193,10 +211,22 @@ object TransactionRuleEngine {
             txnType = TransactionType.CASHBACK
         }
 
-        // Invariant 3: Trusted P2P = TRANSFER
-        val isP2pOrPerson = !isUntrustedP2P && (categoryName == AppConstants.Categories.P2P_TRANSFERS || counterpartyType == "PERSON")
-        if (isP2pOrPerson && 
-            txnType != TransactionType.CASHBACK && 
+        // Invariant 3: Trusted P2P = TRANSFER.
+        // ONLY when the category itself is P2P/generic. A person-classified counterparty
+        // with a SPECIFIC spending category ("Manoharachari" -> Groceries, "Google Play"
+        // mandate -> Subscriptions, "Siddique Kabab Centre" -> Dining Out) is a payment FOR
+        // something - forcing it to TRANSFER silently excluded real spending from totals.
+        val p2pishCategories = setOf(
+            AppConstants.Categories.P2P_TRANSFERS,
+            AppConstants.Categories.OTHER_INCOME,
+            AppConstants.Categories.MISCELLANEOUS,
+            AppConstants.Categories.UNCATEGORIZED
+        )
+        val isP2pOrPerson = !isUntrustedP2P &&
+            (categoryName == AppConstants.Categories.P2P_TRANSFERS ||
+             (counterpartyType == "PERSON" && (categoryName == null || categoryName in p2pishCategories)))
+        if (isP2pOrPerson &&
+            txnType != TransactionType.CASHBACK &&
             txnType != TransactionType.TRANSFER) {
             txnType = TransactionType.TRANSFER
         }

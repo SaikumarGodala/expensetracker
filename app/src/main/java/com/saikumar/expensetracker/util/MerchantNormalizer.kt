@@ -116,21 +116,30 @@ object MerchantNormalizer {
 
         var normalized = rawName.lowercase(Locale.getDefault()).trim()
 
-        // 0. Check for known merchant name first (before any modification)
+        // 0. Check for known merchant name first (before any modification).
+        // - token match: brand as a whole word ("uber rides")
+        // - prefix match ONLY for long patterns (>=6 chars): banks glue truncations like
+        //   "FlipkartInterne" - but short prefixes are how "POLAMURI" became "Ola" and
+        //   "ZUBER" would become "Uber", so those must never prefix-match.
         for ((pattern, name) in KNOWN_MERCHANTS) {
-            if (normalized == pattern || normalized.startsWith(pattern) || normalized.contains(pattern)) {
+            if (normalized == pattern ||
+                (pattern.length >= 6 && normalized.startsWith(pattern)) ||
+                com.saikumar.expensetracker.sms.SmsConstants.containsToken(normalized, pattern)) {
                 return name
             }
         }
 
-        // 0.5 Remove known gateway prefixes
-        val prefixes = listOf("pyu*", "atos*", "upi-", "rzp*", "cas*", "payu*", "ccav*")
+        // 0.5 Remove known gateway prefixes ("credpay" = CRED's pay-a-merchant rail:
+        // "credpayswiggy" is a SWIGGY payment routed via CRED, not CRED itself)
+        val prefixes = listOf("pyu*", "atos*", "upi-", "rzp*", "cas*", "payu*", "ccav*", "credpay")
         for (prefix in prefixes) {
             if (normalized.startsWith(prefix)) {
                 normalized = normalized.removePrefix(prefix)
-                // Re-check known merchants after removing prefix
+                // Re-check known merchants after removing prefix (same guarded semantics)
                 for ((pattern, name) in KNOWN_MERCHANTS) {
-                    if (normalized == pattern || normalized.startsWith(pattern)) {
+                    if (normalized == pattern ||
+                        (pattern.length >= 6 && normalized.startsWith(pattern)) ||
+                        com.saikumar.expensetracker.sms.SmsConstants.containsToken(normalized, pattern)) {
                         return name
                     }
                 }
@@ -162,10 +171,14 @@ object MerchantNormalizer {
         // Rejoin
         var result = filteredTokens.joinToString(" ").trim()
 
-        // Final check: If result matches known merchant after cleanup
+        // Final check: If result matches known merchant after cleanup.
+        // Guarded like step 0 - unguarded startsWith turned "credpayswiggy" AND even
+        // "credit card statement" into "CRED".
         val resultLower = result.lowercase()
         for ((pattern, name) in KNOWN_MERCHANTS) {
-            if (resultLower == pattern || resultLower.startsWith(pattern)) {
+            if (resultLower == pattern ||
+                (pattern.length >= 6 && resultLower.startsWith(pattern)) ||
+                com.saikumar.expensetracker.sms.SmsConstants.containsToken(resultLower, pattern)) {
                 return name
             }
         }

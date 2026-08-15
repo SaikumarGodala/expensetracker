@@ -45,6 +45,8 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // Screen owns its top inset (the NavHost no longer pads for the status bar)
+                .statusBarsPadding()
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,

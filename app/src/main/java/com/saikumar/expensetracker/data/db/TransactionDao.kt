@@ -106,23 +106,23 @@ interface TransactionDao {
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE smsHash = :hash AND deletedAt IS NULL LIMIT 1)")
     suspend fun existsBySmsHash(hash: String): Boolean
 
-    @Query("SELECT smsHash FROM transactions WHERE smsHash IS NOT NULL AND deletedAt IS NULL")
+    // NOTE: intentionally NOT filtering deletedAt - a soft-deleted transaction's SMS must
+    // still count as "already seen" so a later inbox scan doesn't resurrect it. This makes
+    // both user deletions and the CC-confirmation de-dup durable across rescans.
+    @Query("SELECT smsHash FROM transactions WHERE smsHash IS NOT NULL")
     suspend fun getAllSmsHashes(): List<String>
 
     /**
      * BUG FIX: Enhanced deduplication - Check for duplicate by reference number + amount.
      */
     @Query("""
-        SELECT EXISTS(
-            SELECT 1 FROM transactions 
-            WHERE referenceNo = :refNo 
-            AND amountPaisa = :amountPaisa 
-            AND referenceNo IS NOT NULL
-            AND deletedAt IS NULL
-            LIMIT 1
-        )
+        SELECT * FROM transactions 
+        WHERE referenceNo = :refNo 
+        AND amountPaisa = :amountPaisa 
+        AND referenceNo IS NOT NULL
+        AND deletedAt IS NULL
     """)
-    suspend fun existsByReferenceAndAmount(refNo: String?, amountPaisa: Long): Boolean
+    suspend fun findByReferenceAndAmount(refNo: String?, amountPaisa: Long): List<Transaction>
 
     /**
      * BUG FIX: Find potential duplicates by amount and timestamp (time window check).
@@ -134,19 +134,61 @@ interface TransactionDao {
         AND deletedAt IS NULL
     """)
     suspend fun findPotentialDuplicates(
-        amountPaisa: Long, 
-        timestampStart: Long, 
+        amountPaisa: Long,
+        timestampStart: Long,
         timestampEnd: Long
     ): List<Transaction>
 
+    /** Active transactions within an amount range and time window (fuzzy duplicate search). */
+    @Query("""
+        SELECT * FROM transactions
+        WHERE amountPaisa BETWEEN :minPaisa AND :maxPaisa
+        AND timestamp BETWEEN :start AND :end
+        AND deletedAt IS NULL
+    """)
+    suspend fun getActiveByAmountWindow(minPaisa: Long, maxPaisa: Long, start: Long, end: Long): List<Transaction>
+
+    @Query("SELECT * FROM transactions WHERE transactionType = :type AND deletedAt IS NULL")
+    suspend fun getActiveByType(type: com.saikumar.expensetracker.data.entity.TransactionType): List<Transaction>
+
+    /** Active transactions on one account within (start, end] - balance audit windows. */
+    @Query("""
+        SELECT * FROM transactions
+        WHERE accountNumberLast4 = :accountLast4
+        AND timestamp > :start AND timestamp <= :end
+        AND deletedAt IS NULL
+        ORDER BY timestamp ASC
+    """)
+    suspend fun getActiveByAccountAndPeriod(accountLast4: String, start: Long, end: Long): List<Transaction>
+
     @Query("SELECT * FROM transactions WHERE categoryId = :categoryId AND deletedAt IS NULL AND transactionType != 'STATEMENT'")
     suspend fun getTransactionsByCategoryId(categoryId: Long): List<Transaction>
+
+    /** Includes soft-deleted rows - used when a hidden row is still a naming source. */
+    @Query("SELECT * FROM transactions WHERE categoryId = :categoryId AND transactionType != 'STATEMENT'")
+    suspend fun getTransactionsByCategoryIdWithDeleted(categoryId: Long): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     suspend fun getTransactionsByMerchant(merchantName: String): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE smsSnippet LIKE '%' || :pattern || '%' AND deletedAt IS NULL AND transactionType != 'STATEMENT' ORDER BY timestamp DESC")
     suspend fun getTransactionsBySnippetPattern(pattern: String): List<Transaction>
+
+    /** Matches on the full SMS body (snippet is only the first 100 chars). */
+    @Query("SELECT * FROM transactions WHERE fullSmsBody LIKE '%' || :pattern || '%' AND deletedAt IS NULL AND transactionType != 'STATEMENT'")
+    suspend fun getByBodyPattern(pattern: String): List<Transaction>
+
+    /** Transactions whose note contains the given text (e.g. "Bill: "). */
+    @Query("SELECT * FROM transactions WHERE note LIKE '%' || :pattern || '%' AND deletedAt IS NULL")
+    suspend fun getByNotePattern(pattern: String): List<Transaction>
+
+    /** Distinct non-null merchant names, with how many transactions each has. */
+    @Query("SELECT merchantName AS name, COUNT(*) AS cnt FROM transactions WHERE merchantName IS NOT NULL AND merchantName != '' AND deletedAt IS NULL GROUP BY merchantName")
+    suspend fun getMerchantNameCounts(): List<MerchantNameCount>
+
+    /** Rename-only: canonicalize a truncated merchant variant. Does not touch category. */
+    @Query("UPDATE transactions SET merchantName = :canonical WHERE merchantName = :variant AND deletedAt IS NULL")
+    suspend fun renameMerchant(variant: String, canonical: String): Int
 
     @Query("SELECT * FROM transactions WHERE LOWER(merchantName) = LOWER(:merchantName) AND deletedAt IS NULL")
     suspend fun getByMerchantName(merchantName: String): List<Transaction>
@@ -174,12 +216,30 @@ interface TransactionDao {
         ORDER BY timestamp DESC
     """)
     suspend fun getAllForMlExport(): List<Transaction>
-    
-    @Query("UPDATE transactions SET categoryId = :categoryId, transactionType = :type WHERE merchantName IN (:merchantNames) AND deletedAt IS NULL")
+
+    /**
+     * Full ledger dump for CSV export. Unlike the other read queries this one keeps
+     * STATEMENT rows so the export is a faithful picture of what the app stored - the
+     * type column lets the reader filter them back out.
+     */
+    @Query("SELECT * FROM transactions WHERE deletedAt IS NULL ORDER BY timestamp DESC")
+    suspend fun getAllForExport(): List<Transaction>
+
+    /**
+     * Transfer-Circle retro-apply. Deliberately guarded:
+     * - amountPaisa >= :minAmountPaise - the P2P threshold applies to circle members too;
+     *   small payments to a trusted person are still everyday spending
+     * - confidenceScore < 100 - a manual classification always wins over circle membership
+     */
+    @Query("""UPDATE transactions SET categoryId = :categoryId, transactionType = :type
+        WHERE merchantName IN (:merchantNames) AND deletedAt IS NULL
+        AND amountPaisa >= :minAmountPaise
+        AND confidenceScore < 100""")
     suspend fun updateTransactionsForMerchants(
-        merchantNames: List<String>, 
-        categoryId: Long, 
-        type: com.saikumar.expensetracker.data.entity.TransactionType
+        merchantNames: List<String>,
+        categoryId: Long,
+        type: com.saikumar.expensetracker.data.entity.TransactionType,
+        minAmountPaise: Long
     )
 
     @androidx.room.Transaction
@@ -339,6 +399,11 @@ data class MlExportCandidate(
     val fullSmsBody: String?,
     val smsSender: String?,
     val timestamp: Long
+)
+
+data class MerchantNameCount(
+    val name: String,
+    val cnt: Int
 )
 
 data class CategorySpending(

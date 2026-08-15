@@ -70,9 +70,11 @@ class TransferCircleViewModel(application: Application) : AndroidViewModel(appli
                 notes = notes
             )
             
-            // Retroactively update existing transactions to P2P
+            // Retroactively update existing transactions to P2P (threshold-aware:
+            // small payments to this person stay counted as spending)
             try {
-                app.repository.updateTransactionsToP2P(listOf(name))
+                val threshold = app.preferencesManager.getSmallP2pThresholdSync()
+                app.repository.updateTransactionsToP2P(listOf(name), threshold)
             } catch (e: Exception) {
                 // Log error
             }
@@ -90,10 +92,11 @@ class TransferCircleViewModel(application: Application) : AndroidViewModel(appli
                 aliases = suggestion.aliases
             )
             
-            // Retroactively update existing transactions to P2P
+            // Retroactively update existing transactions to P2P (threshold-aware)
             try {
                 val allNames = (suggestion.aliases + suggestion.name).distinct()
-                app.repository.updateTransactionsToP2P(allNames)
+                val threshold = app.preferencesManager.getSmallP2pThresholdSync()
+                app.repository.updateTransactionsToP2P(allNames, threshold)
             } catch (e: Exception) {
                 // Log error but don't crash
             }

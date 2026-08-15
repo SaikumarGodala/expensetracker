@@ -1,8 +1,11 @@
 package com.saikumar.expensetracker.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -10,10 +13,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,7 +39,8 @@ fun TransactionEditDialog(
     transaction: TransactionWithCategory, 
     categories: List<Category>, 
     onDismiss: () -> Unit, 
-    onConfirm: (Long, String, AccountType, Boolean, String?) -> Unit,
+    // (categoryId, note, accountType, applyToSimilar, manualClassification, newMerchantName)
+    onConfirm: (Long, String, AccountType, Boolean, String?, String?) -> Unit,
     onDelete: (Transaction) -> Unit,
     onAddCategory: ((String, CategoryType) -> Unit)? = null,
     onFindSimilar: (suspend () -> com.saikumar.expensetracker.sms.SimilarityResult)? = null
@@ -45,19 +51,11 @@ fun TransactionEditDialog(
     // deriveClassificationFromCategory, so the old Type dropdown was pure friction.)
     val selectedType = selectedCategory.type
     var note by remember { mutableStateOf(transaction.transaction.note ?: "") }
+    var merchantNameEdit by remember { mutableStateOf(transaction.transaction.merchantName ?: "") }
     // Classification auto-derived from category when saving
     val accountType by remember { mutableStateOf(transaction.transaction.accountType) }
     var applyToSimilar by remember { mutableStateOf(false) }
     
-    // Explicit Transfer toggle (Checkbox)
-    // Initialize based on current transaction type or category type
-    var isTransferChecked by remember { mutableStateOf(
-        transaction.transaction.transactionType == TransactionType.TRANSFER || 
-        transaction.category.type == CategoryType.TRANSFER
-    ) }
-
-    // P2P override: allows user to mark P2P as income/expense instead of neutral transfer
-    var p2pOverride by remember { mutableStateOf<String?>(null) } // "INCOME", "EXPENSE", or null (neutral)
     var categoryExpanded by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     // Classification is auto-derived from category (see deriveClassificationFromCategory)
@@ -85,10 +83,63 @@ fun TransactionEditDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.verticalScroll(dialogScrollState)
                 ) {
-                // Amount display - convert paisa to rupees
-                Text("Amount: ${formatAmount(transaction.transaction.amountPaisa)}", style = MaterialTheme.typography.titleMedium)
-                
-                Text("Transaction Type: ${transaction.transaction.transactionType.name}", style = MaterialTheme.typography.bodySmall)
+                // Header: category-colored avatar, amount as the anchor, and the context the
+                // old dialog never showed - WHEN it happened and on WHICH account.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val avatarColor = com.saikumar.expensetracker.util.CategoryColors.getColor(selectedCategory.name)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(avatarColor.copy(alpha = 0.18f))
+                    ) {
+                        Icon(
+                            CategoryIcons.getIcon(selectedCategory.name),
+                            contentDescription = null,
+                            tint = avatarColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                formatAmount(transaction.transaction.amountPaisa),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    transaction.transaction.transactionType.name
+                                        .lowercase().replace('_', ' ')
+                                        .replaceFirstChar { it.uppercaseChar() },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        val meta = buildString {
+                            append(
+                                java.time.Instant.ofEpochMilli(transaction.transaction.timestamp)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy · h:mm a"))
+                            )
+                            transaction.transaction.accountNumberLast4?.let { append("  ·  A/c ••").append(it) }
+                        }
+                        Text(
+                            meta,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 
                 // Warning if TransactionType and CategoryType are misaligned
                 val txnType = transaction.transaction.transactionType
@@ -111,36 +162,32 @@ fun TransactionEditDialog(
                     }
                 }
                 
-                // Show counterparty (merchant/sender/receiver) if available
-                // Use UPI ID as fallback when merchant name is missing
-                val counterpartyName = merchantKeyword ?: transaction.transaction.upiId
-                if (counterpartyName != null) {
-                    // Dynamic label based on transaction type
+                // Editable merchant/counterparty name. For anonymous QR payments (paytmqr…,
+                // q…@ybl) the SMS carries no name, so naming it here - and, when there's a VPA,
+                // remembering it for every past & future payment to that same QR - is the only
+                // way to give it a real identity.
+                val vpa = transaction.transaction.upiId
+                run {
                     val label = when (transaction.transaction.transactionType) {
-                        TransactionType.INCOME, TransactionType.CASHBACK, TransactionType.REFUND -> "From"
-                        TransactionType.EXPENSE, TransactionType.LIABILITY_PAYMENT -> "To"
-                        else -> "Counterparty"
+                        TransactionType.INCOME, TransactionType.CASHBACK, TransactionType.REFUND -> "From (name)"
+                        TransactionType.EXPENSE, TransactionType.LIABILITY_PAYMENT -> "To (name)"
+                        else -> "Merchant / name"
                     }
-
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = MaterialTheme.shapes.small,
+                    OutlinedTextField(
+                        value = merchantNameEdit,
+                        onValueChange = { merchantNameEdit = it },
+                        label = { Text(label) },
+                        placeholder = { Text(vpa ?: "e.g. Local Kirana Store") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = counterpartyName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
+                    )
+                    if (!vpa.isNullOrBlank()) {
+                        Text(
+                            text = "Applies to all payments to $vpa",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                        )
                     }
                 }
                 
@@ -223,6 +270,40 @@ fun TransactionEditDialog(
                     }
                 }
                 
+                // QUICK PICKS: one-tap chips for the categories corrections most often land in,
+                // so the common case never needs the full dropdown.
+                run {
+                    val quickNames = listOf(
+                        "Groceries", "Dining Out", "Food Delivery", "Shopping",
+                        "Entertainment", "Medical", "Fuel", "Transportation",
+                        "Subscriptions", "P2P Transfers"
+                    )
+                    val quickPicks = quickNames.mapNotNull { name -> categories.find { it.name == name } }
+                    if (quickPicks.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                        ) {
+                            quickPicks.forEach { cat ->
+                                FilterChip(
+                                    selected = selectedCategory.id == cat.id,
+                                    onClick = { selectedCategory = cat },
+                                    label = { Text(cat.name, style = MaterialTheme.typography.labelMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            CategoryIcons.getIcon(cat.name),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // SINGLE grouped category picker. The old two-step (Category Type dropdown ->
                 // Category dropdown) forced two decisions where one suffices: the type is a
                 // property OF the category, so picking "Groceries" already implies Variable
@@ -239,15 +320,14 @@ fun TransactionEditDialog(
                     CategoryType.IGNORE to "🚫 Invalid/Ignore"
                 )
 
-                ExposedDropdownMenuBox(
-                    expanded = categoryExpanded,
-                    onExpandedChange = { categoryExpanded = !categoryExpanded },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                // Clickable field -> full searchable picker (type-to-filter beats scrolling
+                // a 60-item dropdown).
+                Box {
                     OutlinedTextField(
                         value = selectedCategory.name,
                         onValueChange = {},
                         readOnly = true,
+                        enabled = false,
                         label = { Text("Category") },
                         leadingIcon = {
                             Icon(
@@ -257,61 +337,38 @@ fun TransactionEditDialog(
                             )
                         },
                         supportingText = {
-                            // Show the derived group so the user still sees the type without
-                            // having to pick it
                             Text(groupOrder.firstOrNull { it.first == selectedType }?.second ?: selectedType.name)
                         },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth().menuAnchor(type = MenuAnchorType.PrimaryEditable, enabled = true)
+                        trailingIcon = { Icon(Icons.Default.ExpandMore, contentDescription = null) },
+                        // Disabled only to route taps to the overlay - repaint as enabled
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledSupportingTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    ExposedDropdownMenu(
-                        expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false },
-                        modifier = Modifier.heightIn(max = 400.dp)
-                    ) {
-                        groupOrder.forEach { (type, label) ->
-                            val group = categories.filter { it.type == type }.sortedBy { it.name }
-                            if (group.isNotEmpty()) {
-                                // Section header (not clickable)
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                                )
-                                group.forEach { category ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    CategoryIcons.getIcon(category.name),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(category.name)
-                                                if (category.id == selectedCategory.id) {
-                                                    Spacer(modifier = Modifier.weight(1f))
-                                                    Icon(
-                                                        Icons.Default.Check,
-                                                        contentDescription = "Selected",
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        onClick = {
-                                            selectedCategory = category
-                                            categoryExpanded = false
-                                        }
-                                    )
-                                }
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            }
-                        }
-                    }
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { categoryExpanded = true }
+                    )
+                }
+
+                if (categoryExpanded) {
+                    CategoryPickerDialog(
+                        categories = categories,
+                        selectedCategory = selectedCategory,
+                        groupOrder = groupOrder,
+                        onPick = {
+                            selectedCategory = it
+                            categoryExpanded = false
+                        },
+                        onDismiss = { categoryExpanded = false }
+                    )
                 }
                 
                 // Add New Category button
@@ -328,99 +385,23 @@ fun TransactionEditDialog(
                 
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())
 
-                // Mark as Transfer Checkbox
-                Surface(
-                    color = if (isTransferChecked) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f) else Color.Transparent,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth().clickable { isTransferChecked = !isTransferChecked }
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
-                    ) {
-                        Checkbox(
-                            checked = isTransferChecked,
-                            onCheckedChange = { isTransferChecked = it }
-                        )
-                        Column {
-                            Text(
-                                "Mark as Transfer",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            if (isTransferChecked) {
-                                Text(
-                                    "Will be excluded from Income/Expense totals (Neutral)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-                
-                // P2P Transaction Type Override
-                // Show when category is P2P Transfers - allows user to mark as income/expense
-                val isP2PCategory = selectedCategory.name.contains("P2P", ignoreCase = true) || 
-                                     selectedCategory.name.contains("Transfer", ignoreCase = true)
-                if (isP2PCategory) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                "🔀 How should this P2P transfer be counted?",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Transfer (Neutral) option
-                                FilterChip(
-                                    selected = p2pOverride == null,
-                                    onClick = { p2pOverride = null },
-                                    label = { Text("Transfer") },
-                                    leadingIcon = if (p2pOverride == null) {
-                                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp)) }
-                                    } else null
-                                )
-                                // Income option
-                                FilterChip(
-                                    selected = p2pOverride == "INCOME",
-                                    onClick = { p2pOverride = "INCOME" },
-                                    label = { Text("Income") },
-                                    leadingIcon = if (p2pOverride == "INCOME") {
-                                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp)) }
-                                    } else null
-                                )
-                                // Expense option
-                                FilterChip(
-                                    selected = p2pOverride == "EXPENSE",
-                                    onClick = { p2pOverride = "EXPENSE" },
-                                    label = { Text("Expense") },
-                                    leadingIcon = if (p2pOverride == "EXPENSE") {
-                                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(16.dp)) }
-                                    } else null
-                                )
-                            }
-                            Text(
-                                when (p2pOverride) {
-                                    "INCOME" -> "Will count towards income totals"
-                                    "EXPENSE" -> "Will count towards expense totals"
-                                    else -> "Won't affect income or expense totals"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
-                    }
-                }
+                // How this row counts is fully derived from the category - a subtle helper
+                // line states the effect so there's nothing extra to configure.
+                Text(
+                    when {
+                        selectedCategory.type == CategoryType.TRANSFER ->
+                            "Counted as a transfer - excluded from income & expense totals"
+                        selectedCategory.type == CategoryType.INCOME ->
+                            "Counts towards income"
+                        selectedCategory.type == CategoryType.INVESTMENT ->
+                            "Counts as an investment (not spending)"
+                        selectedCategory.type == CategoryType.LIABILITY ->
+                            "Card bill payment - not counted as spending"
+                        else -> "Counts towards spending"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 
                 // Classification is now auto-derived from category (no manual buttons needed)
                 // The derivedClassification is computed when saving based on selectedCategory
@@ -589,22 +570,21 @@ fun TransactionEditDialog(
                     }
                 }
                 
-                Text("This transaction will not affect income totals unless marked.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { 
-                // Derive classification from category type and name
-                // P2P override takes precedence if user explicitly selected income/expense
-                // Checkbox "Mark as Transfer" takes highest precedence
-                val derivedClassification = if (isTransferChecked) {
-                    "TRANSFER" // Force TRANSFER type
+            Button(onClick = {
+                // Classification follows the category. When the category was NOT changed,
+                // keep the row's current type untouched - a note/name-only edit must not
+                // retype a TRANSFER (e.g. a linked loan-return) into an EXPENSE.
+                val derivedClassification = if (selectedCategory.id == transaction.category.id) {
+                    transaction.transaction.transactionType.name
                 } else {
-                    p2pOverride ?: deriveClassificationFromCategory(selectedCategory)
+                    deriveClassificationFromCategory(selectedCategory)
                 }
-                
-                onConfirm(selectedCategory.id, note, accountType, applyToSimilar, derivedClassification) 
+                val cleanedMerchant = merchantNameEdit.trim().ifBlank { null }
+                onConfirm(selectedCategory.id, note, accountType, applyToSimilar, derivedClassification, cleanedMerchant)
             }) { Text("Save") }
         },
         dismissButton = {
@@ -616,6 +596,96 @@ fun TransactionEditDialog(
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
+        }
+    )
+}
+
+/**
+ * Searchable category picker: type a few letters instead of scrolling ~60 entries.
+ * Results stay grouped by type; empty query shows the full grouped list.
+ */
+@Composable
+internal fun CategoryPickerDialog(
+    categories: List<Category>,
+    selectedCategory: Category,
+    groupOrder: List<Pair<CategoryType, String>>,
+    onPick: (Category) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Choose Category") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search categories…") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val anyMatch = categories.any { it.name.contains(query.trim(), ignoreCase = true) }
+                androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                    groupOrder.forEach { (type, label) ->
+                        val group = categories
+                            .filter { it.type == type && (query.isBlank() || it.name.contains(query.trim(), ignoreCase = true)) }
+                            .sortedBy { it.name }
+                        if (group.isNotEmpty()) {
+                            item(key = "hdr_$type") {
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                )
+                            }
+                            items(group.size, key = { "cat_${group[it].id}" }) { i ->
+                                val category = group[i]
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onPick(category) }
+                                        .padding(horizontal = 4.dp, vertical = 10.dp)
+                                ) {
+                                    Icon(
+                                        CategoryIcons.getIcon(category.name),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = com.saikumar.expensetracker.util.CategoryColors.getColor(category.name)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(category.name, modifier = Modifier.weight(1f))
+                                    if (category.id == selectedCategory.id) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (!anyMatch && query.isNotBlank()) {
+                        item {
+                            Text(
+                                "No categories match \"${query.trim()}\"",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }

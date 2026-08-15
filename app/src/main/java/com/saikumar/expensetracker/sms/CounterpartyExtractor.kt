@@ -48,15 +48,43 @@ object CounterpartyExtractor {
 
     // --- TEMPLATE PATTERNS ---
     
-    // HDFC "Sent Rs.XXX To <NAME>" pattern (UPI P2P)
+    // HDFC "Sent Rs.XXX To <NAME>" pattern (UPI P2P). Name class allows digits and
+    // M/S.-style punctuation ("REVANTH 31112", "M/S.KARACHI INC") - cleanName strips noise.
     private val HDFC_SENT_TO_PATTERN = Pattern.compile(
-        "Sent\\s+Rs\\.?[\\d,\\.]+\\s+(?:From\\s+HDFC[^\\n]*\\n)?To\\s+([A-Z][A-Za-z\\s]{2,50})\\s*\\nOn",
+        "Sent\\s+Rs\\.?[\\d,\\.]+\\s+(?:From\\s+HDFC[^\\n]*\\n)?To\\s+([A-Z][A-Za-z0-9./&\\s]{2,50})\\s*\\nOn",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Single-line HDFC sent, incl. executed UPI-Mandate SIP debits:
+    // "UPI Mandate: Sent Rs.12000.00 from HDFC Bank A/c 2725 To Indian Clearing Corpor 02/07/26 Ref..."
+    // "Sent Rs.953.82 From HDFC Bank A/C *2725 To CRED Club On 25/06/26 Ref..."
+    // The name runs until the date (with or without "On").
+    // Name class allows digits and M/S.-style punctuation ("REVANTH 31112", "M/S.KARACHI
+    // INC") - cleanName strips the trailing digit noise afterwards.
+    private val HDFC_SENT_TO_INLINE_PATTERN = Pattern.compile(
+        "Sent\\s+Rs\\.?[\\d,\\.]+\\s+from\\s+HDFC[^\\n]*?\\s+To\\s+([A-Za-z][A-Za-z0-9./&\\s]{2,50}?)\\s+(?:On\\s+)?\\d{2}/\\d{2}",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // "Dear UPI user A/C X5171 debited by 6000.0 on date 24Jan25 trf to Saikumar Reddy G
+    // Refno 502433493739" (Union Bank & co)
+    private val UPI_TRF_TO_PATTERN = Pattern.compile(
+        "debited\\s+by\\s+[\\d.]+\\s+on\\s+date\\s+\\S+\\s+trf\\s+to\\s+([A-Za-z][A-Za-z\\s]{2,50}?)\\s+Ref",
         Pattern.CASE_INSENSITIVE
     )
     
     // HDFC "Spent Rs.XXX At <MERCHANT>" pattern (Credit Card POS)
+    // Leading [.\s]* and trailing [_.]* tolerate HDFC's junk around the merchant:
+    // "At ..AVENUE SUPERMART_ On 2026-07-05" must still capture "AVENUE SUPERMART".
     private val HDFC_SPENT_AT_PATTERN = Pattern.compile(
-        "Spent\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*?At\\s+([A-Z][A-Za-z0-9\\s]{2,50}?)(?:\\s+(?:Gur|new|On\\s+\\d))",
+        "Spent\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*?At\\s+[._\\s]*([A-Za-z][A-Za-z0-9\\s]{2,50}?)(?:[_.]*\\s+(?:Gur|new|On\\s+\\d))",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Amount-first HDFC card-spend variant:
+    // "Rs.34369 spent on HDFC Bank Card x7725 at ..TITAN COMPANY LI_ on 2025-04-12:19:23:27"
+    private val HDFC_AMOUNT_SPENT_AT_PATTERN = Pattern.compile(
+        "Rs\\.?\\s*[\\d,\\.]+\\s+spent\\s+on\\s+HDFC[^\\n]*?\\s+at\\s+[.\\s]*([A-Za-z][A-Za-z0-9\\s]{2,50}?)(?:[_.]*\\s+on\\s+\\d)",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -66,11 +94,22 @@ object CounterpartyExtractor {
         "Txn\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[^\\n]*?At\\s+([a-zA-Z][a-zA-Z0-9._-]*)@[a-zA-Z]+",
         Pattern.CASE_INSENSITIVE
     )
+
+    // Same as above but the handle has NO "@bank" suffix - HDFC sometimes prints just the
+    // raw QR/merchant handle on its own line: "At paytmqr281005050101tnofn2 \nby UPI 654…"
+    // or "At mandikingarabianrest.6603\nby UPI 712…". Captured up to the "by UPI" line so the
+    // handle becomes the identity (and a real merchant like mandikingarabianrest is recovered).
+    // Trailing "@?" tolerates a truncated handle with no bank suffix ("...frqws02@\nby UPI").
+    private val HDFC_CARD_HANDLE_PATTERN = Pattern.compile(
+        "Txn\\s+Rs\\.?[\\d,\\.]+\\s+On\\s+HDFC[\\s\\S]*?At\\s+([a-zA-Z0-9][a-zA-Z0-9._-]{2,})@?\\s+by\\s+UPI",
+        Pattern.CASE_INSENSITIVE
+    )
     
-    // ICICI "INR XXX spent using ICICI Bank Card on DD-MON-YY on <MERCHANT>" pattern
-    // Also supports USD and other currencies
+    // ICICI "INR XXX spent using ICICI Bank Card on DD-MON-YY on <MERCHANT>" pattern.
+    // Also supports USD and other currencies. Lazy capture with an explicit terminator:
+    // "." was inside the class, so "on L FUELS. Avl Limit: ..." captured "Fuels Avl Limit".
     private val ICICI_SPENT_ON_PATTERN = Pattern.compile(
-        "(?:INR|USD|EUR|GBP|AED|SGD)\\s+[\\d,\\.]+\\s+spent\\s+using\\s+ICICI[^\\n]*on\\s+\\d{2}-[A-Z][a-z]{2}-\\d{2}\\s+on\\s+([A-Z][A-Za-z0-9\\s\\.]{2,30})",
+        "(?:INR|USD|EUR|GBP|AED|SGD)\\s+[\\d,\\.]+\\s+spent\\s+using\\s+ICICI[^\\n]*on\\s+\\d{2}-[A-Z][a-z]{2}-\\d{2}\\s+on\\s+([A-Z][A-Za-z0-9,\\s]{2,30}?)(?:\\.|\\s+Avl\\b)",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -80,14 +119,21 @@ object CounterpartyExtractor {
     // https://sbicard.com/...", "Know more ... at icici.co/..."), so the captured "merchant"
     // was "https" or "icici" and the real merchant was lost. Lazy `[^\n]*?` stops at the
     // first "at " after the card phrase, which is the merchant.
+    // The capture allows the gateway separator "*" ("RAZ*Kaloji Narayana Ra", "PYU*BookMyShow")
+    // so cleanName can strip the RAZ/PYU/… prefix; previously the class excluded "*" and the
+    // merchant came out as just the gateway code "Raz". Lazy + terminated on " on <date>" / "."
+    // / end so it doesn't run into the trailing date.
     private val SBI_SPENT_AT_PATTERN = Pattern.compile(
-        "Rs\\.?[\\d,\\.]+\\s+spent\\s+on\\s+your\\s+SBI\\s+Credit\\s+Card[^\\n]*?at\\s+([A-Z][A-Za-z0-9\\s]{2,30})",
+        "Rs\\.?[\\d,\\.]+\\s+spent\\s+on\\s+your\\s+SBI\\s+Credit\\s+Card[^\\n]*?at\\s+([A-Z][A-Za-z0-9\\s*&_-]{2,40}?)(?:\\s+on\\s+\\d|\\s*\\.|$)",
         Pattern.CASE_INSENSITIVE
     )
 
-    // ICICI "Rs X,XXX spent on ICICI Bank Card XX... on DD-Mon-YY at <MERCHANT>" pattern
+    // ICICI "Rs X,XXX spent on ICICI Bank Card XX... on DD-Mon-YY at <MERCHANT>" pattern.
+    // "*" allowed so gateway-wrapped merchants ("RAZ*HP Pay") survive; cleanName strips RAZ*.
+    // Terminates at "." OR " Avl" - some bodies have no period before "Avl Lmt", which made
+    // the captured merchant "Sri XX Fuels Avl Limit".
     private val ICICI_SPENT_AT_PATTERN = Pattern.compile(
-        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*?at\\s+([A-Z][A-Za-z0-9\\s\\.]+?)\\.",
+        "Rs\\s+[\\d,\\.]+\\s+spent\\s+on\\s+ICICI[^\\n]*?at\\s+([A-Z][A-Za-z0-9*\\s\\.]+?)(?:\\.|\\s+Avl\\b)",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -144,10 +190,50 @@ object CounterpartyExtractor {
         "Spent\\s+INR\\s+[\\d,\\.]+\\s+Axis\\s+Bank\\s+Card\\s+no\\.\\s+XX\\d{4}[^\\n]*\\n(?:[^\\n]*\\d{2}:\\d{2}[^\\n]*\\n)?([A-Za-z0-9\\*\\s\\._-]+)\\n",
         Pattern.CASE_INSENSITIVE
     )
-    
+
+    // Older Axis multi-line format where "Spent" / "Card no." / "INR <amt>" / "<date>" /
+    // "<MERCHANT>" are each on their own line:
+    //   Spent
+    //   Card no. XX8887
+    //   INR 215.71
+    //   15-08-25 08:46:40
+    //   AIRTEL PAYM
+    //   Avl Lmt INR ...
+    // Merchant is the line after the timestamp, before "Avl". Without this the merchant
+    // came out null and these fell to Uncategorized while the newer single-line format
+    // for the SAME merchant categorized fine - a confusing inconsistency.
+    private val AXIS_SPENT_MULTILINE_PATTERN = Pattern.compile(
+        "Spent\\s*\\n\\s*Card\\s+no\\.\\s+XX\\d{4}\\s*\\n\\s*INR\\s+[\\d,\\.]+\\s*\\n\\s*[\\d:\\-\\s/]+\\n\\s*([A-Za-z0-9\\*\\s\\._-]+?)\\s*\\n",
+        Pattern.CASE_INSENSITIVE
+    )
+
+
+    // ICICI card-via-UPI: "ICICI Bank Credit Card XX9007 debited for INR 149.00 on
+    // 08-Jun-26 for UPI-652530500227-JIO. To dispute..." - merchant name after the ref.
+    private val ICICI_CARD_UPI_REF_PATTERN = Pattern.compile(
+        "ICICI[^\\n]*?debited\\s+for\\s+(?:INR|Rs\\.?)\\s*[\\d,\\.]+\\s+on\\s+\\S+\\s+for\\s+UPI-\\d+-([A-Za-z][A-Za-z0-9&\\s]{1,30}?)(?:\\.|\\s+To\\b)",
+        Pattern.CASE_INSENSITIVE
+    )
+
     // Credit Alert "credited from VPA <VPA>"
     private val CREDIT_ALERT_VPA_PATTERN = Pattern.compile(
         "credited\\s+to\\s+[^\\n]+from\\s+VPA\\s+([a-zA-Z0-9._-]+@[a-zA-Z]+)",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // ICICI incoming UPI credit with the SENDER'S NAME in plain text:
+    // "Acct XX294 is credited with Rs 12000.00 on 13-Nov-25 from SAIKUMAR REDDY . UPI:568322545657"
+    // This was the single biggest gap for received money - the name is right there.
+    private val ICICI_CREDITED_FROM_PATTERN = Pattern.compile(
+        "is\\s+credited\\s+with\\s+Rs\\.?\\s*[\\d,\\.]+\\s+on\\s+\\S+\\s+from\\s+([A-Za-z][A-Za-z\\s\\.]{2,50}?)\\s*[\\.,;]",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // HDFC incoming IMPS with the sender's name between dashes:
+    // "Received! INR 1,00,000.00 in HDFC Bank A/c xx2725 On 09-03-26 For IMPS -MEKALA NIVAS- 606811815340"
+    // Honorific (Mr/Mrs/Ms) skipped so self-transfers ("-Mr GODALA SAIKUMAR R-") match the user's name.
+    private val HDFC_IMPS_RECEIVED_PATTERN = Pattern.compile(
+        "For\\s+IMPS\\s*-\\s*(?:Mr|Mrs|Ms)?\\.?\\s*([A-Za-z][A-Za-z\\s\\.]{1,50}?)\\s*-\\s*\\d",
         Pattern.CASE_INSENSITIVE
     )
     
@@ -182,6 +268,15 @@ object CounterpartyExtractor {
     // UPI ID extraction (fallback)
     private val UPI_PATTERN = Pattern.compile("([a-zA-Z0-9._-]+@[a-zA-Z]+)")
 
+    // Purpose of a fee/charge/EMI debit: "debited by Rs 236 towards Debit Card Annual Fees on
+    // 08/07/26", "deducted ... towards Bank of Baroda Loan". Gives these otherwise-nameless
+    // bank-charge rows a real label. Only "debited/charged/deducted ... towards" (not the CC
+    // bill "payment received towards your card", which has no such verb before "towards").
+    private val DEBITED_TOWARDS_PATTERN = Pattern.compile(
+        "(?:debited|charged|deducted)\\s+(?:by\\s+)?(?:(?:Rs\\.?|INR)?\\s*[\\d,\\.]+\\s+)?towards\\s+([A-Za-z][A-Za-z\\s]{2,40}?)(?:\\s+on\\s+\\d|[.,;]|\\s+UMRN|$)",
+        Pattern.CASE_INSENSITIVE
+    )
+
     // --- MAIN ENTRY POINT ---
     fun extract(body: String, transactionType: TransactionType): Counterparty {
         // Template matching in order of specificity
@@ -198,7 +293,31 @@ object CounterpartyExtractor {
                 } else trace.add("Invalid name rejected: $name")
             }
         }
-        
+
+        // 1b. Single-line HDFC sent (executed UPI-Mandate SIP debits and inline "To X On date")
+        HDFC_SENT_TO_INLINE_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: HDFC_SENT_TO_INLINE")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType), trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
+        // 1c. "A/C ... debited by <amt> on date <d> trf to <NAME> Refno ..." (Union Bank etc.)
+        UPI_TRF_TO_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: UPI_TRF_TO")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType), trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
         // 2. HDFC "Spent At <MERCHANT>" (CC POS)
         HDFC_SPENT_AT_PATTERN.matcher(body).let { m ->
             if (m.find()) {
@@ -211,6 +330,18 @@ object CounterpartyExtractor {
             }
         }
         
+        // 2b. Amount-first HDFC card spend ("Rs.X spent on HDFC Bank Card x7725 at ..NAME_")
+        HDFC_AMOUNT_SPENT_AT_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: HDFC_AMOUNT_SPENT_AT")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
         // 3. HDFC Card + UPI - Extract merchant from VPA prefix
         HDFC_CARD_UPI_PATTERN.matcher(body).let { m ->
             if (m.find()) {
@@ -230,6 +361,33 @@ object CounterpartyExtractor {
             }
         }
         
+        // 3b. HDFC Card + bare handle (no "@bank" suffix). The handle itself is the identity.
+        HDFC_CARD_HANDLE_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val handle = m.group(1) ?: return@let
+                trace.add("Matched Template: HDFC_CARD_HANDLE")
+                val merchantName = extractMerchantFromVpa(handle)
+                return if (merchantName != null && isValidName(merchantName)) {
+                    Counterparty(merchantName, handle, CounterpartyType.MERCHANT, trace)
+                } else {
+                    // Junk/QR handle - keep it as the upiId so the VPA fallback shows it.
+                    Counterparty(null, handle, CounterpartyType.UNKNOWN, trace)
+                }
+            }
+        }
+
+        // 3c. ICICI card-via-UPI with merchant after the ref ("for UPI-652530500227-JIO.")
+        ICICI_CARD_UPI_REF_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: ICICI_CARD_UPI_REF")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
         // 4. ICICI "spent using ICICI Bank Card on <MERCHANT>"
         ICICI_SPENT_ON_PATTERN.matcher(body).let { m ->
             if (m.find()) {
@@ -259,6 +417,18 @@ object CounterpartyExtractor {
             if (m.find()) {
                 val rawName = m.group(1) ?: return@let
                 trace.add("Matched Template: AXIS_SPENT")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
+        // 5b-ii. Older Axis multi-line format (merchant on its own line after the timestamp)
+        AXIS_SPENT_MULTILINE_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: AXIS_SPENT_MULTILINE")
                 val name = cleanName(rawName, trace)
                 if (isValidName(name)) {
                     return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
@@ -409,6 +579,30 @@ object CounterpartyExtractor {
             }
         }
         
+        // 8.8 ICICI incoming credit with sender name ("is credited with Rs X ... from NAME .")
+        ICICI_CREDITED_FROM_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: ICICI_CREDITED_FROM")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, extractUpiId(body), classifyName(name, transactionType), trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
+        // 8.9 HDFC incoming IMPS with sender name ("For IMPS -MEKALA NIVAS- 6068...")
+        HDFC_IMPS_RECEIVED_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val rawName = m.group(1) ?: return@let
+                trace.add("Matched Template: HDFC_IMPS_RECEIVED")
+                val name = cleanName(rawName, trace)
+                if (isValidName(name)) {
+                    return Counterparty(name, null, classifyName(name, transactionType), trace)
+                } else trace.add("Invalid name rejected: $name")
+            }
+        }
+
         // 9. Credit Alert VPA
         CREDIT_ALERT_VPA_PATTERN.matcher(body).let { m ->
             if (m.find()) {
@@ -441,6 +635,29 @@ object CounterpartyExtractor {
             }
         }
         
+        // 10b. Refund source: "IRCTC refund of Rs 1,860 credited...", "Swiggy Diners refund
+        // of Rs 50 credited..." - the refunder's name leads the sentence.
+        Regex("""(?:^|\n)\s*([A-Za-z][A-Za-z\s]{2,25}?)\s+refund\s+of\s+Rs""", RegexOption.IGNORE_CASE)
+            .find(body)?.let { m ->
+                val name = cleanName(m.groupValues[1], trace)
+                trace.add("Matched Template: REFUND_SOURCE")
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                }
+            }
+
+        // 11. Fee/charge/EMI purpose ("debited ... towards <purpose>") - late fallback so it
+        // only names rows nothing else could (bank charges, direct-debit EMIs).
+        DEBITED_TOWARDS_PATTERN.matcher(body).let { m ->
+            if (m.find()) {
+                val name = cleanName(m.group(1) ?: return@let, trace)
+                trace.add("Matched Template: DEBITED_TOWARDS")
+                if (isValidName(name)) {
+                    return Counterparty(name, null, CounterpartyType.MERCHANT, trace)
+                }
+            }
+        }
+
         // No counterparty found
         trace.add("No Template Matched")
         return Counterparty(null, null, CounterpartyType.UNKNOWN, trace)
@@ -465,19 +682,19 @@ object CounterpartyExtractor {
         val prefix = upiId.substringBefore("@")
         val lower = prefix.lowercase()
         
-        // Junk VPA prefixes - return null
-        if (isJunkVpaPrefix(lower) && !lower.startsWith("paytmqr")) {
+        // Junk VPA prefixes - return null (incl. paytmqr…; the VPA itself becomes the identity)
+        if (isJunkVpaPrefix(lower)) {
             return null
         }
-        
+
         // Clean the prefix
         val cleaned = prefix
             .replace(".", " ")
             .replace("_", " ")
             .replace("-", " ")
             .trim()
-        
-        return if (cleaned.length >= 3 && (cleaned.any { it.isLetter() || it.isDigit() } || cleaned == "paytmqr")) {
+
+        return if (cleaned.length >= 3 && cleaned.any { it.isLetter() || it.isDigit() }) {
             cleaned
         } else null
     }
@@ -502,8 +719,11 @@ object CounterpartyExtractor {
             return false
         }
 
-        // Generic/junk VPA patterns
-        return lower.startsWith("paytm.") ||
+        // Generic/junk VPA patterns. Paytm QR handles (paytmqr…, paytm.<code>, paytm-<id>)
+        // are anonymous per-shop terminals - keep the VPA as identity so different shops stay
+        // distinct instead of all collapsing to "Paytm".
+        return lower.startsWith("paytmqr") ||
+               lower.startsWith("paytm.") ||
                lower.startsWith("paytm-") ||
                lower.startsWith("bharatpe") && !lower.contains("merchant") ||
                lower.startsWith("phonemerchant") ||
@@ -571,7 +791,10 @@ object CounterpartyExtractor {
 
         // Payments/Fintech
         "cred" to "CRED",
-        "paytm" to "Paytm",
+        // NOTE: "paytm" is deliberately NOT here. It's a payment GATEWAY, not a merchant -
+        // "paytmqr6lrp6h@ptys" is an anonymous shop QR. Mapping it to "Paytm" collapsed every
+        // distinct shop into one name AND (via isJunkVpaPrefix's known-merchant bypass) blocked
+        // the VPA fallback. Left out so these keep their VPA as identity.
         "phonepe" to "PhonePe",
         "googlepay" to "Google Pay",
         "amazonpay" to "Amazon Pay",
@@ -800,7 +1023,13 @@ object CounterpartyExtractor {
             "call", "sms", "block"
         )
         
-        if (blocked.any { lower.startsWith(it) || lower == it }) return false
+        // Word-boundary prefix match: "not you? call" is junk, but a real person whose name
+        // merely BEGINS with a blocked token must survive - "BYRA TARUN TEJA" starts with
+        // "by", "Atul" with "at", "Onkar" with "on". Raw startsWith silently discarded them.
+        if (blocked.any { b ->
+                lower == b || (lower.startsWith(b) && lower.length > b.length &&
+                    !lower[b.length].isLetterOrDigit())
+            }) return false
         if (name.length < 3) return false
         if (name.all { it.isDigit() || it.isWhitespace() }) return false
         if (lower.matches(REGEX_DIGITS_ONLY_SHORT)) return false  // Just numbers like "100"
@@ -844,6 +1073,7 @@ object CounterpartyExtractor {
             upper.contains("LIMITED") ||
             upper.contains("BROKING") ||
             upper.contains("PVT LTD") ||
+            upper.endsWith("RTC") ||   // state road transport: APSRTC, TSRTC, KSRTC, MSRTC
             SmsConstants.containsToken(upper, "LLC") ||
             SmsConstants.containsToken(upper, "INC") ||
             SmsConstants.containsToken(upper, "CORP")) {

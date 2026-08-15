@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.READ_SMS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Optional: resolve phone-number UPI handles (9505...@ybl) to contact names -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application
         android:name=".ExpenseTrackerApplication"

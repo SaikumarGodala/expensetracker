@@ -1,6 +1,7 @@
 package com.saikumar.expensetracker.domain
 
 import com.saikumar.expensetracker.data.db.TransactionDao
+import com.saikumar.expensetracker.data.entity.TransactionType
 
 /**
  * Domain service for detecting duplicate transactions.
@@ -33,7 +34,8 @@ class DuplicateDetector(
         amountPaisa: Long,
         timestamp: Long,
         merchantName: String? = null,
-        accountNumberLast4: String? = null
+        accountNumberLast4: String? = null,
+        isDebit: Boolean? = null
     ): CheckResult {
         // TIER 1: Exact SMS Hash Match (99.9% confidence)
         if (transactionDao.existsBySmsHash(smsHash)) {
@@ -47,7 +49,17 @@ class DuplicateDetector(
 
         // TIER 2: Reference Number + Amount (95% confidence)
         if (referenceNo != null && referenceNo.isNotBlank()) {
-            if (transactionDao.existsByReferenceAndAmount(referenceNo, amountPaisa)) {
+            val refCandidates = transactionDao.findByReferenceAndAmount(referenceNo, amountPaisa)
+            for (candidate in refCandidates) {
+                if (isDebit != null && candidate.transactionType != TransactionType.STATEMENT && candidate.transactionType != TransactionType.UNKNOWN) {
+                    val candidateIsDebit = candidate.transactionType == TransactionType.EXPENSE || 
+                                           candidate.transactionType == TransactionType.INVESTMENT_CONTRIBUTION || 
+                                           candidate.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
+                                           candidate.transactionType == TransactionType.LIABILITY_PAYMENT
+                    if (isDebit != candidateIsDebit) {
+                        continue // One is a refund, one is a purchase. Not a duplicate!
+                    }
+                }
                 return CheckResult(
                     isDuplicate = true,
                     tier = Tier.REFERENCE_MATCH,
@@ -65,6 +77,26 @@ class DuplicateDetector(
         val candidates = transactionDao.findPotentialDuplicates(amountPaisa, windowStart, windowEnd)
 
         for (candidate in candidates) {
+            // HARD NEGATIVE: Direction of money movement differs (e.g. Purchase vs Refund)
+            if (isDebit != null && candidate.transactionType != TransactionType.STATEMENT && candidate.transactionType != TransactionType.UNKNOWN) {
+                val candidateIsDebit = candidate.transactionType == TransactionType.EXPENSE || 
+                                       candidate.transactionType == TransactionType.INVESTMENT_CONTRIBUTION || 
+                                       candidate.transactionType == TransactionType.INVESTMENT_OUTFLOW ||
+                                       candidate.transactionType == TransactionType.LIABILITY_PAYMENT
+                if (isDebit != candidateIsDebit) {
+                    continue
+                }
+            }
+
+            // HARD NEGATIVE: both sides carry a bank reference number and they DIFFER -
+            // these are two distinct transactions no matter how similar they look. Several
+            // same-amount SIP debits fire in the same minute (4 x Rs.10,000 to Indian
+            // Clearing for different funds); without this they collapsed into one.
+            if (!referenceNo.isNullOrBlank() && !candidate.referenceNo.isNullOrBlank() &&
+                referenceNo != candidate.referenceNo) {
+                continue
+            }
+
             var confidenceBoost = 0.0
             val matchReasons = mutableListOf<String>()
 

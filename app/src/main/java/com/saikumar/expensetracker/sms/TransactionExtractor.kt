@@ -22,7 +22,9 @@ object TransactionExtractor {
         Pattern.compile("(?:credited|debited)\\s*[:.]?\\s*(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
         // Currency prefix patterns (most reliable)
         Pattern.compile("Rs\\.?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("INR\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
+        // "INR.1,028.00" (IDFC interest) has a period right after INR - allow it, else the
+        // amount fails to parse and the whole message is dropped for "No Amount".
+        Pattern.compile("INR\\.?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE),
         Pattern.compile("₹\\s*([\\d,]+\\.?\\d*)"),
         // Foreign currency patterns (USD, EUR, GBP, AED, SGD)
         Pattern.compile("USD\\s*([\\d,]+\\.?\\d*)"),
@@ -125,7 +127,8 @@ object TransactionExtractor {
         "SUPERMARKET", "HYPERMARKET", "GROCERY", "GROCER", "MARKET", "EXPRESS",
         "CLUB", "CRED", "HOTEL", "LODGE", "RESORT", "SPA", "SALON", "PARLOUR",
         "PHARMACY", "MEDICAL", "HOSPITAL", "CLINIC", "DIAGNOSTIC", "LAB", "LABS",
-        "PETROL", "DIESEL", "FUEL", "GAS", "STATION", "PUMP"
+        "PETROL", "DIESEL", "FUEL", "GAS", "STATION", "PUMP",
+        "JEWEL", "JEWELLERS", "JEWELLERY", "STATIONERY", "TEXTILES", "SILKS", "COLLECTION"
     )
 
     fun extract(body: String, senderType: SenderClassifier.SenderType): ExtractedTransaction {
@@ -152,7 +155,34 @@ object TransactionExtractor {
         return ExtractedTransaction(amountPaisa, type, isDebit)
     }
 
-    private fun extractAmountPaisa(body: String): Long? {
+    // Transaction reference: "Ref 618355076596" (HDFC), "UPI:568322545657" (ICICI),
+    // "UTR/RRN <digits>". 9-18 digits so dates (6-8) and account last-4s can't match.
+    // Distinct refs are the ONLY reliable way to tell apart several same-amount SIPs
+    // fired in the same minute (e.g. 4 x Rs.10,000 to Indian Clearing for different funds).
+    private val REFERENCE_NO_PATTERN = Pattern.compile(
+        "\\b(?:Ref(?:\\s*No\\.?)?|UPI|UTR|RRN)\\s*[:\\-]?\\s*(\\d{9,18})\\b",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    /** Bank/UPI reference number from the SMS body, or null. */
+    fun extractReferenceNo(body: String): String? {
+        val m = REFERENCE_NO_PATTERN.matcher(body)
+        return if (m.find()) m.group(1) else null
+    }
+
+    // A card/account notice reports the leftover limit or balance ("Avl Limit: INR 7,09,258",
+    // "Available Balance: Rs 12,000") — never the transaction amount. Strip that clause first
+    // so a message with no other currency anchor (e.g. "USD 1.00 ... reversed. Avl Limit: INR
+    // 7,09,258") can't misread the limit as the amount.
+    private val LIMIT_OR_BALANCE_CLAUSE = Pattern.compile(
+        // "Avl Limit: INR 7,09,258", "Available Credit limit is INR 7,09,351", "Avl Bal Rs 12,000".
+        // The bounded gaps allow an intervening word ("Credit") and connector ("is"/":").
+        "(?:avl|available)\\b.{0,15}?\\b(?:limit|bal(?:ance)?)\\b[^\\d]{0,8}(?:Rs\\.?|INR|₹)?\\s*[\\d,]+\\.?\\d*",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private fun extractAmountPaisa(rawBody: String): Long? {
+        val body = LIMIT_OR_BALANCE_CLAUSE.matcher(rawBody).replaceAll(" ")
         // PRIORITY 1: Extract amount that appears with "spent" keyword (handles foreign currency)
         // Pattern: "USD 23.60 spent" or "INR 199 spent" - amount BEFORE "spent"
         val spentAmountPattern = Pattern.compile(
@@ -282,6 +312,13 @@ object TransactionExtractor {
     private fun detectBankTransactionType(body: String, isDebit: Boolean?): TransactionType {
         val lower = body.lowercase()
 
+        // REFUND-to-card BEFORE statement detection: "IRCTC refund of Rs 1,860 credited to
+        // ICICI Bank Credit Card ... Revised total due Rs X" contains "total due", which
+        // used to win and turn real refunds into STATEMENT rows.
+        if (isDebit != true && REVERSAL_KEYWORDS.any { lower.contains(it) }) {
+            return TransactionType.REFUND
+        }
+
         // Statement detection
         if (STATEMENT_KEYWORDS.any { lower.contains(it) }) {
             return TransactionType.STATEMENT
@@ -302,6 +339,14 @@ object TransactionExtractor {
 
         // Pattern 1: "Sent Rs.X To CRED Club" - UPI payment to credit card via CRED
         if (lower.contains("cred club") || lower.contains("cred app")) {
+            return TransactionType.LIABILITY_PAYMENT
+        }
+
+        // Pattern 1b: netbanking bill payment - "Paid Rs. 100000 For: Credit Card payment
+        // From HDFC Bank A/c ... Via Online Banking". Without this it counted a ₹1L card
+        // bill as fresh Uncategorized spending.
+        if (lower.contains("for: credit card payment") ||
+            (lower.contains("paid") && lower.contains("for credit card payment"))) {
             return TransactionType.LIABILITY_PAYMENT
         }
 

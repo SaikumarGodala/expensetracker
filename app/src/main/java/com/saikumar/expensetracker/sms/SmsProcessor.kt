@@ -67,7 +67,11 @@ object SmsProcessor {
         val categoryMap: Map<String, Category>,
         val trustedNames: Set<String>? = null, // Pre-loaded for bulk ops, null for single-message
         val db: AppDatabase,
-        val smsHash: String?
+        val smsHash: String?,
+        // Payments to people BELOW this amount are everyday spending (chai, splits, small
+        // shops on personal VPAs), not transfers - they take the expense path regardless of
+        // the trust circle. 0 disables the rule.
+        val p2pThresholdPaise: Long = 0L
     )
     
     /**
@@ -142,11 +146,29 @@ object SmsProcessor {
                                   parsed.category?.contains("Credit Bill", ignoreCase = true) == true ||
                                   parsed.category?.contains("Liability", ignoreCase = true) == true
 
-        if (!isCreditCardPayment &&
+        // If the merchant map / a rule already resolved a specific spending category
+        // (Grammarly/LinkedIn -> Subscriptions, a jeweller -> Shopping), a counterparty that
+        // was merely mis-typed as PERSON must NOT drag it back to Miscellaneous. Only run the
+        // P2P reclassification while the category is still generic.
+        val genericCats = setOf(
+            AppConstants.Categories.UNCATEGORIZED,
+            AppConstants.Categories.MISCELLANEOUS,
+            AppConstants.Categories.P2P_TRANSFERS,
+            AppConstants.Categories.OTHER_INCOME,
+            "Offline Merchant", "Unknown Expense", "Unverified Income"
+        )
+        val categoryIsGeneric = parsed.category == null || parsed.category in genericCats
+
+        if (!isCreditCardPayment && categoryIsGeneric &&
             (parsed.category == AppConstants.Categories.P2P_TRANSFERS || parsed.counterparty.type == CounterpartyExtractor.CounterpartyType.PERSON)) {
             val recipientName = parsed.counterparty.name
 
-            val isTrusted = if (!recipientName.isNullOrBlank()) {
+            // Below the user's P2P threshold, a payment to a person is everyday spending -
+            // never a neutral transfer, even for trusted-circle members.
+            val belowThreshold = ctx.p2pThresholdPaise > 0 &&
+                (parsed.amountPaisa ?: 0L) in 1 until ctx.p2pThresholdPaise
+
+            val isTrusted = if (!belowThreshold && !recipientName.isNullOrBlank()) {
                 isRecipientInCircle(recipientName, ctx.trustedNames, ctx.db)
             } else false
 
@@ -219,9 +241,14 @@ object SmsProcessor {
             source = TransactionSource.SMS,
             transactionType = resolved.transactionType,
             smsHash = smsHash,
-            merchantName = resolved.merchantResult.normalized ?: resolved.merchantResult.raw,
+            // Fall back to the VPA when no real name is extractable: for an anonymous QR
+            // payment the handle ("q249817627@ybl", "paytmqr6lrp6h@ptys") IS the only identity
+            // the SMS carries, and showing it beats a blank/"Offline Merchant" row.
+            merchantName = resolved.merchantResult.normalized ?: resolved.merchantResult.raw
+                ?: parsed.counterparty.upiId,
             smsSnippet = parsed.body.take(100),
             fullSmsBody = parsed.body,
+            referenceNo = TransactionExtractor.extractReferenceNo(body),
             accountNumberLast4 = extractedAccountNum,
             accountId = matchedAccountId, // P1 Logic Fix: Link to actual Account entity
             upiId = parsed.counterparty.upiId, // Store UPI VPA for display and grouping
@@ -262,7 +289,11 @@ object SmsProcessor {
         salaryCompanyNames: Set<String> = emptySet(),
         merchantMemories: Map<String, Long> = emptyMap(),
         context: Context? = null,
-        userAccounts: List<UserAccount> = emptyList()
+        userAccounts: List<UserAccount> = emptyList(),
+        // VPA -> user-chosen merchant name. Lets an anonymous QR handle ("paytmqr6lrp6h@ptys",
+        // "q255582894@ybl") that carries no name in the SMS adopt the name the user gave it
+        // once, on every past and future payment to that same QR.
+        vpaAliases: Map<String, String> = emptyMap()
     ): ProcessingResult {
         val senderType = forceSenderType ?: SenderClassifier.classify(sender)
         if (senderType == SenderClassifier.SenderType.EXCLUDED) return ProcessingResult.Ignored
@@ -306,7 +337,38 @@ object SmsProcessor {
             currentTrace.add("Mode: REGEX")
             counterparty = counterparty.copy(trace = currentTrace)
         }
-        
+
+        // CONTACT ENRICHMENT: when the counterparty is only a phone-number UPI handle
+        // ("9505458713@ybl") - i.e. no real name was extracted - try resolving it against
+        // the device address book. Turns anonymous P2P rows into named people AND lets the
+        // Transfer Circle (name-based) recognize them. No-op without READ_CONTACTS.
+        if (context != null) {
+            val looksLikeRawNumber = counterparty.name == null ||
+                counterparty.name.all { it.isDigit() || it == ' ' || it == '-' }
+            if (looksLikeRawNumber && counterparty.upiId != null) {
+                val contactName = com.saikumar.expensetracker.util.ContactResolver
+                    .resolveVpaToContactName(context, counterparty.upiId)
+                if (contactName != null) {
+                    counterparty = counterparty.copy(
+                        name = contactName,
+                        type = CounterpartyExtractor.CounterpartyType.PERSON,
+                        trace = counterparty.trace + "Resolved from contacts: $contactName"
+                    )
+                }
+            }
+        }
+
+        // VPA NAMING: a user-named QR handle overrides the generic label ("Paytm"/none).
+        counterparty.upiId?.let { vpa ->
+            vpaAliases[vpa]?.let { userName ->
+                counterparty = counterparty.copy(
+                    name = userName,
+                    type = CounterpartyExtractor.CounterpartyType.MERCHANT,
+                    trace = counterparty.trace + "Named from VPA alias: $userName"
+                )
+            }
+        }
+
         // NOTE: Training-data logging (Silver Label) happens once, after a successful DB
         // insert in resolveAndInsert() - not here. It used to also fire at this point, which
         // meant every inserted transaction was logged to ml_training_data.jsonl twice, and
@@ -398,7 +460,8 @@ object SmsProcessor {
         body: String,
         salaryHistory: List<TransactionWithCategory>? = null,
         logId: String,
-        userAccounts: List<UserAccount> = emptyList()
+        userAccounts: List<UserAccount> = emptyList(),
+        p2pThresholdPaise: Long = 0L
     ): Transaction? {
         // --- USE HELPER TO RESOLVE CATEGORY & TYPE ---
         val resolutionCtx = TransactionResolutionContext(
@@ -406,7 +469,8 @@ object SmsProcessor {
             categoryMap = categoryMap,
             trustedNames = trustedNames,
             db = db,
-            smsHash = smsHash
+            smsHash = smsHash,
+            p2pThresholdPaise = p2pThresholdPaise
         )
         var resolved = resolveTransactionDetails(resolutionCtx)
         
@@ -422,10 +486,31 @@ object SmsProcessor {
         tryInsertMerchantAlias(db, resolved.merchantResult)
 
         // Build transaction using helper
-        val transaction = buildTransaction(parsed, resolved, smsHash, body, userAccounts)
-        
+        var transaction = buildTransaction(parsed, resolved, smsHash, body, userAccounts)
+
+        // BILL REMINDER LINK (real-time path): if a captured reminder matches this
+        // payment's amount within the window, inherit its biller/category ("what was
+        // this amount actually paid for"). Bulk scans are covered by the post-scan
+        // reconcile pass instead (they process newest-first, so the payment lands
+        // before its older reminder is even captured).
+        var matchedReminder: com.saikumar.expensetracker.data.entity.BillReminder? = null
+        if (resolved.transactionType == TransactionType.EXPENSE ||
+            resolved.transactionType == TransactionType.LIABILITY_PAYMENT) {
+            try {
+                matchedReminder = BillReminderManager.findMatch(db, transaction.amountPaisa, parsed.timestamp)
+                if (matchedReminder != null) {
+                    transaction = BillReminderManager.applyToTransaction(transaction, matchedReminder, categoryMap)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Bill reminder match failed: ${e.message}")
+            }
+        }
+
         val rowId = db.transactionDao().insertTransaction(transaction)
         if (rowId > 0) {
+            matchedReminder?.let {
+                try { db.billReminderDao().markMatched(it.id, rowId) } catch (e: Exception) { }
+            }
             // ACCOUNT DISCOVERY: Detect and save bank accounts from SMS
             try {
                 AccountDiscoveryManager.scanAndDiscover(body, parsed.sender, db.userAccountDao())
@@ -530,6 +615,10 @@ object SmsProcessor {
         
         // 3. Load Memories Once
         val memories = db.merchantMemoryDao().getAllConfirmedMemories().associate { it.normalizedMerchant to it.categoryId }
+        val vpaAliases = db.merchantAliasDao().getUserAliases()
+            .filter { it.rawName.contains("@") }
+            .associate { it.rawName to it.canonicalName }
+        val p2pThresholdPaise = app.preferencesManager.getSmallP2pThresholdSync()
         
         // 4. Load Existing Hashes (CRITICAL for skip performance)
         // Also pre-loading existing salary transactions for N+1 fix
@@ -580,6 +669,16 @@ object SmsProcessor {
                 // to avoid expensive re-extraction (Regex/Parsing) and DB calls.
                 // This is purely for performance during full scanning.
                 val smsHash = DuplicateChecker.generateHash(body)
+
+                // Bank-reported balance snapshot ("Avl bal INR X") for the ledger self-audit.
+                // Captured for EVERY message (even ones the gate later drops) - idempotent by
+                // hash, cheap regex, and runs before the txn-hash skip so it stays complete.
+                try {
+                    com.saikumar.expensetracker.domain.BalanceAuditor
+                        .extractSnapshot(body, timestamp, smsHash)
+                        ?.let { db.balanceSnapshotDao().insert(it) }
+                } catch (e: Exception) { /* audit is best-effort */ }
+
                 if (existingHashes.contains(smsHash)) {
                     skipped++
                     return@forEach
@@ -601,14 +700,26 @@ object SmsProcessor {
                         salaryCompanyNames = salaryCompanyNames,
                         merchantMemories = memories,
                         context = context,
-                        userAccounts = userAccounts
+                        userAccounts = userAccounts,
+                        vpaAliases = vpaAliases
                     )
-                    
+
                     // Handle Non-Success cases early
-                    if (result is ProcessingResult.Ignored) return@forEach
+                    if (result is ProcessingResult.Ignored) {
+                        // Excluded senders include billers (Airtel Thanks, Airtel Payments
+                        // Bank BBPS) whose payment CONFIRMATIONS name what a bank debit was
+                        // for ("Airtel Black", "Electricity") - capture for reconcile().
+                        BillReminderManager.captureConfirmation(db, body, timestamp)
+                        return@forEach
+                    }
                     
                     if (result is ProcessingResult.Dropped) {
                         val decision = result.decision
+                        // Reminders ("amount due by...") aren't transactions, but they DO
+                        // say what an upcoming payment is for - capture before discarding
+                        if (decision.ruleId == "FILTER_FUTURE") {
+                            BillReminderManager.capture(db, body, timestamp)
+                        }
                         ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
                             decision.ruleId, decision.reason, "LEDGER_GATE", "REJECTED", 1.0, decision.reason
                         ))
@@ -670,11 +781,12 @@ object SmsProcessor {
                     // --- SMART DUPLICATE CHECK (Post-Extraction) ---
                     val duplicateCheck = duplicateDetector.check(
                         smsHash = smsHash,
-                        referenceNo = null, // TODO: Extract reference if possible
+                        referenceNo = TransactionExtractor.extractReferenceNo(body),
                         amountPaisa = parsed.amountPaisa,
                         timestamp = timestamp,
                         merchantName = parsed.counterparty.name,
-                        accountNumberLast4 = parsed.accountTypeDetected.name // Placeholder, ideally specific account num
+                        accountNumberLast4 = parsed.accountTypeDetected.name, // Placeholder, ideally specific account num
+                        isDebit = parsed.isDebit
                     )
                     
                     if (duplicateCheck.isDuplicate) {
@@ -696,7 +808,8 @@ object SmsProcessor {
                         body = body,
                         salaryHistory = salaryCheckHistory, // Pass pre-loaded history
                         logId = logId,
-                        userAccounts = userAccounts
+                        userAccounts = userAccounts,
+                        p2pThresholdPaise = p2pThresholdPaise
                     )
                     
                     if (insertedTxn != null) {
@@ -732,12 +845,180 @@ object SmsProcessor {
             Log.d(TAG, "Scan complete: inserted=$inserted, skipped=$skipped, epf/nps=$epfNps")
         }
         
+        // Consolidate bank-truncated payee names ("Rangineni Mouni" -> "Rangineni
+        // Mounika") first, so every pass below and the UI see one consistent name.
+        try {
+            com.saikumar.expensetracker.domain.MerchantNameConsolidator.consolidate(db)
+        } catch (e: Exception) {
+            Log.e(TAG, "Merchant name consolidation failed", e)
+        }
+
+        // Link captured bill reminders to their payments. Must run post-scan: the inbox
+        // is processed newest-first, so payments insert before their older reminders
+        // get captured - insert-time matching can't see them during a bulk scan.
+        try {
+            BillReminderManager.reconcile(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Bill reminder reconcile failed", e)
+        }
+
+        // Split-by-amount refinement for Airtel Payments Bank charges (needs the full
+        // dataset to know which amounts recur, so it runs post-scan)
+        try {
+            refineAirtelPayments(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Airtel refine failed", e)
+        }
+
+        // Name credit-card bill payments after the card being paid (bank + last4),
+        // then collapse the duplicate card-side confirmation rows.
+        try {
+            com.saikumar.expensetracker.domain.CreditCardBillNamer.relabel(db, categoryMap)
+            com.saikumar.expensetracker.domain.CreditCardBillNamer.dedupe(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Credit card bill naming failed", e)
+        }
+
+        // Keep bill-linked payments (EMI, DTH...) in their real category even though
+        // reclassify re-derives Uncategorized from their signal-less debit SMS.
+        try {
+            BillReminderManager.reapplyBillCategories(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Bill category re-apply failed", e)
+        }
+
         // Run self-transfer pairing after scan
         try {
             TransactionPairer.runAllPairing(context)
         } catch (e: Exception) {
             Log.e(TAG, "Pairing failed", e)
         }
+
+        // Category-vs-type contradiction repair (after pairing so links are respected)
+        try {
+            repairTransferTypedSpending(db, categoryMap)
+            repairRefundStatements(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Transfer-typed spending repair failed", e)
+        }
+    }
+
+    /**
+     * "AIRTEL PAYM" is Airtel Payments Bank - a payment rail, not proof of a telecom bill.
+     * Per the split-by-amount policy: an amount that recurs (a fixed monthly telecom bill)
+     * is confidently Mobile + WiFi; a one-off odd amount could be anything paid through
+     * Airtel (DTH, electricity, a wallet load) so it goes to the Needs Review queue for
+     * the user to tag.
+     *
+     * Runs post-scan/reclassify because it needs the whole history to count recurrence.
+     * Self-correcting: a one-off that later recurs flips to Mobile + WiFi on the next pass.
+     * Never touches user-confirmed rows (confidenceScore >= 100).
+     */
+    /**
+     * REPAIR: a row typed TRANSFER while carrying a specific SPENDING category is a
+     * contradiction - the money paid FOR something (Groceries/Dining Out/Subscriptions)
+     * can't simultaneously be a neutral transfer excluded from totals. Most of these were
+     * locked (conf=100) by the old edit dialog whose "Mark as Transfer" checkbox silently
+     * pre-checked itself for TRANSFER-typed rows. The category is the user's explicit
+     * choice, so it wins. Linked rows (self-transfer, loan-return) and transfer-ish/income
+     * categories are left alone.
+     */
+    private suspend fun repairTransferTypedSpending(db: AppDatabase, categoryMap: Map<String, Category>): Int {
+        val spendingTypes = setOf(
+            com.saikumar.expensetracker.data.entity.CategoryType.FIXED_EXPENSE,
+            com.saikumar.expensetracker.data.entity.CategoryType.VARIABLE_EXPENSE,
+            com.saikumar.expensetracker.data.entity.CategoryType.VEHICLE
+        )
+        // Cash Withdrawal genuinely moves money to cash-in-hand; Miscellaneous/Uncategorized
+        // may be real person transfers. Offline Merchant is NOT exempt - it's only ever
+        // assigned to shop QR payments, which are always spending.
+        val exempt = setOf("Cash Withdrawal", AppConstants.Categories.MISCELLANEOUS,
+            AppConstants.Categories.UNCATEGORIZED, "Unknown Expense")
+        val catById = categoryMap.values.associateBy { it.id }
+        val linkedIds = db.transactionLinkDao().getAllLinkedTransactionIds().toSet()
+        var fixed = 0
+        for (txn in db.transactionDao().getActiveByType(TransactionType.TRANSFER)) {
+            if (txn.id in linkedIds) continue
+            val cat = catById[txn.categoryId] ?: continue
+            if (cat.type !in spendingTypes || cat.name in exempt) continue
+            db.transactionDao().updateTransaction(
+                txn.copy(transactionType = TransactionType.EXPENSE, isExpenseEligible = true)
+            )
+            fixed++
+        }
+        if (fixed > 0) Log.i(TAG, "Repaired $fixed TRANSFER-typed rows with spending categories to EXPENSE")
+        return fixed
+    }
+
+    // "IRCTC refund of Rs X credited to your Card ... Revised total due Rs Y" was typed
+    // STATEMENT ("total due" keyword) before the refund-first ordering fix, and reclassify's
+    // paging query excludes STATEMENT rows - so existing misrows need this explicit repair.
+    private val REFUND_STMT_SOURCE = Regex("""(?:^|\n)\s*([A-Za-z][A-Za-z\s]{2,25}?)\s+refund\s+of\s+Rs""", RegexOption.IGNORE_CASE)
+    private suspend fun repairRefundStatements(db: AppDatabase, categoryMap: Map<String, Category>): Int {
+        var fixed = 0
+        val refundCatId = categoryMap["Refund"]?.id
+        val settled = Regex("""refund\s+of\s+Rs[\s\d,\.]+credited""", RegexOption.IGNORE_CASE)
+        for (txn in db.transactionDao().getActiveByType(TransactionType.STATEMENT)) {
+            if (txn.confidenceScore >= 100) continue
+            val body = txn.fullSmsBody ?: continue
+            if (!settled.containsMatchIn(body)) continue
+            // Name from the leading brand when it reads like one; generic refunds
+            // ("Online Refund For UPI Ecom Trxn refund of...") keep a neutral label.
+            val src = REFUND_STMT_SOURCE.find(body)?.groupValues?.get(1)?.trim()
+                ?.takeIf { !it.contains("refund", ignoreCase = true) }
+            db.transactionDao().updateTransaction(
+                txn.copy(
+                    transactionType = TransactionType.REFUND,
+                    merchantName = src?.split(Regex("\\s+"))
+                        ?.joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercaseChar() } }
+                        ?: "Card Refund",
+                    categoryId = refundCatId ?: txn.categoryId,
+                    isExpenseEligible = false
+                )
+            )
+            fixed++
+        }
+        if (fixed > 0) Log.i(TAG, "Repaired $fixed refund-to-card rows mistyped as STATEMENT")
+        return fixed
+    }
+
+    private suspend fun refineAirtelPayments(db: AppDatabase, categoryMap: Map<String, Category>) {
+        // Only the Airtel Payments Bank card-swipe rail ("AIRTEL PAYM"); merchant-VPA
+        // Airtel payments (blinkit.../swiggy...@rxairtel) never contain this literal and
+        // are already categorized by their real merchant.
+        val airtelTxns = db.transactionDao().getByBodyPattern("AIRTEL PAYM")
+            .filter {
+                it.transactionType == TransactionType.EXPENSE && it.confidenceScore < 100 &&
+                // A bill-confirmation link already knows exactly what this paid
+                // (Electricity via Airtel Payments Bank, Airtel Black...) - don't
+                // overwrite it with the recurring-amount heuristic.
+                it.note?.contains("Bill: ") != true
+            }
+        if (airtelTxns.isEmpty()) return
+
+        val mobileWifiId = categoryMap["Mobile + WiFi"]?.id ?: return
+        val reviewId = categoryMap[AppConstants.Categories.UNCATEGORIZED]?.id ?: return
+
+        // An amount is "recurring" if it appears on 2+ Airtel charges
+        val amountCounts = airtelTxns.groupingBy { it.amountPaisa }.eachCount()
+
+        var changed = 0
+        for (txn in airtelTxns) {
+            val recurring = (amountCounts[txn.amountPaisa] ?: 0) >= 2
+            val targetId = if (recurring) mobileWifiId else reviewId
+            if (txn.categoryId != targetId) {
+                db.transactionDao().updateTransaction(
+                    txn.copy(
+                        categoryId = targetId,
+                        // keep it findable/nameable even when sent to review
+                        merchantName = txn.merchantName ?: "Airtel Payments"
+                    )
+                )
+                changed++
+            }
+        }
+        if (changed > 0) Log.i(TAG, "Airtel split-by-amount: reclassified $changed charges " +
+            "(${amountCounts.count { it.value >= 2 }} recurring amounts kept as Mobile + WiFi)")
     }
 
     private suspend fun handleRetirement(
@@ -804,8 +1085,20 @@ object SmsProcessor {
             
             // Check duplicate
             val smsHash = DuplicateChecker.generateHash(body)
+
+            // Balance snapshot for the self-audit (idempotent by hash, see scanInbox)
+            try {
+                com.saikumar.expensetracker.domain.BalanceAuditor
+                    .extractSnapshot(body, timestamp, smsHash)
+                    ?.let { db.balanceSnapshotDao().insert(it) }
+            } catch (e: Exception) { /* best-effort */ }
+
             if (DuplicateChecker.isDuplicate(db, smsHash)) return@withContext
 
+            val seededCategories = CategorySeeder.seedDefaultsIfNeeded(db.categoryDao())
+            val categoryNameMap = seededCategories.associate { it.id to it.name }
+            val rules = db.categorizationRuleDao().getAllActiveRules().first()
+            
             val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
 
             // Initialize DuplicateDetector
@@ -815,11 +1108,26 @@ object SmsProcessor {
 
             // Adaptive Categorization
             val memories = db.merchantMemoryDao().getAllConfirmedMemories().associate { it.normalizedMerchant to it.categoryId }
+        val vpaAliases = db.merchantAliasDao().getUserAliases()
+            .filter { it.rawName.contains("@") }
+            .associate { it.rawName to it.canonicalName }
+        val p2pThresholdPaise = app.preferencesManager.getSmallP2pThresholdSync()
 
             // Load User Accounts for self-transfer detection
             val userAccounts = db.userAccountDao().getAllAccounts()
 
-            val result = process(sender, body, timestamp, salaryCompanyNames = salaryCompanyNames, merchantMemories = memories, context = context, userAccounts = userAccounts)
+            val result = process(
+                sender = sender,
+                body = body,
+                timestamp = timestamp,
+                rules = rules,
+                categoryMap = categoryNameMap,
+                salaryCompanyNames = salaryCompanyNames,
+                merchantMemories = memories,
+                context = context,
+                userAccounts = userAccounts,
+                vpaAliases = vpaAliases
+            )
             
             // Post-Extraction Duplicate Check (Tier 2/3)
             if (result is ProcessingResult.Success) {
@@ -827,11 +1135,12 @@ object SmsProcessor {
                  if (parsedTxn.amountPaisa != null) {
                      val dupeCheck = duplicateDetector.check(
                         smsHash = smsHash,
-                        referenceNo = null,
+                        referenceNo = TransactionExtractor.extractReferenceNo(body),
                         amountPaisa = parsedTxn.amountPaisa,
                         timestamp = timestamp,
                         merchantName = parsedTxn.counterparty.name,
-                        accountNumberLast4 = SmsConstants.extractAccountLast4(body)
+                        accountNumberLast4 = SmsConstants.extractAccountLast4(body),
+                        isDebit = parsedTxn.isDebit
                      )
                      if (dupeCheck.isDuplicate) {
                          Log.d(TAG, "Duplicate ignored (Smart Check): ${dupeCheck.reason}")
@@ -841,9 +1150,17 @@ object SmsProcessor {
             }
             
             // Handle Non-Sucess
-            if (result is ProcessingResult.Ignored) return@withContext
+            if (result is ProcessingResult.Ignored) {
+                // Biller payment confirmations from excluded senders (see scanInbox)
+                BillReminderManager.captureConfirmation(db, body, timestamp)
+                return@withContext
+            }
             if (result is ProcessingResult.Dropped) {
                 val decision = result.decision
+                // Capture bill reminders before discarding (see scanInbox for rationale)
+                if (decision.ruleId == "FILTER_FUTURE") {
+                    BillReminderManager.capture(db, body, timestamp)
+                }
                 ClassificationDebugLogger.logRuleExecution(logId, ClassificationDebugLogger.createRuleExecution(
                     decision.ruleId, decision.reason, "LEDGER_GATE", "REJECTED", 1.0, decision.reason
                 ))
@@ -924,7 +1241,8 @@ object SmsProcessor {
                 body = body,
                 salaryHistory = null, // Will use DB fallback inside resolveAndInsert -> checkSalaryRecurrence
                 logId = logId,
-                userAccounts = userAccounts
+                userAccounts = userAccounts,
+                p2pThresholdPaise = p2pThresholdPaise
             )
             
             if (transaction != null) {
@@ -980,6 +1298,10 @@ object SmsProcessor {
         Log.d(TAG, "Pre-loading data for reclassify performance...")
         val salaryCompanyNames = app.preferencesManager.getSalaryCompanyNamesSync()
         val memories = db.merchantMemoryDao().getAllConfirmedMemories().associate { it.normalizedMerchant to it.categoryId }
+        val vpaAliases = db.merchantAliasDao().getUserAliases()
+            .filter { it.rawName.contains("@") }
+            .associate { it.rawName to it.canonicalName }
+        val p2pThresholdPaise = app.preferencesManager.getSmallP2pThresholdSync()
         val trustedNames = db.transferCircleDao().getAllTrustedNamesSync().toSet()
         val userAccounts = db.userAccountDao().getAllAccounts()
         Log.d(TAG, "Loaded ${trustedNames.size} trusted names, ${memories.size} memories, ${userAccounts.size} accounts")
@@ -1001,6 +1323,9 @@ object SmsProcessor {
             for (item in batch) {
                 val txn = item.transaction
                 if (txn.fullSmsBody.isNullOrBlank()) continue
+                // User-confirmed rows (edited via the dialog) are never re-derived - their
+                // category/type/merchant is the user's explicit choice.
+                if (txn.confidenceScore >= 100) continue
 
                 // Infer Sender Type to avoid UNKNOWN rejection
                 val inferredSenderType = when (txn.transactionType) {
@@ -1023,7 +1348,12 @@ object SmsProcessor {
                         forceSenderType = inferredSenderType,
                         salaryCompanyNames = salaryCompanyNames,
                         merchantMemories = memories,
-                        userAccounts = userAccounts
+                        // Pass context so phone-number VPAs get resolved to contact names
+                        // during reclassify too (not just live scans) - lets the improved
+                        // VPA extraction reach already-stored transactions.
+                        context = context,
+                        userAccounts = userAccounts,
+                        vpaAliases = vpaAliases
                     )
 
                     if (result is ProcessingResult.Success) {
@@ -1057,7 +1387,8 @@ object SmsProcessor {
                             categoryMap = categoryMap,
                             trustedNames = trustedNames,
                             db = db,
-                            smsHash = null
+                            smsHash = null,
+                            p2pThresholdPaise = p2pThresholdPaise
                         )
                         var resolved = resolveTransactionDetails(resolutionCtx)
 
@@ -1073,7 +1404,10 @@ object SmsProcessor {
                         // Insert merchant alias if needed
                         tryInsertMerchantAlias(db, resolved.merchantResult)
 
-                        val finalMerchant = resolved.merchantResult.normalized ?: resolved.merchantResult.raw ?: txn.merchantName
+                        // VPA fallback (see buildTransaction): an anonymous QR handle is a
+                        // better identity than a blank merchant.
+                        val finalMerchant = resolved.merchantResult.normalized ?: resolved.merchantResult.raw
+                            ?: parsed.counterparty.upiId ?: txn.merchantName
 
                         // INVARIANT: Only EXPENSE type is eligible
                         val isExpenseEligible = resolved.transactionType == TransactionType.EXPENSE
@@ -1130,8 +1464,29 @@ object SmsProcessor {
         Log.d(TAG, "Reclassify Complete. Updated $updatedCount transactions.")
         ClassificationDebugLogger.endBatchSession(context)
 
+        // Apply name consolidation, Airtel split-by-amount, CC-bill naming and
+        // bill-reminder links after reclassify too
+        try {
+            com.saikumar.expensetracker.domain.MerchantNameConsolidator.consolidate(db)
+            refineAirtelPayments(db, categoryMap)
+            com.saikumar.expensetracker.domain.CreditCardBillNamer.relabel(db, categoryMap)
+            com.saikumar.expensetracker.domain.CreditCardBillNamer.dedupe(db, categoryMap)
+            BillReminderManager.reconcile(db, categoryMap)
+            BillReminderManager.reapplyBillCategories(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Post-reclassify refinement failed", e)
+        }
+
         // Run self-transfer pairing after reclassify
         TransactionPairer.runAllPairing(context)
+
+        // Category-vs-type contradiction repair (after pairing so links are respected)
+        try {
+            repairTransferTypedSpending(db, categoryMap)
+            repairRefundStatements(db, categoryMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Transfer-typed spending repair failed", e)
+        }
     }
 
     suspend fun assignCategoryToTransaction(

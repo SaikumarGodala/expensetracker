@@ -78,24 +78,29 @@ object SmsConstants {
     }
 
     /**
-     * Pattern to extract last 4 digits of bank account number.
-     * Matches: "A/c XX1234", "Acct XX1234", "Account *1234"
+     * Pattern to extract the bank account number tail. Captures the FULL digit run;
+     * extractAccountLast4 keeps its last 4. A fixed (\d{4}) grabbed the FIRST 4 digits of
+     * longer masks ("A/C XXXXX286210" -> "2862" instead of "6210"), splitting one physical
+     * account into two identities in the ledger.
+     * Matches: "A/c XX1234", "Acct XX1234", "Account *1234", "A/C XXXXX286210"
      */
-    val ACCOUNT_PATTERN = Regex("""(?:A/c|Acct|Account)\s+[*X]*(\d{4})""", RegexOption.IGNORE_CASE)
-    
+    val ACCOUNT_PATTERN = Regex("""(?:A/c|Acct|Account)\s+[*X]*(\d{4,})""", RegexOption.IGNORE_CASE)
+
     /**
      * Pattern to extract last 4 digits of credit/debit card.
      * Matches: "Card ending 1234", "Credit Card XX1234"
      */
-    val CARD_PATTERN = Regex("""(?:Card|Credit Card)\s+(?:ending\s+)?(?:[*X]*\s*)?(\d{4})""", RegexOption.IGNORE_CASE)
-    
+    val CARD_PATTERN = Regex("""(?:Card|Credit Card)\s+(?:ending\s+)?(?:[*X]*\s*)?(\d{4,})""", RegexOption.IGNORE_CASE)
+
     /**
      * Extract account number last 4 digits from SMS body.
      * Tries account pattern first, then falls back to card pattern.
      */
     fun extractAccountLast4(body: String): String? {
-        return ACCOUNT_PATTERN.find(body)?.groupValues?.get(1)
+        val run = ACCOUNT_PATTERN.find(body)?.groupValues?.get(1)
             ?: CARD_PATTERN.find(body)?.groupValues?.get(1)
+            ?: return null
+        return run.takeLast(4)
     }
     
     // =====================================================

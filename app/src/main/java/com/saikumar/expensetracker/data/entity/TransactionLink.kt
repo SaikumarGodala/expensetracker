@@ -73,12 +73,15 @@ data class TransactionLink(
 enum class LinkType {
     /** Money moving between user's own accounts */
     SELF_TRANSFER,
-    
+
     /** Refund for a previous purchase */
     REFUND,
-    
+
     /** Credit card spend matched to bill payment */
-    CC_PAYMENT
+    CC_PAYMENT,
+
+    /** Money sent to a person and returned (or received and repaid) - a lend/return round trip */
+    LOAN_RETURN
 }
 
 enum class LinkSource {

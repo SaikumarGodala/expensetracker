@@ -1,0 +1,125 @@
+﻿--------- beginning of main
+07-12 20:23:26.633 18402 18402 I Zygote  : Process 18402 created for com.saikumar.expensetracker
+07-12 20:23:26.634 18402 18402 I .expensetracker: Late-enabling -Xcheck:jni
+07-12 20:23:26.650 18402 18402 I .expensetracker: Using generational CollectorTypeCMC GC.
+07-12 20:23:26.657 18402 18402 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+07-12 20:23:26.659 18402 18402 D ActivityThread: setConscryptValidator
+07-12 20:23:26.659 18402 18402 D ActivityThread: setConscryptValidator - put
+07-12 20:23:26.696 18402 18402 D nativeloader: Configuring clns-9 for other apk /data/app/~~qSXuDew1dbYK-IfsF3dgwg==/com.saikumar.expensetracker-2iykY8A2bsQMisrqGhMtfA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~qSXuDew1dbYK-IfsF3dgwg==/com.saikumar.expensetracker-2iykY8A2bsQMisrqGhMtfA==/lib/arm64:/data/app/~~qSXuDew1dbYK-IfsF3dgwg==/com.saikumar.expensetracker-2iykY8A2bsQMisrqGhMtfA==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.saikumar.expensetracker
+07-12 20:23:26.698 18402 18402 D CompatChangeReporter: Compat change id reported: 202956589; UID 10591; state: ENABLED
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment: Currently set values for:
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment: com.saikumar.expensetracker is not listed in per-application setting
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment: ANGLE allowlist from config: com.dreamgames.royalmatch com.dts.freefiremax com.dxx.firenow com.gramgames.mergedragons com.ludo.king com.mojang.minecraftpe com.my.defense com.nintendo.zaka com.os.airforce com.playrix.fishdomdd.gplay io.teslatech.callbreak jp.konami.prospia net.peakgames.toonblast
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment: No special selections for ANGLE, returning default driver choice
+07-12 20:23:26.702 18402 18402 V GraphicsEnvironment: App is not on the allowlist for updatable production driver.
+07-12 20:23:26.722 18402 18402 D WM-WrkMgrInitializer: Initializing WorkManager with default configuration.
+07-12 20:23:26.724 18402 18402 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemjob.SystemJobService
+07-12 20:23:26.724 18402 18402 D WM-Schedulers: Created SystemJobScheduler and enabled SystemJobService
+07-12 20:23:26.725 18402 18426 D WM-ForceStopRunnable: The default process name was not specified.
+07-12 20:23:26.726 18402 18426 D WM-ForceStopRunnable: Performing cleanup operations.
+--------- beginning of system
+07-12 20:23:26.730 18402 18402 D ActivityThread: com.saikumar.expensetracker will use render engine as VK
+07-12 20:23:26.730 18402 18402 D HWUI    : HWUI - treat SMPTE_170M as sRGB
+07-12 20:23:26.731 18402 18431 I DisplayManager: Choreographer implicitly registered for the refresh rate.
+07-12 20:23:26.731 18402 18426 E ashmem  : Pinning is deprecated since Android Q. Please use trim or other methods.
+07-12 20:23:26.731 18402 18431 D HWUI    : CacheManager constructor. deviceInfo=(1080, 1920)
+07-12 20:23:26.731 18402 18431 D vulkan  : searching for layers in '/data/app/~~qSXuDew1dbYK-IfsF3dgwg==/com.saikumar.expensetracker-2iykY8A2bsQMisrqGhMtfA==/lib/arm64'
+07-12 20:23:26.732 18402 18431 D vulkan  : searching for layers in '/data/app/~~qSXuDew1dbYK-IfsF3dgwg==/com.saikumar.expensetracker-2iykY8A2bsQMisrqGhMtfA==/base.apk!/lib/arm64-v8a'
+07-12 20:23:26.735 18402 18402 D DesktopExperienceFlags: Toggle override initialized to: false
+07-12 20:23:26.736 18402 18431 E Adreno-AppProfiles: QSPM AIDL service doesn't exist
+07-12 20:23:26.736 18402 18431 I AdrenoVK-0: ===== BEGIN DUMP OF OVERRIDDEN SETTINGS =====
+07-12 20:23:26.736 18402 18431 I AdrenoVK-0: ===== END DUMP OF OVERRIDDEN SETTINGS =====
+07-12 20:23:26.736 18402 18402 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+07-12 20:23:26.738 18402 18431 D qdgralloc: Fetching IMapper5 from QtiMapper5
+07-12 20:23:26.741 18402 18427 I AppDatabase: Database opened, version: 46
+07-12 20:23:26.742 18402 18426 D WM-SystemJobScheduler: Reconciling jobs
+07-12 20:23:26.743 18402 18427 D ExpenseTrackerApp: Database pre-initialized successfully
+07-12 20:23:26.745 18402 18402 D CompatChangeReporter: Compat change id reported: 309578419; UID 10591; state: ENABLED
+07-12 20:23:26.745 18402 18402 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_UNSET
+07-12 20:23:26.746 18402 18431 I SnapAlloc: Graphics lib is available
+07-12 20:23:26.747 18402 18426 D WM-ForceStopRunnable: Application was force-stopped, rescheduling.
+07-12 20:23:26.747 18402 18402 I DecorView: setWindowBackground: isPopOver=false color=fffafafa d=android.graphics.drawable.ColorDrawable@64372d4
+07-12 20:23:26.751 18402 18431 I Adreno-UNKNOWN: Using previously loaded IMapper library.
+07-12 20:23:26.751 18402 18402 I .expensetracker: hiddenapi: Accessing hidden method Landroid/view/ViewGroup;->makeOptionalFitsSystemWindows()V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app, TargetSdkVersion=35) using reflection: allowed
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: QUALCOMM build          : f61dec9117, I68b0a64d7e
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Build Date              : 03/26/26
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Shader Compiler Version : E031.47.18.50
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Local Branch            : 
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Remote Branch           : refs/tags/AU_LINUX_ANDROID_LA.VENDOR.15.4.0.11.00.00.1088.862
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Remote Branch           : NONE
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Reconstruct Branch      : NOTHING
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Build Config            : S P 18.0.0 AArch64
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Driver Path             : /vendor/lib64/hw/vulkan.adreno.so
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Driver Version          : 0800.64.7
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: PFP                     : 0x01500077
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: ME                      : 0x01500014
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Application Name    : android framework
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Process Name        : com.saikumar.expensetracker
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Application Version : 0x00000000
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Engine Name         : android framework
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Engine Version      : 0x00000000
+07-12 20:23:26.753 18402 18431 I AdrenoVK-0: Api Version         : 0x00401000
+07-12 20:23:26.755 18402 18427 D ExpenseTrackerApp: Categories seeded
+07-12 20:23:26.756 18402 18427 D MerchantMemoryBackup: Merchant memory database already has 131 entries, skipping restore
+07-12 20:23:26.757 18402 18402 D ViewRootImpl: desktopMode is false
+07-12 20:23:26.758 18402 18402 D CompatChangeReporter: Compat change id reported: 349153669; UID 10591; state: ENABLED
+07-12 20:23:26.758 18402 18402 I ViewRootImpl: dVRR is disabled
+07-12 20:23:26.758 18402 18440 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemalarm.RescheduleReceiver
+07-12 20:23:26.758 18402 18402 D HardwareRenderer: onDisplayChanged. displayId=0 current wxh=1080x2340 mLargest wxh=0x0
+07-12 20:23:26.758 18402 18402 D HardwareRenderer: Set largestWidth and largestHeight as logical resolution. (1080x2340)
+07-12 20:23:26.758 18402 18431 D HWUI    : setMaxSurfaceArea requested wxh=(1080,2340) requestedSurfaceArea(2527200) mMaxSurfaceArea(2073600)
+07-12 20:23:26.758 18402 18431 D NativeCustomFrequencyManager: [NativeCFMS] BpCustomFrequencyManager::BpCustomFrequencyManager()
+07-12 20:23:26.760 18402 18446 E perf_hint: Session ID too large, must fit 32-bit integer
+07-12 20:23:26.760 18402 18402 D InputTransport: Input channel constructed: 'ee66af6', fd=126
+07-12 20:23:26.761 18402 18402 I InsetsController: onStateChanged: host=com.saikumar.expensetracker/com.saikumar.expensetracker.MainActivity, from=android.view.ViewRootImpl.onInsetsStateChanged:3038, state=InsetsState: {mDisplayFrame=Rect(0, 0 - 1080, 2340), mDisplayCutout=DisplayCutout{insets=Rect(0, 103 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(511, 0 - 569, 103), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=1080 displayHeight=2340 physicalDisplayWidth=1080 physicalDisplayHeight=2340 density={3.0} cutoutSpec={M 0,0 H -9.666666666666667 V 34.33333333333333 H 9.666666666666667 V 0 H 0 Z @dp} rotation={0} scale={1.0} physicalPixelDisplaySizeRatio={1.0}}} sideOverrides={}}, mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=102, center=Point(102, 102)}, RoundedCorner{position=TopRight, radius=102, center=Point(978, 102)}, RoundedCorner{position=BottomRight, radius=102, center=Point(978, 2238)}, RoundedCorner{position=BottomLeft, radius=102, center=Point(102, 2238)}]}  mRoundedCornerFrame=Rect(0, 0 - 1080, 2340), mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(948, 0 - 1080, 103) rotation=0}, mDisplayShape=DisplayShape{ spec=-311912193 displayWidth=1080 displayHeight=2340 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}, mSources= { InsetsSource: {3 mType=ime mFrame=[0,0][0,0] mAttachedInsets=null mVisible=false mFlags=INVALID mSideHint=NONE mBoundingRects=null}, InsetsSource: {27 mType=displayCutout mFrame=[0,0][1080,103] mAttachedInsets=null mVisible=true mFlags= mSideHint=TOP mBoundingRects=null}, InsetsSource: {20950001 mType=navigationBars mFrame=[0,2295][1080,2340] mAttachedInsets=null mVisible=true mFlags=SUPPRESS_SCRIM mSideHint=BOTTOM mBoundingRects=null}, InsetsSource: {20950004 mType=systemGestures mFrame=[0,0][90,2340] mAttachedInsets=null mVisible=true mFlags= mSideHint=LEFT mBoundingRects=null}, InsetsSource: {20950005 mType=mandatorySystemGestures mFrame=[0,2244][1080,2340] mAttachedInsets=null mVisible=true mFlags= mSideHint=BOTTOM mBoundingRects=null}, InsetsSource: {20950006 mType=tappableElement mFrame=[0,0][0,0] mAttachedInsets=null mVisible=true mFlags= mSideHint=NONE mBoundingRects=null}, InsetsSource: {20950024 mType=systemGestures mFrame=[990,0][1080,2340] mAttachedInsets=null mVisible=true mFlags= mSideHint=RIGHT mBoundingRects=null}, InsetsSource: {57a50000 mType=statusBars mFrame=[0,0][1080,103] mAttachedInsets=null mVisible=true mFlags= mSideHint=TOP mBoundingRects=null}, InsetsSource: {57a50005 mType=mandatorySystemGestures mFrame=[0,0][1080,139] mAttachedInsets=null mVisible=true mFlags= mSideHint=TOP mBoundingRects=null}, InsetsSource: {57a50006 mType=tappableElement mFrame=[0,0][1080,103] mAttachedInsets=null mVisible=true mFlags= mSideHint=TOP mBoundingRects=null} }
+07-12 20:23:26.761 18402 18402 I VRI[MainActivity]@e99d6d2: synced displayState. AttachInfo displayState=2
+07-12 20:23:26.761 18402 18402 I VRI[MainActivity]@e99d6d2: setView = com.android.internal.policy.DecorView@7ceab15 IsHRR=false mFlingFrameRateChange=0 TM=true
+07-12 20:23:26.761 18402 18402 I IDS_TAG : Starting IDS observe window
+07-12 20:23:26.761 18402 18402 I IDS_TAG : Getting Shared Preference for com.saikumar.expensetracker.ExpenseTrackerApplication@1c3fb4c uid = 10591
+07-12 20:23:26.763 18402 18402 I IDS_TAG : App com.saikumar.expensetracker.ExpenseTrackerApplication@1c3fb4c being boosted by IDS
+07-12 20:23:26.763 18402 18402 I IDS_TAG : Closing IDS observe window
+07-12 20:23:26.763 18402 18402 I IDS_TAG : Getting Shared Preference for com.saikumar.expensetracker.ExpenseTrackerApplication@1c3fb4c uid = 10591
+07-12 20:23:26.764 18402 18402 D WindowOnBackDispatcher: setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@93c42f6
+07-12 20:23:26.782 18402 18402 D VRI[MainActivity]@e99d6d2: WindowInsets changed: 1080x2340 statusBars:[0,103,0,0] navigationBars:[0,0,0,45] mandatorySystemGestures:[0,139,0,96] 
+07-12 20:23:26.787 18402 18402 E BufferQueueProducer: Unable to open libpenguin.so: dlopen failed: library "libpenguin.so" not found.
+07-12 20:23:26.787 18402 18402 E .expensetracker: Unable to open libpenguin.so: dlopen failed: library "libpenguin.so" not found.
+07-12 20:23:26.787 18402 18402 I BufferQueueProducer: [](id:47e200000000,api:0,p:0,c:18402) setDequeueTimeout:2077252342
+07-12 20:23:26.787 18402 18402 I BLASTBufferQueue_Java: new BLASTBufferQueue, mName= VRI[MainActivity]@e99d6d2 mNativeObject= 0xb40000729f853d60 caller= android.view.ViewRootImpl.updateBlastSurfaceIfNeeded:3603 android.view.ViewRootImpl.relayoutWindow:11813 android.view.ViewRootImpl.performTraversals:4840 android.view.ViewRootImpl.doTraversal:3959 android.view.ViewRootImpl$TraversalRunnable.run:13034 android.view.Choreographer$CallbackRecord.run:1961 android.view.Choreographer$CallbackRecord.run:1970 android.view.Choreographer.doCallbacks:1423 android.view.Choreographer.doFrame:1348 android.view.Choreographer$FrameDisplayEventReceiver.run:1930 
+07-12 20:23:26.787 18402 18402 I BLASTBufferQueue_Java: update, w= 1080 h= 2340 mName = VRI[MainActivity]@e99d6d2 mNativeObject= 0xb40000729f853d60 sc.mNativeObject= 0xb4000072df816290 format= -1 caller= android.view.ViewRootImpl.updateBlastSurfaceIfNeeded:3608 android.view.ViewRootImpl.relayoutWindow:11813 android.view.ViewRootImpl.performTraversals:4840 android.view.ViewRootImpl.doTraversal:3959 android.view.ViewRootImpl$TraversalRunnable.run:13034 android.view.Choreographer$CallbackRecord.run:1961 
+07-12 20:23:26.788 18402 18402 I VRI[MainActivity]@e99d6d2: Relayout returned: old=(0,0,1080,2340) new=(0,0,1080,2340) relayoutAsync=false req=(1080,2340)0 dur=2 res=0x3 s={true 0xb4000072ef8329e0} ch=true seqId=0
+07-12 20:23:26.788 18402 18402 I VRI[MainActivity]@e99d6d2: performConfigurationChange setNightDimText nightDimLevel=0
+07-12 20:23:26.789 18402 18402 D VRI[MainActivity]@e99d6d2: mThreadedRenderer.initialize() mSurface={isValid=true 0xb4000072ef8329e0} hwInitialized=true
+07-12 20:23:26.790 18402 18402 D VRI[MainActivity]@e99d6d2: reportNextDraw android.view.ViewRootImpl.performTraversals:5507 android.view.ViewRootImpl.doTraversal:3959 android.view.ViewRootImpl$TraversalRunnable.run:13034 android.view.Choreographer$CallbackRecord.run:1961 android.view.Choreographer$CallbackRecord.run:1970 
+07-12 20:23:26.790 18402 18402 D VRI[MainActivity]@e99d6d2: Setup new sync=wmsSync-VRI[MainActivity]@e99d6d2#0
+07-12 20:23:26.790 18402 18402 I VRI[MainActivity]@e99d6d2: Creating new active sync group VRI[MainActivity]@e99d6d2#1
+07-12 20:23:26.790 18402 18402 D VRI[MainActivity]@e99d6d2: registerCallbacksForSync syncBuffer=false
+07-12 20:23:26.791 18402 18445 D VRI[MainActivity]@e99d6d2: Received frameDrawingCallback syncResult=0 frameNum=1.
+07-12 20:23:26.791 18402 18445 I VRI[MainActivity]@e99d6d2: mWNT: t=0xb40000730f830dd0 mBlastBufferQueue=0xb40000729f853d60 fn= 1 HdrRenderState mRenderHdrSdrRatio=1.0 caller= android.view.ViewRootImpl$12.onFrameDraw:15561 android.view.ThreadedRenderer$1.onFrameDraw:751 <bottom of call stack> 
+07-12 20:23:26.791 18402 18445 I VRI[MainActivity]@e99d6d2: Setting up sync and frameCommitCallback
+07-12 20:23:26.791 18402 18431 I AdrenoUtils: <ReadGpuID:366>: Reading chip ID through GSL
+07-12 20:23:26.793 18402 18431 I BLASTBufferQueue: [VRI[MainActivity]@e99d6d2#0](f:0,a:0,s:0) onFrameAvailable the first frame is available
+07-12 20:23:26.793 18402 18431 I SurfaceComposerClient: apply transaction with the first frame. layerId: 46705, bufferData(ID: 79035988180995, frameNumber: 1)
+07-12 20:23:26.793 18402 18431 I VRI[MainActivity]@e99d6d2: Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true
+07-12 20:23:26.794 18402 18431 D HWUI    : CFMS:: SetUp Pid : 18402    Tid : 18431
+07-12 20:23:26.794 18402 18402 D VRI[MainActivity]@e99d6d2: reportDrawFinished seqId=0
+07-12 20:23:26.805 18402 18431 D HWUI    : HWUI - treat SMPTE_170M as sRGB
+07-12 20:23:26.805 18402 18402 I InsetsSourceConsumer: applyRequestedVisibilityToControl: visible=true, type=statusBars, host=com.saikumar.expensetracker/com.saikumar.expensetracker.MainActivity
+07-12 20:23:26.805 18402 18402 I InsetsSourceConsumer: applyRequestedVisibilityToControl: visible=true, type=navigationBars, host=com.saikumar.expensetracker/com.saikumar.expensetracker.MainActivity
+07-12 20:23:26.812 18402 18402 D VRI[MainActivity]@e99d6d2: mThreadedRenderer.initializeIfNeeded()#2 mSurface={isValid=true 0xb4000072ef8329e0}
+07-12 20:23:26.813 18402 18402 D InputMethodManagerUtils: startInputInner - Id : 0
+07-12 20:23:26.813 18402 18402 I InputMethodManager: startInputInner - IInputMethodManagerGlobalInvoker.startInputOrWindowGainedFocus
+07-12 20:23:26.818 18402 18413 D InputTransport: Input channel constructed: 'ClientS', fd=149
+07-12 20:23:26.845 18402 18467 D BudgetManager: Limit exceeded. Checking for existing breaches. Month: 2026-07
+07-12 20:23:26.848 18402 18467 D BudgetManager: Stage 1 breach found with ID: 1
+07-12 20:23:26.856 18402 18402 I HWUI    : Using FreeType backend (prop=Auto)
+07-12 20:23:26.903 18402 18402 D InsetsController: hide(ime())
+07-12 20:23:26.903 18402 18402 I ImeTracker: com.saikumar.expensetracker:9ef81663: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+07-12 20:23:26.941 18402 18402 E DashboardViewModel: Failed to detect salary day: Child of the scoped flow was cancelled
+07-12 20:23:26.981 18402 18407 I .expensetracker: Compiler allocated 5313KB to compile void android.view.ViewRootImpl.performTraversals()
+07-12 20:23:32.040 18402 18757 D ProfileInstaller: Installing profile for com.saikumar.expensetracker
+07-12 20:33:09.202 18402 18402 I VRI[MainActivity]@e99d6d2: ViewPostIme pointer 0
+07-12 20:33:09.222 18402 18402 I VRI[MainActivity]@e99d6d2: call setFrameRateCategory for touch hint category=high hint, reason=touch, vri=VRI[MainActivity]@e99d6d2
+07-12 20:33:09.670 18402 18402 I VRI[MainActivity]@e99d6d2: ViewPostIme pointer 1
+07-12 20:33:12.676 18402 18402 I VRI[MainActivity]@e99d6d2: call setFrameRateCategory for touch hint category=no preference, reason=boost timeout, vri=VRI[MainActivity]@e99d6d2

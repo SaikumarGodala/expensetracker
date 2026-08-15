@@ -37,7 +37,9 @@ object DefaultCategories {
         DefaultCategoryDef("Education / Fees", CategoryType.FIXED_EXPENSE),
         DefaultCategoryDef("Home Maintenance", CategoryType.FIXED_EXPENSE),
         DefaultCategoryDef("Domestic Help", CategoryType.FIXED_EXPENSE),
-        
+        // Bank/card charges: annual & joining fees, finance/late-payment charges, GST on them
+        DefaultCategoryDef("Bank Fees", CategoryType.VARIABLE_EXPENSE),
+
         // Variable Expenses (Lifestyle)
         DefaultCategoryDef("Groceries", CategoryType.VARIABLE_EXPENSE),
         DefaultCategoryDef("Dining Out", CategoryType.VARIABLE_EXPENSE),
