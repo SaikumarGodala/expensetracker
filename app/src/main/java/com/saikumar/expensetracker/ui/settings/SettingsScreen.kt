@@ -95,6 +95,10 @@ fun SettingsScreen(
         var healthReport by remember {
             mutableStateOf<List<com.saikumar.expensetracker.domain.BalanceAuditor.AccountReport>?>(null)
         }
+        var isExporting by remember { mutableStateOf(false) }
+        var exportResult by remember {
+            mutableStateOf<com.saikumar.expensetracker.util.TransactionExporter.ExportResult?>(null)
+        }
 
         if (showReclassifyConfirmation) {
             AlertDialog(
@@ -165,6 +169,62 @@ fun SettingsScreen(
                 title = "Ledger Health Check",
                 subtitle = "Verify ledger against bank-reported balances",
                 onClick = { runHealthCheck = true }
+            )
+            HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+            SettingsItem(
+                icon = Icons.Default.Download,
+                title = if (isExporting) "Exporting…" else "Export Transactions",
+                subtitle = "Save every transaction as a CSV in Downloads",
+                onClick = {
+                    if (isExporting) return@SettingsItem
+                    isExporting = true
+                    scope.launch {
+                        try {
+                            val result = com.saikumar.expensetracker.util.TransactionExporter.exportAll(context)
+                            exportResult = result
+                        } catch (e: Exception) {
+                            Log.e("SettingsScreen", "Transaction export failed", e)
+                            viewModel.snackbarController.showError(
+                                "Export failed: ${e.message}",
+                                actionLabel = null
+                            )
+                        } finally {
+                            isExporting = false
+                        }
+                    }
+                }
+            )
+        }
+
+        // Offer the share sheet only after a successful write, so the user picks where
+        // (if anywhere) the file goes - the export itself never leaves the device.
+        exportResult?.let { result ->
+            AlertDialog(
+                onDismissRequest = { exportResult = null },
+                icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                title = { Text("Exported ${result.rowCount} transactions") },
+                text = { Text("Saved to ${result.displayPath}") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            result.uri?.let { uri ->
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/csv"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(send, "Share transactions CSV"))
+                            }
+                            exportResult = null
+                        },
+                        enabled = result.uri != null
+                    ) {
+                        Text("Share")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { exportResult = null }) { Text("Done") }
+                }
             )
         }
 

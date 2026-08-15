@@ -216,7 +216,15 @@ interface TransactionDao {
         ORDER BY timestamp DESC
     """)
     suspend fun getAllForMlExport(): List<Transaction>
-    
+
+    /**
+     * Full ledger dump for CSV export. Unlike the other read queries this one keeps
+     * STATEMENT rows so the export is a faithful picture of what the app stored - the
+     * type column lets the reader filter them back out.
+     */
+    @Query("SELECT * FROM transactions WHERE deletedAt IS NULL ORDER BY timestamp DESC")
+    suspend fun getAllForExport(): List<Transaction>
+
     /**
      * Transfer-Circle retro-apply. Deliberately guarded:
      * - amountPaisa >= :minAmountPaise - the P2P threshold applies to circle members too;
