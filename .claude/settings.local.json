@@ -90,7 +90,10 @@
       "Bash(PYTHONIOENCODING=utf-8 python -)",
       "mcp__15b66328-97e6-464e-a1e7-e3bb92842fa6__search_threads",
       "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
-      "Bash(cd /c/Users/godha/AppData/Local/Temp/claude/C--Users-godha-Desktop-Expense-Tracker-expensetracker/4e289868-95ea-4ff4-ac1f-06692816805c/scratchpad)"
+      "Bash(cd /c/Users/godha/AppData/Local/Temp/claude/C--Users-godha-Desktop-Expense-Tracker-expensetracker/4e289868-95ea-4ff4-ac1f-06692816805c/scratchpad)",
+      "Bash(echo \"BUILD_EXIT=$?\")",
+      "Bash(SP=\"/c/Users/godha/AppData/Local/Temp/claude/C--Users-godha-Desktop-Expense-Tracker-expensetracker/4e289868-95ea-4ff4-ac1f-06692816805c/scratchpad\" *)",
+      "Bash(gh auth *)"
     ]
   }
 }

@@ -45,3 +45,14 @@ scripts/venv/
 
 # Device configurations
 .idea/deploymentTargetSelector.xml
+
+# Device database pulls (contain real transaction + SMS data - never publish)
+expense_tracker_db
+expense_tracker_db-wal
+expense_tracker_db-shm
+*.db
+*.sqlite
+*.sqlite-wal
+
+# Kotlin compiler session markers
+.kotlin/
